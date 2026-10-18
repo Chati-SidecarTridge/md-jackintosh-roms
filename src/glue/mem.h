@@ -35,14 +35,20 @@
 #define GLUE_CHECKSUM_OFFSET_BYTES \
   (GLUE_ROM_SIZE_BYTES - GLUE_CHECKSUM_SIZE_BYTES)
 
-/* The glue's RAM: variables, then its stack. Provisional for EPIC-00, where
-   no Mac code runs; EPIC-01 STORY-04 decides where it lives once the Mac
-   owns low memory. */
-#define GLUE_RAM_BASE_ADDR 0x00008000
-#define GLUE_RAM_SIZE_BYTES 0x00008000
+/* The glue's RAM (D-19): a fixed block below the Mac's system heap, which a
+   patch moves up to $5400 (src/patches/plus_v3.ini, boot-sysheap-start). The
+   RAM shadows of the Mac's chips come first (shadows.s), then .data and
+   .bss; the stack at the top is used only before the glue enters the Mac
+   ROM, which sets its own. */
+#define GLUE_RAM_BASE_ADDR 0x00001400
+#define GLUE_RAM_SIZE_BYTES 0x00004000
 #define GLUE_STACK_TOP_ADDR (GLUE_RAM_BASE_ADDR + GLUE_RAM_SIZE_BYTES)
-#define GLUE_STACK_SIZE_BYTES 0x00001000
+#define GLUE_STACK_SIZE_BYTES 0x00000800
 #define GLUE_RAM_DATA_SIZE_BYTES (GLUE_RAM_SIZE_BYTES - GLUE_STACK_SIZE_BYTES)
+
+/* The Mac's screen: 32000 bytes for 640x400, 256-byte aligned, below the
+   sound buffer at MemTop - $300 (D-19). */
+#define MAC_SCREEN_BELOW_MEMTOP 0x00008100
 
 /* Debug builds: a blob the Hatari harness may preload this far below the top
    of RAM (EPIC-00 STORY-05), "JKPL", its length, then its bytes. EPIC-03's

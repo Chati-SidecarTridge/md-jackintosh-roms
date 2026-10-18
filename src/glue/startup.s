@@ -63,6 +63,37 @@ _glueReset:
 #include "memconf.inc"
     move.b  %d6, 0xffff8001.w
 
+    /* Fill the RAM from $8 to its top with $FF, as the Mac's BootPart2
+       does (plus/boot/vectors.s:610-619): BootMask, HighHeapMark and other
+       globals the ROM never sets start from it (D-16). 44 bytes a step,
+       then single longs; d5 and d6 are kept. */
+    move.l  %d5, %a0
+    movea.w #8, %a1
+    moveq   #-1, %d0
+    move.l  %d0, %d1
+    move.l  %d0, %d2
+    move.l  %d0, %d3
+    move.l  %d0, %d4
+    move.l  %d0, %d7
+    movea.l %d0, %a2
+    movea.l %d0, %a3
+    movea.l %d0, %a4
+    movea.l %d0, %a5
+    movea.l %d0, %a6
+    lea     44(%a1), %sp            /* the stack is not in use yet */
+4:
+    cmpa.l  %sp, %a0
+    bls.s   5f
+    movem.l %d0-%d4/%d7/%a2-%a6, -(%a0)
+    bra.s   4b
+5:
+    cmpa.l  %a1, %a0
+    bls.s   6f
+    move.l  %d0, -(%a0)
+    bra.s   5b
+6:
+    move.l  #GLUE_STACK_TOP_ADDR, %sp
+
     /* Copy initialised data from ROM to RAM. */
     lea     __data_rom_start, %a0
     lea     __data_start, %a1

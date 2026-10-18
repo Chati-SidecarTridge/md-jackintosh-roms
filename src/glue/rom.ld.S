@@ -43,6 +43,9 @@ SECTIONS
   .bss (NOLOAD) :
   {
     __bss_start = .;
+    /* The RAM shadows of the Mac's chips first, at the start of the glue's
+       RAM ($1400): the patches point the Mac at them. */
+    *shadows.s.o(.bss)
     *(.bss .bss.*)
     *(COMMON)
     . = ALIGN(4);

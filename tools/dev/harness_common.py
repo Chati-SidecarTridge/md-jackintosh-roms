@@ -84,6 +84,63 @@ def corrupt_copy(image, machine, dst):
     return dst
 
 
+def read_png(path):
+    """A PNG as (width, height, rows of grey levels 0-255): enough for the
+    pixel probes. 8-bit greyscale, RGB, RGBA or palette; standard library
+    only."""
+    import struct
+    import zlib
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise HarnessError(f"{path} is not a PNG")
+    pos, idat, palette = 8, b"", None
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        chunk = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour = struct.unpack(">IIBB", chunk[:10])
+        elif kind == b"PLTE":
+            palette = chunk
+        elif kind == b"IDAT":
+            idat += chunk
+        pos += 12 + length
+    if depth != 8:
+        raise HarnessError(f"{path}: bit depth {depth} not supported")
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[colour]
+    raw = zlib.decompress(idat)
+    stride = width * channels
+    rows, prev, i = [], bytearray(stride), 0
+    for _ in range(height):
+        kind, line = raw[i], bytearray(raw[i + 1:i + 1 + stride])
+        i += 1 + stride
+        for x in range(stride):
+            a = line[x - channels] if x >= channels else 0
+            b, c = prev[x], (prev[x - channels] if x >= channels else 0)
+            if kind == 1:
+                line[x] = (line[x] + a) & 0xFF
+            elif kind == 2:
+                line[x] = (line[x] + b) & 0xFF
+            elif kind == 3:
+                line[x] = (line[x] + ((a + b) >> 1)) & 0xFF
+            elif kind == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                pred = a if pa <= pb and pa <= pc else (b if pb <= pc else c)
+                line[x] = (line[x] + pred) & 0xFF
+        prev = line
+        if colour == 3:
+            rows.append([palette[3 * v] for v in line])
+        else:
+            rows.append([line[x] for x in range(0, stride, channels)])
+    return width, height, rows
+
+
+def dark_pixels(png, x0, y0, x1, y1):
+    """How many pixels in [x0, x1) x [y0, y1) are dark (< 128)."""
+    _, _, rows = png
+    return sum(1 for y in range(y0, y1) for x in range(x0, x1) if rows[y][x] < 128)
+
+
 class Trace:
     """The glue's trace as it arrives, searched forward from the last match."""
 

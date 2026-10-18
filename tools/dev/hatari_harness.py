@@ -39,7 +39,11 @@ BANKS = {512: (512, 0), 1024: (512, 512), 2048: (2048, 0), 2560: (2048, 512),
          4096: (2048, 2048)}
 # The MMU's bank size codes (src/glue/memconf.inc); an empty bank reads as 0.
 MMU_CODES = {0: 0, 128: 0, 512: 1, 2048: 2}
-SCREEN_BYTES = 32000
+MAC_SCREEN_BELOW_MEMTOP = 0x8100  # src/glue/mem.h (D-19)
+# Hatari's ST: 8.021247 MHz, a mono frame of 501 lines of 224 cycles
+# (clocks_timings.c, video.h).
+MONO_VBL_HZ = 8021247 / (501 * 224)
+MAC_TICK_HZ = 60.15  # the Plus's vertical blank
 PRELOAD_BELOW_TOP = 0x40000  # src/glue/mem.h, GLUE_PRELOAD_BELOW_TOP_BYTES
 PRELOAD_MAGIC = 0x4A4B504C   # "JKPL", GLUE_PRELOAD_MAGIC
 PRELOAD_LENGTH = 4096
@@ -110,13 +114,16 @@ def run_diag(trace, shot, steps, args, preload_line, mac):
     bank0, bank1 = BANKS[args.memsize]
     ram = args.memsize * 1024
     mmu = (MMU_CODES[bank0] << 2) | MMU_CODES[bank1]
-    screen = (ram - SCREEN_BYTES) & ~0xFF
+    screen = ram - MAC_SCREEN_BELOW_MEMTOP
 
     def need(name, pattern, timeout=STEP_TIMEOUT):
-        if trace.wait_for(pattern, timeout) is None:
+        # A crash line from the glue's debug handlers ends the session at once.
+        match = trace.wait_for(rf"(?:{pattern})|(@@ crash [^\n]*\n)", timeout)
+        if match is None or match.group(1):
             path = shot(f"fail-{name.replace(' ', '-')}")
-            steps.fail(name, f"no {pattern!r} within {timeout} s"
-                       + (f"; screenshot {path}" if path else ""))
+            why = (match.group(1).decode().strip() if match is not None
+                   else f"no {pattern!r} within {timeout} s")
+            steps.fail(name, why + (f"; screenshot {path}" if path else ""))
         steps.ok(name)
 
     machine = args.image.upper()
@@ -143,11 +150,46 @@ def run_diag(trace, shot, steps, args, preload_line, mac):
         need("image checksum", r"@@ image ok [0-9a-f]{8} [0-9a-f]{8}\n")
     need("mac rom", rf"@@ macrom {MAC_ROM_CHECKSUM} {mac['computed']:08x} {MAC_ROM_VERSION} "
          rf"reset {mac['reset']:06x}\n")
-    need("idle", r"@@ idle\n")
-    path = shot("diag")
-    if path is None:
-        steps.fail("screenshot", "Hatari wrote no screenshot")
-    steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
+    if args.corrupt:
+        need("halt on a damaged image", r"@@ halt image\n")
+        path = shot("diag")
+        if path is None:
+            steps.fail("screenshot", "Hatari wrote no screenshot")
+        steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
+        return
+    # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
+    need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {ram:06x} screen {screen:06x}\n")
+    need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
+    need("glue hook", r"@@ mac hook\n")
+    plot = trace.wait_for(r"@@ mac plotdisk [0-9a-f]{6} vbl (\d+)\n", 60, consume=False)
+    need("question-mark disk", r"@@ mac plotdisk [0-9a-f]{6} vbl \d+\n", 60)
+    steps.boot_seconds = int(plot.group(1)) / MONO_VBL_HZ if plot else None
+    need("boot loop polls the drive", r"@@ mac read offline\n", 60)
+    # The "?" blinks: shoot until one frame shows it in the disk's label
+    # (src/glue/mac.c: the icon at x 304, y 174; the symbol 15 rows down,
+    # 1 byte right, 16x15 pixels).
+    for attempt in range(8):
+        path = shot(f"question-disk-{attempt}")
+        if path is None:
+            steps.fail("screenshot", "Hatari wrote no screenshot")
+        if hc.dark_pixels(hc.read_png(path), 312, 189, 328, 204) > 0:
+            steps.ok(f"\"?\" disk on screen {os.path.relpath(path, hc.REPO)}")
+            break
+    else:
+        steps.fail("\"?\" disk on screen", f"no \"?\" in the disk's label in 8 shots; last {path}")
+    # The Mac's tick rate against Hatari's mono VBL (EPIC-02 STORY-03).
+    first = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
+    second = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
+    if first is None or second is None:
+        steps.fail("tick rate", "fewer than two @@ ticks lines")
+    ticks = int(second.group(1)) - int(first.group(1))
+    seconds = (int(second.group(2)) - int(first.group(2))) / MONO_VBL_HZ
+    rate = ticks / seconds
+    if abs(rate - MAC_TICK_HZ) / MAC_TICK_HZ > 0.01:
+        steps.fail("tick rate", f"{rate:.3f} Hz, not within 1 % of {MAC_TICK_HZ} Hz")
+    steps.ok(f"tick rate {rate:.3f} Hz over {seconds:.1f} s; boot to the \"?\" "
+             f"{steps.boot_seconds:.2f} s emulated")
+    return
 
 
 def main():
