@@ -1,0 +1,181 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. It is the single source of project context for coding agents; there is no separate `AGENTS.md`.
+
+## What this is
+
+**Jackintosh ROMs**: boot ROM images that turn an **Atari ST** or **Atari STE** into a **Macintosh Plus** at power-on, in the spirit of Spectre GCR / Spectre 128 but with no TOS, no GEM and no emulator program. The Atari's own 68000 runs the genuine Mac Plus ROM code natively; a layer of our own code (the **glue**) replaces everything the Mac ROM expects of Macintosh hardware that the Atari does not have.
+
+The pieces of the product:
+
+- **This repository**: the glue (Atari boot, RAM sizing, interrupts and timing, Shifter video, IKBD keyboard and mouse, a Mac disk driver, the cartridge protocol), the **patch table** applied to the Mac Plus ROM, and the host tool that merges a Mac Plus ROM with them into one boot image.
+- **The SidecarTridge TOS Emulator** (firmware `../sidecartos`) sits in the TOS ROM sockets and serves our image as the system ROM: 192 KB at `$FC0000` on the ST, 256 KB at `$E00000` on the STE.
+- **The SidecarTridge Multi-device** in the cartridge port runs the **md-jackintosh** microfirmware (`../md-jackintosh`), which serves Macintosh floppy and hard-disk images from its microSD card over the cartridge bus (ROM3 commands at `$FB0000`, ROM4 shared window at `$FA0000`).
+
+Design reference: `jonathanschilling/mac_rom` (<https://github.com/jonathanschilling/mac_rom>), a commented, buildable 68000 source tree that assembles bit-identical Mac 128K, 512K and Plus v1–v3 ROMs. Spectre is a behavioural reference only; none of its code is used.
+
+### The Apple bytes rule (D-02)
+
+The Mac Plus ROM is Apple's copyrighted code, also when it is assembled from mac_rom (whose MIT licence covers the annotations, not Apple's code). Therefore:
+
+- **No Apple-derived byte is ever committed or published**: no ROM dump, no assembled mac_rom output, no merged boot image, no disk image with Apple system software, and no hex dump of ROM regions in docs or code. A doc may quote a few instructions by mnemonic, with their mac_rom file:line, to explain a patch.
+- The repository and its releases carry only our glue, our patch table and the merge tool. The user supplies the Mac Plus v3 ROM (their own dump, or a local mac_rom build) and the tool checks it before merging: 131072 bytes, stored and computed checksum `$4D1F8172`, version word `$0075` at offset 8.
+- `.gitignore` excludes `*.ROM`, `*.rom`, `*.img`, `*.dsk`, `*.dc42`, `roms/`, `disks/` and `build/`. Do not weaken it. Local ROMs and disk images live outside the tree or under `build/`, named in `tools/dev/dev.cfg` (git-ignored).
+
+### Sibling repositories
+
+- `../md-jackintosh`: the Multi-device microfirmware. It owns the RP side of the cartridge protocol and the disk images. **The two repositories are developed in sync** (D-11): a change to what they share lands in both, agreed first.
+- `../sidecartos`: the TOS Emulator firmware; its `CLAUDE.md` is the authority on how an image reaches the TOS ROM sockets (sizes, names, the rescue switcher).
+- `../romemul-switcher-rom`: another bare-metal ROM for the same TOS Emulator, written by the same team. Its build arrangement (pinned Docker toolchain, out-of-tree builds, build ID), its Hatari harness (`tools/dev/hatari_harness.py`), its RAM sizing (`src/st/memconf.inc`), its Shifter setup and its NatFeats trace are the models for ours. Copy from it rather than reinventing; read-only from here. Unlike there, our backlog is never committed (D-01).
+- `../md-microfirmware-template`, `../md-drives-emulator`: the Multi-device template and the drives emulator, for the cartridge protocol as the ST side speaks it under TOS.
+
+### The shared contract with md-jackintosh
+
+- The cartridge command protocol as the template defines it (`../md-jackintosh/programming.md`, "The Transmision Protocol"): each 16-bit word `w` is sent as a read of `$FB8000` plus `w` sign-extended, i.e. `$FB0000 + (w XOR $8000)` (the template's sender sets `a0 = $FB8000` and reads `tst.b (a0,dN.w)`, `target/atarist/src/inc/sidecart_functions.s` 164–165; the RP XORs with `CHANDLER_ADDRESS_HIGH_BIT`, `rp/src/chandler.c:229`); reuse that addressing as it is; header `$ABCD`, command, payload size, random token, payload, checksum; the answer is the token echoed at `RANDOM_TOKEN_ADDR` (`$FA2004`) plus a moved seed at `RANDOM_TOKEN_SEED_ADDR` (`$FA2008`).
+- The shared 64 KB window layout (`rp/src/include/chandler.h` there): sentinel `$FA2000`, shared variables `$FA2010`, `APP_FREE` from `$FA2300`, framebuffer `$FAE0C0`. Never hard-code an offset we do not also define symbolically.
+- The Mac disk command set (codes, payloads, the sector buffer in `APP_FREE`, error codes, media-change reporting), still to be agreed (Iteration 2).
+- Under TOS the cartridge's own m68k code (`BOOT.BIN`) runs from the cartridge header. **Here nothing runs it**: there is no TOS. Our ROM speaks the protocol itself, starting with `CMD_ST_HELLO` (`$FF01`) at boot. md-jackintosh must not depend on its cartridge code having run.
+
+How to keep in sync: before changing anything above, read md-jackintosh's current source (read-only). If its Claude session is running, find it with `ListAgents` and tell it with `SendMessage` what changes, with exact values; verify what it reports against its source. If it is not running, tell Diego which md-jackintosh files must change and leave that repo untouched. Cite its backlog items as "md-jackintosh EPIC-NN / D-NN"; it cites this one as "md-jackintosh-roms EPIC-NN".
+
+## Architecture (planned; EPIC-00 and EPIC-01 confirm it)
+
+One image per machine, the glue first so that the image starts with an Atari reset header:
+
+| machine | image | glue | Mac Plus ROM (`ROMBase`) | free for glue |
+|---|---|---|---|---|
+| `st` (ST/STF/STFM) | 192 KB at `$FC0000` | `$FC0000`–`$FCFFFF` | `$FD0000`–`$FEFFFF` | 64 KB |
+| `ste` (STE) | 256 KB at `$E00000` | `$E00000`–`$E1FFFF` | `$E20000`–`$E3FFFF` | 128 KB |
+
+- **Reset header**: the first 8 bytes are the 68000's SSP and PC (the ST mirrors them at `$0`). Hatari also requires a TOS-like header: version word at bytes 2–3 in `$0100`–`$06FF` and the base address at bytes 8–11 (`$FC0000` or `$E00000`), and at most 224 KB at `$FC0000` (`../hatari/src/tos.c`, `TOS_LoadImage`) (C-05).
+- **The Mac ROM keeps every byte offset** (D-08). System 6's patches for ROM `$0075` address ROM routines by their offset from `ROMBase` and check return addresses; the ROM part of the image is the Plus v3 ROM with same-length patches only. A patch is usually a `JMP`/`JSR` absolute into the glue, padded to the original length.
+- **Patch table** (`src/patches/`, EPIC-01): each patch is an offset into the Mac ROM, the length and a hash of the original bytes it expects (the hash, not the bytes, per D-02), the replacement of the same length, and the reason with a mac_rom file:line. The merge tool refuses a ROM whose bytes differ at any patch site.
+- **What the glue replaces**: RAM sizing (the ST MMU, as TOS does) and Mac low memory; the Mac's `$40xxxx` literals and its ROM-mirror and SCSI probes (they read `$420000`/`$440000`, which is a bus error on an ST); the VIA (60.15 Hz tick, one-second interrupt, keyboard shift register, RTC/PRAM), the SCC (mouse), the IWM (`.Sony`), the SCSI chip and the sound buffer; video (`ScrnBase`, `ScreenRow` 80, 640x400 on a monochrome monitor (an SM124 or any mono display, VGA adapters included), D-04); IKBD keyboard and mouse into Mac events; a Mac block-device driver with a RAM-disk backend for Hatari and a cartridge backend for md-jackintosh.
+
+Known hazards of running Mac code on Atari hardware (EPIC-01 STORY-04 checks each against the source):
+
+- `$0`–`$7` is ROM on the ST and `$0`–`$7FF` is supervisor-only. Mac code runs in supervisor mode, so the second is harmless; writes to `$0`–`$7` are a bus error.
+- The MFP's vectored interrupts go to `$100`–`$13F` under TOS, which on the Mac is low memory (`ScrVRes`, `ScreenRow`, `MemTop` …). The MFP vector register must point elsewhere, e.g. `$30` (vectors 48–63 at `$C0`–`$FF`, unassigned on the 68000).
+- Autovector levels mean different things: the Atari's HBL is level 2, where the Mac has the SCC; its VBL is level 4, where the Mac has the interrupt switch (the debugger). The Mac runs at IPL 0, so the HBL fires about 15,700 (colour) or 31,500 (mono) times a second unless masked as TOS does.
+- Accesses above the installed RAM or to the Mac's device addresses (`$EFE1FE` VIA, `$9FFFF8`/`$BFFFF9` SCC, `$DFE1FF` IWM, `$580000` SCSI) are bus errors or hit Atari hardware. Prefer patching the code over emulating faulting accesses (Spectre did some of the latter; it is slow and fragile on a 68000).
+- The Mac tick is 60.15 Hz; the mono VBL is 71.2 Hz. `Ticks` must come from a timer, not the VBL.
+- The ST Shifter needs the screen on a 256-byte boundary (word on the STE); set the resolution only inside the vertical blank (romemul-switcher-rom EPIC-03 STORY-14: set mid-frame, a real Mega ST came up wrapped by 4 bytes; Hatari does not show it).
+
+## Common commands
+
+```bash
+tools/dev/build.sh st release      # the glue, out of tree into build/st-release/ (GLUE.BIN, GLUE.MAP, obj/)
+tools/dev/build.sh ste debug-test  # machines: st | ste; types: release | debug | test | debug-test
+tools/macrom.py build              # assemble the mac_rom submodule's Plus v3 into build/macrom/, then check it
+tools/macrom.py check <file>       # is it the Plus v3 ROM? (131072 bytes, checksum $4D1F8172, version $0075)
+tools/jackrom.py merge --machine st --glue build/st-release/GLUE.BIN -o build/st.img   # [--mac-rom FILE]
+tools/dev/all_harness.sh           # build st/ste release+debug, run every Hatari session (~30 s)
+python3 tools/dev/hatari_harness.py --image ste --memsize 4096   # one session; also --monitor rgb, --corrupt, --preload, --interactive
+make format-check                  # clang-format dry run over src/**/*.{c,h}; also format, tidy, check
+make clean                         # removes build/st-* and build/ste-*
+./docs/epics/cockpit.sh            # regenerate docs/epics/STATUS.md after editing an epic or story
+```
+
+The Mac ROM the build uses is `tools/macrom.py path`: `tools/dev/dev.cfg`'s `[macrom] file` if set, else the `external/mac_rom` submodule build (pinned at `1d1014e`). The harness merges its own image into `build/harness/<stamp>-<label>/` with the trace (`trace.txt`), Hatari's log and `shots/`. It preloads RAM through a one-shot breakpoint on `_glueMain` that runs `loadbin` (a `loadbin` straight from `--parse` is lost before the first instruction). Hatari's control socket cannot move the mouse.
+
+The glue runs from ROM: code and read-only data at the ROM base, `.data` copied to RAM and `.bss` cleared by `src/glue/startup.s`; `src/glue/mem.h` holds the layout (D-09) and is shared by C, assembly and the linker script template `rom.ld.S`, so its values carry no `UL` suffix. The build ID is `<sha7>`, `-dirty.<diff7>` when `src/`, `Makefile` or `version.txt` differ from HEAD (untracked files included), then `+debug`/`+test`; it reaches C as `BUILD_ID_STR`. Function names are camelBack (`.clang-tidy`). Adding a `.c` file: append it to `SRCS_C` in `src/glue/Makefile`.
+
+Checked on 2026-10-18: the sibling's pinned toolchain assembles mac_rom's Plus v3 unchanged, from a clone of mac_rom `1d1014e`, to 131072 bytes with stored and computed checksum `$4D1F8172` and version `$0075`, **byte-identical** to the reference Plus v3 ROM (SHA-256 `dd908e2b65772a6b1f0c859c24e9a0d3dcde17b1c6a24f4abd8955846d7895e7`).
+
+Local reference files, outside the repository (D-02):
+
+- `../macroms/archive.org/4D1F8172 - MacPlus v3.ROM`, from archive.org's `mac_rom_archive_-_as_of_8-19-2011`. Single entries of that zip download from `https://archive.org/download/mac_rom_archive_-_as_of_8-19-2011/mac_rom_archive_-_as_of_8-19-2011.zip/<name>`; Plus v1 `4D1EEEE1` and v2 `4D1EEAE1` are there too. `../macroms/macmade/Mac-Plus.ROM` (github.com/macmade/Macintosh-ROMs) is 138576 bytes, not a plain 128 KB dump, and is unexamined. macintoshrepository.org's downloads need a browser session (curl gets an HTML page).
+- `../macdisks/hampa/MacOS 6.0.8 US 800K/`, from <http://hampa.ch/pub/software/MacOS/MacOS/> (PCE's author; Systems 5.0 to 7.1.1, 800K and 1440K sets). Each `diskN.image.bin` is a DiskCopy 4.2 image in a MacBinary II wrapper (data fork at 128, DiskCopy data at 128 + `0x54`, 819200 bytes, 19200 bytes of tags). The bundled `SHA256` file checks; `disk1` ("System Tools", the startup disk) has a valid DiskCopy data checksum and `LK` boot blocks, and its raw 800K extract is `disk1.raw` (SHA-256 `4089f6ed6a39987a0f56207c25936bc61d1e7bcd0c969bbe92f3f6a28cfa7f50`). macOS has no `7z`; `bsdtar -xf` extracts these archives. The image's entrypoint changes directory, so call the assembler with `--entrypoint /bin/sh`:
+
+```bash
+docker run --rm --platform linux/x86_64 --entrypoint /bin/sh -v "$PWD/build/x:/w" -w /w/mac_rom \
+  logronoide/atarist-toolkit-docker-x86_64:1.4.0@sha256:016434131cf53f627c365e55262845fba53f30a7de87a1f122d58f8fa6aeeebe \
+  -c 'm68k-atari-mint-as -m68000 --register-prefix-optional -Iinclude --defsym ROM_TARGET=5 -o /w/plus3.o rom_plus.s && m68k-atari-mint-objcopy -O binary /w/plus3.o /w/plus3.bin'
+```
+
+CI (`.github/workflows/build.yml`, every pull request) builds the glue of both images in release and debug, assembles and checks the mac_rom ROM, and merges both images. It uploads nothing (D-02) and does not run Hatari.
+
+Docker Desktop on this Mac does not share the session scratchpad (`/private/tmp/...`): mount folders under the repository (`build/`, git-ignored) or the home directory.
+
+## Testing: Hatari first (D-07)
+
+Hardware comes late. Every code story runs in Hatari (`/usr/local/bin/hatari`, 2.6.1) before it reaches Diego's bench: the image is booted as the system ROM with `--tos`, `--machine st` or `ste`, `--monitor mono`, NatFeats on for debug builds, keys and mouse through the control socket, screenshots and the `@@` trace read by the harness, as in romemul-switcher-rom's `tools/dev/hatari_harness.py`.
+
+Hatari has no SidecarTridge (C-02). Disks in Hatari come from a **RAM-disk backend** in test builds: the harness loads a disk image into the top of ST RAM before the ROM runs, and the glue lowers the Mac's `MemTop` below it. A harness PASS says nothing about the cartridge bus, the TOS Emulator, real Shifter timing or power-on behaviour (C-01).
+
+## Conventions and gotchas (carried over from romemul-switcher-rom)
+
+- **Freestanding**: no TOS, GEMDOS, BIOS or XBIOS call anywhere; no libc, no libgcc (a 32-bit `/` or `%` GCC cannot fold fails to link, at `-O0` especially, so build every change in debug too); `LIBS` stays empty.
+- **No named sections**: the toolchain's objects are a.out, so `__attribute__((section(...)))` fails. Place data by file name in the linker script.
+- **Word alignment**: the 68000 faults on odd word and long accesses.
+- **Source header block**: every `.c`, `.h`, `.s` under `src/` starts with the `File / Author / Date / Copyright / Description` comment block, as in romemul-switcher-rom.
+- **Debug images never go on hardware**: the NatFeats trace traps on a real ST.
+- **Trace lines** (`TRACE("...")`, `@@ <line>` in debug builds) are matched exactly by the harness; change both together. Every blocking wait is preceded by a trace line.
+- **Docker file sharing on macOS**: a file the host writes into a folder a container has just recreated can stay invisible to the next container for a while; keep write-then-read steps inside one container.
+- Mac register conventions in patches: Mac OS traps take arguments in `A0`/`D0` and return `D0`; Toolbox traps use the Pascal stack convention; `D1`–`D2`/`A1` are scratch for OS traps, everything else is preserved. A patch that calls glue code saves what it touches.
+- `build/`, `dist/`, `*.o`, `*.map`, `*.bin` are generated and git-ignored; exclude them from searches.
+
+## Backlog
+
+Work is tracked in `docs/epics/`, the same procedure as romemul-switcher-rom, sidecartos and sidecartos-config. `ITERATIONS.md` is the plan and its order, `EPIC-NN-<slug>/epic.md` and `STORY-NN-<slug>.md` hold the work, `DECISIONS.md` holds the `D-NN` decisions and `C-NN` constraints, and `STATUS.md` is generated by `./docs/epics/cockpit.sh`, run after editing any epic or story. The rules are in `docs/epics/README.md`: one epic at a time, each ending in a verification story that is Diego's checkpoint, and a task is checked only when observed.
+
+**Nothing under `docs/` is ever committed** (D-01; `.gitignore` excludes it), so the backlog and `docs/macplus/` live only in the working tree; committed files must not rely on a reader being able to open them. Code is not committed until Diego says so.
+
+Iteration 1 (v0.1.0) is Hatari only: the Mac Plus ROM, patched, boots System 6 to a usable Finder on an emulated ST and STE in mono. Iteration 2 takes it to the bench with md-jackintosh and the TOS Emulator.
+
+## Working style
+
+These behavioral guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think before coding
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity first
+
+Minimum code that solves the problem. Nothing speculative.
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical changes
+
+Touch only what you must. Clean up only your own mess.
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+- When your changes orphan an import/variable/function, remove it. Don't remove pre-existing dead code unless asked.
+
+The test: every changed line should trace directly to the user's request.
+
+### 4. Goal-driven execution
+
+Define success criteria. Loop until verified.
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan with a verification check per step. For this repo the check is the Hatari harness on both images (from EPIC-00 on).
+
+### 5. No AI attribution
+
+Never add AI-tool attribution to commits, PR descriptions, code comments,
+docs, or any other artifact. This means **no**:
+- "Generated with Claude Code", "Co-authored by Claude", "Made with ChatGPT",
+  or any similar phrasing.
+- `Co-Authored-By: Claude …`, `Co-Authored-By: ChatGPT …`, or any other
+  AI co-author trailer.
+- "AI-assisted", "written with the help of an LLM", etc., as comments or
+  changelog entries.
+
+Write the message as the human author. Do not mention AI tools used to
+produce the work.

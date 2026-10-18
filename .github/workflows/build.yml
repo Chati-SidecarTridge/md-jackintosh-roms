@@ -1,0 +1,37 @@
+name: Build
+
+# Every pull request: the glue of both images in release and debug, the Mac
+# Plus v3 ROM from the mac_rom submodule, and both merged images. Nothing is
+# uploaded: a merged image holds Apple's code (D-02). The Hatari harness runs
+# on the developer's machine, not here.
+on:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout the code and the mac_rom submodule
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    # The toolchain is a pinned Docker image (tools/dev/toolchain.sh): the
+    # runner needs only Docker, git, bash and Python 3.
+    - name: Build the glue
+      run: |
+        for machine in st ste; do
+          for type in release debug; do
+            tools/dev/build.sh "$machine" "$type"
+          done
+        done
+
+    - name: Assemble and check the Mac Plus v3 ROM
+      run: python3 tools/macrom.py build
+
+    - name: Merge both images
+      run: |
+        for machine in st ste; do
+          python3 tools/jackrom.py merge --machine "$machine" \
+            --glue "build/$machine-release/GLUE.BIN" -o "build/$machine.img"
+        done

@@ -53,3 +53,27 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Build outputs and caches
+build/
+dist/
+*.bin
+*.lst
+.DS_Store
+__pycache__/
+
+# Apple ROM bytes never enter the repository (D-02): no Mac ROM dump, no image
+# built from one, no disk image with Apple system software.
+*.ROM
+*.rom
+*.img
+*.dsk
+*.image
+*.hfv
+*.dc42
+roms/
+disks/
+tools/dev/dev.cfg
+
+# The backlog and every other document under docs/ stay local (D-01).
+docs/
