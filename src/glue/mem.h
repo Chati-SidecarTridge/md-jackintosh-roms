@@ -49,9 +49,3 @@
 /* The Mac's screen: 32000 bytes for 640x400, 256-byte aligned, below the
    sound buffer at MemTop - $300 (D-19). */
 #define MAC_SCREEN_BELOW_MEMTOP 0x00008100
-
-/* Debug builds: a blob the Hatari harness may preload this far below the top
-   of RAM (EPIC-00 STORY-05), "JKPL", its length, then its bytes. EPIC-03's
-   RAM disk replaces it. */
-#define GLUE_PRELOAD_BELOW_TOP_BYTES 0x00040000
-#define GLUE_PRELOAD_MAGIC 0x4A4B504C

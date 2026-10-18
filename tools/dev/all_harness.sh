@@ -13,9 +13,9 @@ failed=0
 start=$SECONDS
 mkdir -p build/harness
 # The release glue too: trace-only code compiles out there, and a release
-# build must keep linking.
+# build must keep linking. debug-test carries the RAM disk (EPIC-03).
 for machine in st ste; do
-  for type in release debug; do
+  for type in release debug debug-test; do
     log="build/harness/build-$machine-$type.log"
     if ! tools/dev/build.sh "$machine" "$type" > "$log" 2>&1; then
       echo "FAIL build $machine $type (see $log)"
@@ -33,8 +33,10 @@ runs=(
   "--image ste --memsize 4096"
   "--image st --corrupt"
   "--image ste --corrupt"
-  "--image st --memsize 1024 --preload"
-  "--image ste --memsize 4096 --preload"
+  "--image st --memsize 4096 --type debug-test --disk @system608"
+  "--image st --memsize 2560 --type debug-test --disk @system608"
+  "--image ste --memsize 4096 --type debug-test --disk @system608"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fixed --partition"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

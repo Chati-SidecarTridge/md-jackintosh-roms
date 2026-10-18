@@ -15,11 +15,15 @@
 #include "mem.h"
 
 /* ROM labels, as offsets from the ROM's start (MAC_ROM_BASE_ADDR). */
-#define MACROM_E_SOFTRESET 0x03A8      /* plus/boot/vectors.s:659 */
-#define MACROM_SYSERRINIT 0x1036       /* plus/debugger/debugger.s:48 */
-#define MACROM_ICON_MAC_OUTLINE 0x0F3E /* plus/boot/sad_mac.s:128 */
-#define MACROM_ICON_DISK 0x0FA2        /* plus/boot/sad_mac.s */
-#define MACROM_DT_MHAPPYMAC 0x0FD2     /* plus/boot/sad_mac.s */
+#define MACROM_E_SOFTRESET 0x03A8       /* plus/boot/vectors.s:659 */
+#define MACROM_SYSERRINIT 0x1036        /* plus/debugger/debugger.s:48 */
+#define MACROM_ICON_MAC_OUTLINE 0x0F3E  /* plus/boot/sad_mac.s:128 */
+#define MACROM_ICON_DISK 0x0FA2         /* plus/boot/sad_mac.s */
+#define MACROM_DT_MHAPPYMAC 0x0FD2      /* plus/boot/sad_mac.s */
+#define MACROM_DEREFHANDLE_CONT 0x10470 /* plus/os/memory_mgr.s:1117 */
+/* DEREFHANDLE_CONT_4: memWZErr, the "free block" exit. */
+#define MACROM_DEREFHANDLE_CONT_4 0x10492
+#define MACROM_SETSIZE 0x10902 /* plus/os/memory_mgr.s:1983 */
 
 #define MACROM_ADDR(offset) (MAC_ROM_BASE_ADDR + (offset))
 
@@ -36,6 +40,12 @@
 #define MAC_JIODONE 0x08FC
 #define MAC_PWMBUF1 0x0B0A
 #define MAC_SCSIDRVRS 0x0B2E
+#define MAC_LO3BYTES 0x031A
+#define MAC_SONYVARS 0x0134
+#define MAC_SONYVARS_BYTES \
+  0x310 /* DiskVarLth, plus/resources/res_drvr_sony.s:100 */
+#define MAC_SONY_TIMEQEL 0x118 /* TimeQEl(SonyVars), res_drvr_sony.s:132 */
+#define MAC_TMADDR 6           /* a TMTask's completion routine */
 
 /* Lvl1DT slots the glue drives (plus/boot/vectors.s:751-765). */
 #define MAC_LVL1_ONESEC 0 /* OneSecInt_VIA, VIA CA2, 1 Hz */
@@ -64,6 +74,8 @@
 /* Result codes. */
 #define MAC_NOERR 0
 #define MAC_CONTROLERR (-17)
+#define MAC_WPRERR (-44)
+#define MAC_PARAMERR (-50)
 #define MAC_STATUSERR (-18)
 #define MAC_OFFLINERR (-65)
 

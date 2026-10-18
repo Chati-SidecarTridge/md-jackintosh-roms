@@ -11,7 +11,8 @@ romemul-switcher-rom's tools/dev/hatari_harness.py.
 
 Usage: hatari_harness.py [--image st|ste] [--memsize KB] [--type debug|debug-test]
                          [--monitor mono|rgb]
-                         [--corrupt] [--preload] [--interactive]
+                         [--monitor mono|rgb] [--corrupt] [--disk FILE [--fixed]
+                         [--write-protect]] [--interactive]
 
 Build the glue first (tools/dev/build.sh <st|ste> debug); the harness merges
 it with the Mac ROM of tools/macrom.py path. Each run gets a folder under
@@ -44,9 +45,9 @@ MAC_SCREEN_BELOW_MEMTOP = 0x8100  # src/glue/mem.h (D-19)
 # (clocks_timings.c, video.h).
 MONO_VBL_HZ = 8021247 / (501 * 224)
 MAC_TICK_HZ = 60.15  # the Plus's vertical blank
-PRELOAD_BELOW_TOP = 0x40000  # src/glue/mem.h, GLUE_PRELOAD_BELOW_TOP_BYTES
-PRELOAD_MAGIC = 0x4A4B504C   # "JKPL", GLUE_PRELOAD_MAGIC
-PRELOAD_LENGTH = 4096
+RAMDISK_MAGIC = 0x4A4B5244  # "JKRD", src/glue/ramdisk.c
+RAMDISK_DESCRIPTOR = 16
+RAMDISK_FIXED, RAMDISK_WRITE_PROTECT = 1, 2
 MAC_ROM_CHECKSUM = "4d1f8172"
 MAC_ROM_VERSION = "0075"
 STEP_TIMEOUT = 20
@@ -76,27 +77,53 @@ def glue_symbol(glue_map, name):
     return symbols[name]
 
 
-def preload_files(run_dir, memsize, glue_map):
-    """A blob for the glue's preload probe, and the debugger scripts that load
-    it when the CPU reaches _glueMain (from the glue's link map). A loadbin
-    straight from --parse runs before the emulation starts and its bytes are
-    gone by the first instruction, and a breakpoint on the reset PC itself
-    never fires; a one-shot breakpoint on _glueMain with :trace (go on, no
-    prompt) and :file (run the loadbin) works. Returns the --parse script and
-    the trace line the glue must print."""
-    payload = bytes((i * 7 + (i >> 8)) & 0xFF for i in range(PRELOAD_LENGTH))
-    blob = os.path.join(run_dir, "preload.bin")
-    with open(blob, "wb") as handle:
-        handle.write(struct.pack(">II", PRELOAD_MAGIC, len(payload)) + payload)
-    address = memsize * 1024 - PRELOAD_BELOW_TOP
-    load = os.path.join(run_dir, "preload-load.ini")
+def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partition=False):
+    """The test builds' RAM disk (src/glue/ramdisk.c): the raw image placed
+    64 KB-aligned below the top of RAM, a 16-byte descriptor ("JKRD", base,
+    bytes, flags) in the last 16 bytes, and the debugger scripts that load
+    both when the CPU reaches _glueMain, after the glue has filled the RAM
+    with $FF. A loadbin straight from --parse is lost before the first
+    instruction, and a breakpoint on the reset PC never fires; a one-shot
+    breakpoint with :trace (go on, no prompt) and :file (run the loadbins)
+    works. Returns the --parse script and the image's base."""
+    raw = os.path.join(run_dir, "disk.raw")
+    size = hc.raw_disk_image(disk, raw)
+    if partition:
+        whole = os.path.join(run_dir, "disk-partitioned.raw")
+        size = hc.partitioned_copy(raw, whole)
+        raw = whole
+    top = memsize * 1024
+    base = (top - RAMDISK_DESCRIPTOR - size) & ~0xFFFF
+    flags = (RAMDISK_FIXED if fixed else 0) | (RAMDISK_WRITE_PROTECT if write_protect else 0)
+    desc = os.path.join(run_dir, "ramdisk.desc")
+    with open(desc, "wb") as handle:
+        handle.write(struct.pack(">IIII", RAMDISK_MAGIC, base, size, flags))
+    load = os.path.join(run_dir, "ramdisk-load.ini")
     with open(load, "w", encoding="ascii") as handle:
-        handle.write(f"loadbin {blob} ${address:x}\n")
+        handle.write(f"loadbin {raw} ${base:x}\n")
+        handle.write(f"loadbin {desc} ${top - RAMDISK_DESCRIPTOR:x}\n")
     entry = glue_symbol(glue_map, "_glueMain")
-    script = os.path.join(run_dir, "preload.ini")
+    script = os.path.join(run_dir, "ramdisk.ini")
     with open(script, "w", encoding="ascii") as handle:
         handle.write(f"b pc = ${entry:x} :trace :once :file {load}\n")
-    return script, f"@@ preload {len(payload)} {sum(payload):08x}\n"
+    return script, {"base": base, "bytes": size, "flags": flags}
+
+
+def watch_files(run_dir, addresses, memories, parse_path):
+    """--watch / --watch-mem: a breakpoint at each code address, or on each
+    change of the long at a memory address, that prints the registers to
+    stderr.txt and goes on (:trace); added to the --parse script."""
+    regs = os.path.join(run_dir, "watch-regs.ini")
+    with open(regs, "w", encoding="ascii") as handle:
+        handle.write("r\n")
+    script = parse_path or os.path.join(run_dir, "watch.ini")
+    with open(script, "a", encoding="ascii") as handle:
+        for addr in addresses or []:
+            handle.write(f"b pc = ${int(addr, 0):x} :trace :file {regs}\n")
+        for addr in memories or []:
+            value = int(addr, 0)
+            handle.write(f"b (${value:x}).l ! (${value:x}).l :trace :file {regs}\n")
+    return script
 
 
 def mac_rom_part(image, machine):
@@ -109,16 +136,35 @@ def mac_rom_part(image, machine):
             "reset": struct.unpack(">I", rom[4:8])[0]}
 
 
-def run_diag(trace, shot, steps, args, preload_line, mac):
+def make_dumper(command, run_dir):
+    """dump_memory(specs): Hatari's debugger dumps each ADDR:LEN range
+    (--dump) after a crash; the dump lands in stdout.txt in the run folder."""
+    def dump_memory(specs):
+        if not specs:
+            return
+        out = os.path.join(run_dir, "stdout.txt")
+        for spec in specs:
+            addr, length = (int(x, 0) for x in spec.split(":"))
+            command(f"hatari-debug memdump b ${addr:x}-${addr + length:x}")
+            time.sleep(0.5)  # Hatari reads its control socket once a frame
+        time.sleep(1.0)
+        print(f"  memory dump requested into Hatari's output (see {out})", flush=True)
+    return dump_memory
+
+
+def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: None):
     """The EPIC-00 session: the diagnostic screen and its trace."""
     bank0, bank1 = BANKS[args.memsize]
     ram = args.memsize * 1024
     mmu = (MMU_CODES[bank0] << 2) | MMU_CODES[bank1]
-    screen = ram - MAC_SCREEN_BELOW_MEMTOP
+    memtop = ramdisk["base"] if ramdisk else ram
+    screen = memtop - MAC_SCREEN_BELOW_MEMTOP
 
     def need(name, pattern, timeout=STEP_TIMEOUT):
         # A crash line from the glue's debug handlers ends the session at once.
         match = trace.wait_for(rf"(?:{pattern})|(@@ crash [^\n]*\n)", timeout)
+        if match is not None and match.group(1):
+            dump_memory(args.dump)
         if match is None or match.group(1):
             path = shot(f"fail-{name.replace(' ', '-')}")
             why = (match.group(1).decode().strip() if match is not None
@@ -129,10 +175,11 @@ def run_diag(trace, shot, steps, args, preload_line, mac):
     machine = args.image.upper()
     need("boot", rf"@@ boot {machine} {hc.version()} \S+\n")
     need("ram", rf"@@ ram {ram} mmu {mmu:02x}\n")
-    if preload_line:
-        need("preload", preload_line)
-    else:
-        need("no preload", r"@@ preload none\n")
+    if ramdisk:
+        need("ram disk", rf"@@ disk ramdisk {ramdisk['bytes']} base {ramdisk['base']:06x} "
+             rf"flags {ramdisk['flags']:x}\n")
+    elif args.type == "debug-test":
+        need("no ram disk", r"@@ disk ramdisk none\n")
     ste = int(args.image == "ste")
     if args.monitor == "rgb":
         # A colour monitor gets one line asking for the mono monitor (D-04).
@@ -158,9 +205,12 @@ def run_diag(trace, shot, steps, args, preload_line, mac):
         steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
         return
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
-    need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {ram:06x} screen {screen:06x}\n")
+    need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
     need("glue hook", r"@@ mac hook\n")
+    if ramdisk:
+        run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
+        return
     plot = trace.wait_for(r"@@ mac plotdisk [0-9a-f]{6} vbl (\d+)\n", 60, consume=False)
     need("question-mark disk", r"@@ mac plotdisk [0-9a-f]{6} vbl \d+\n", 60)
     steps.boot_seconds = int(plot.group(1)) / MONO_VBL_HZ if plot else None
@@ -192,6 +242,34 @@ def run_diag(trace, shot, steps, args, preload_line, mac):
     return
 
 
+def finder_on_screen(png):
+    """The Finder's menu bar: row 19 a black line across the screen, row 10
+    mostly white with the menu titles (the grey desktop has 320 dark pixels
+    on every row)."""
+    return hc.dark_pixels(png, 0, 19, 640, 20) > 600 and hc.dark_pixels(png, 0, 10, 640, 11) < 200
+
+
+def run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, dumps):
+    """EPIC-03: the Mac boots from the RAM disk, past the Happy Mac, the
+    System's patches (relocated: D-15) and the Finder's launch, to the
+    Finder's desktop. A crash fails the step that was waiting."""
+    need("boot blocks read", r"@@ disk read 0\+2 0\n", 60)
+    need("happy mac", r"@@ mac happy\n", 60)
+    need("PTCH 117 relocated", r"@@ reloc 19012 bytes at [0-9a-f]{6} 299 of 299\n", 60)
+    start = time.time()
+    path = None
+    while time.time() - start < 90:
+        crash = trace.wait_for(r"(@@ crash [^\n]*\n)", 2)
+        path = shot("finder")
+        if crash is not None:
+            dump_memory(dumps)
+            steps.fail("finder", crash.group(1).decode().strip() + f"; screenshot {path}")
+        if path and finder_on_screen(hc.read_png(path)):
+            steps.ok(f"Finder's desktop {os.path.relpath(path, hc.REPO)}")
+            return
+    steps.fail("finder", f"no menu bar within 90 s; last screenshot {path}")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("Usage:")[0])
     parser.add_argument("--image", choices=["st", "ste"], default="st",
@@ -203,17 +281,41 @@ def main():
                         help="rgb: the glue must ask for the mono monitor")
     parser.add_argument("--corrupt", action="store_true",
                         help="flip one byte of the fill: the image checksum must fail")
-    parser.add_argument("--preload", action="store_true",
-                        help="preload a blob below the top of RAM: the glue must sum it")
+    parser.add_argument("--disk", metavar="FILE",
+                        help="boot from this disk image in the RAM disk (raw, DiskCopy 4.2, "
+                             "or MacBinary II around DiskCopy 4.2), or @NAME for tools/dev/dev.cfg's "
+                             "[disks] NAME; needs --type debug-test")
+    parser.add_argument("--fixed", action="store_true", help="the RAM disk is a hard disk")
+    parser.add_argument("--partition", action="store_true",
+                        help="wrap the volume in an Apple partition map, as a whole hard disk")
+    parser.add_argument("--write-protect", action="store_true",
+                        help="the RAM disk is write-protected")
+    parser.add_argument("--dump", action="append", metavar="ADDR:LEN",
+                        help="after a crash, have Hatari's debugger dump this memory range "
+                             "(repeatable; e.g. 0xB30:32)")
+    parser.add_argument("--watch", action="append", metavar="ADDR",
+                        help="print the registers to stderr.txt whenever the CPU reaches ADDR "
+                             "(repeatable)")
+    parser.add_argument("--watch-mem", action="append", metavar="ADDR",
+                        help="print the registers whenever the long at ADDR changes "
+                             "(repeatable; slows the emulation)")
     parser.add_argument("--interactive", action="store_true",
                         help="open a window and hand over; no PASS/FAIL")
     args = parser.parse_args()
+    if args.disk and args.disk.startswith("@"):
+        try:
+            args.disk = hc.configured_disk(args.disk[1:])
+        except hc.HarnessError as err:
+            hc.die(str(err))
+    if args.disk and args.type != "debug-test":
+        hc.die("--disk needs --type debug-test (the RAM disk is in test builds only)")
     if args.memsize == 2560 and args.image != "st":
         hc.die("2560 KB needs two different banks: only the st machine has them")
 
     label = f"hatari-{args.image}-ram{args.memsize}-{args.type}" + \
         ("-rgb" if args.monitor == "rgb" else "") + \
-        ("-corrupt" if args.corrupt else "") + ("-preload" if args.preload else "") + \
+        ("-corrupt" if args.corrupt else "") + ("-disk" if args.disk else "") + \
+        ("-hd" if args.partition else "") + \
         ("-interactive" if args.interactive else "")
     run_dir = hc.new_run_dir(label)
     os.makedirs(os.path.join(run_dir, "shots"))
@@ -225,8 +327,11 @@ def main():
     if args.corrupt:
         image = hc.corrupt_copy(image, args.image, os.path.join(run_dir, "corrupt.img"))
     glue_map = os.path.join(hc.REPO, "build", f"{args.image}-{args.type}", "GLUE.MAP")
-    parse_path, preload_line = (preload_files(run_dir, args.memsize, glue_map)
-                                if args.preload else (None, None))
+    parse_path, ramdisk = (ramdisk_files(run_dir, args.memsize, glue_map, args.disk,
+                                         args.fixed, args.write_protect, args.partition)
+                           if args.disk else (None, None))
+    if args.watch or args.watch_mem:
+        parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 
     # A clean HOME: Hatari would otherwise load the user's saved configuration.
     env = dict(os.environ, HOME=os.path.join(run_dir, "home"))
@@ -290,7 +395,11 @@ def main():
                 time.sleep(0.05)
             return None
 
-        run_diag(trace, shot, steps, args, preload_line, mac_rom_part(image, args.image))
+        def command(text):
+            conn.sendall((text + "\n").encode())
+
+        run_diag(trace, shot, steps, args, ramdisk, mac_rom_part(image, args.image),
+                 make_dumper(command, run_dir))
     except (hc.HarnessError, socket.timeout, OSError) as err:
         error = str(err)
     finally:

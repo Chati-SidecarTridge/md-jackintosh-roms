@@ -4,10 +4,9 @@
  * Date: 2026-10-18
  * Copyright: 2026 - GOODDATA LABS SL
  * Description: The glue's C side of the Mac (EPIC-02): entering the ROM at
- * E_SoftReset (D-16), the disk driver's install and its stub entry points,
- * the hook InitIOMgr calls (vectors, MFP, Timer C: D-17, D-18), the RTC and
- * PRAM, and the boot icons on the 640x400 screen. The routines the ROM
- * patches call come through macglue.s.
+ * E_SoftReset (D-16), the hook InitIOMgr calls (vectors, MFP, Timer C: D-17,
+ * D-18), the RTC and PRAM, and the boot icons on the 640x400 screen. The
+ * routines the ROM patches call come through macglue.s.
  */
 
 #include "mac.h"
@@ -15,6 +14,7 @@
 #include "hw.h"
 #include "macrom.h"
 #include "mem.h"
+#include "sysreloc.h"
 #include "text.h"
 #include "trace.h"
 
@@ -22,13 +22,10 @@
 extern unsigned char glueViaShadow[];
 extern void glueCallSysErrInit(void);
 extern void glueJumpSoftReset(void);
-extern long glueDrvrInstall(long refNum);
-extern void glueAddDrive(long driveAndRefNum, void *dqe);
 extern void glueRte(void);
 extern void glueHbl(void);
 extern void glueVbl(void);
 extern void glueTimerC(void);
-extern unsigned short glueDriver[];
 #if defined(_DEBUG) && (_DEBUG > 0)
 extern void glueCrashBus(void);
 extern void glueCrashAddress(void);
@@ -57,10 +54,12 @@ enum {
   kViaPortBButtonUp = 0x08, /* port B bit 3: the mouse button, 1 = up */
   kViaPortBSoundOff = 0x80, /* port B bit 7: sound disabled */
   kLongBytes = 4,
-  kPwmSilence = 0xFFFF,
-  kDceOpened = 0x20, /* dCtlFlags+1 bit 5 */
-  kDriveDoubleSided = 0xFF,
-  kDriveNumberShift = 16
+  kCrashCodeBefore = 40,
+  kCrashCodeWords = 32,
+  kCrashCodePerLine = 8,
+  kShortFrameWords = 3,
+  kCrashStackWords = 48,
+  kPwmSilence = 0xFFFF
 };
 
 #define MFP_REG(offset) HW_REG8(0x00FFFA01UL + (offset))
@@ -114,76 +113,6 @@ void glueMacBoot(unsigned long memTop, unsigned long screen) {
 }
 
 /* ------------------------------------------------------------------------
- * The disk driver, at unit 4 (.Sony's slot, refNum -5), with one drive.
- * EPIC-02: no disk, so the boot loop draws the "?" and keeps polling.
- */
-
-/* The drive queue element and the four flag bytes before it
-   (boot-map.md 5.4): write-protected, disk in place, installed, sides. */
-static struct {
-  unsigned char flags[4];
-  unsigned long qLink;
-  unsigned short qType;
-  unsigned short dQDrive;
-  short dQRefNum;
-  unsigned short dQFSID;
-  unsigned short dQDrvSz;
-  unsigned short dQDrvSz2;
-} glueDrive;
-
-static int glueReadTraced;
-
-void glueInstallDisk(void) {
-  const unsigned long *table =
-      *(unsigned long *const *)(unsigned long)MAC_UTABLEBASE;
-  unsigned char *dce;
-  long err = glueDrvrInstall(MAC_SONY_REFNUM);
-
-  /* _DrvrInstall made a DCE in the system heap; its handle is in the unit
-     table. Point it at our driver directly (not RAM-based) and mark it
-     open, as _Open does for a driver in ROM
-     (plus/os/device_mgr.s:480-500). */
-  dce = (unsigned char *)*(unsigned long *)table[MAC_SONY_UNIT];
-  *(unsigned long *)dce = (unsigned long)glueDriver;
-  *(unsigned short *)(dce + MAC_DCE_FLAGS) = glueDriver[0];
-  dce[MAC_DCE_FLAGS + 1] = kDceOpened; /* not RAM-based */
-
-  glueDrive.flags[0] = 0; /* not write-protected */
-  glueDrive.flags[1] = 0; /* no disk in place */
-  glueDrive.flags[2] = 1; /* installed */
-  glueDrive.flags[3] = kDriveDoubleSided;
-  glueDrive.qType = 0;
-  glueDrive.dQFSID = 0;
-  glueAddDrive((1L << kDriveNumberShift) | (unsigned short)MAC_SONY_REFNUM,
-               &glueDrive.qLink);
-  glueReadTraced = 0;
-  TRACE("mac sony %ld dce %06lx", err, (unsigned long)dce);
-  (void)err; /* traced only in debug builds */
-}
-
-/* Parameter-block fields (IOParam, CntrlParam). */
-enum { kIoCsCode = 0x1A, kCsEject = 7 };
-
-short glueDriverPrime(const unsigned char *block) {
-  (void)block;
-  if (!glueReadTraced) {
-    glueReadTraced = 1;
-    TRACE("mac read offline");
-  }
-  return MAC_OFFLINERR;
-}
-
-short glueDriverControl(const unsigned char *block) {
-  const short csCode = *(const short *)(block + kIoCsCode);
-  return csCode == kCsEject ? MAC_NOERR : MAC_CONTROLERR;
-}
-
-short glueDriverStatus(const unsigned char *block) {
-  (void)block;
-  return MAC_STATUSERR;
-}
-
-/* ------------------------------------------------------------------------
  * The hook InitIOMgr calls (D-17, D-18), on every boot and warm restart:
  * the SCSI driver count cleared as EXTRA_CONT would, the glue's vectors,
  * and Timer C started. Interrupts stay masked until ENABLE_INTERRUPTS.
@@ -214,6 +143,7 @@ void glueHook(void) {
   MFP_TCDCR = (MFP_TCDCR & kTimerDBits) | kTimerCPrescale200;
   MFP_IMRB = kMfpIerbTimerC;
   MFP_IERB = kMfpIerbTimerC;
+  glueSysRelocInstall();
   TRACE("mac hook");
 }
 
@@ -395,10 +325,12 @@ void glueShowHappyMacC(void) {
  * exception frame; a bus or address error has the function code, the
  * access address and the instruction register in front of SR and PC.
  */
-void glueCrash(long vector, unsigned short *frame) {
+void glueCrash(long vector, const unsigned short *frame,
+               const unsigned long *regs) {
   unsigned long access = 0;
   unsigned short sr;
   unsigned long pc;
+  const unsigned short *code;
   if (vector == 2 || vector == 3) {
     access = ((unsigned long)frame[1] << 16) | frame[2];
     frame += 4;
@@ -407,6 +339,32 @@ void glueCrash(long vector, unsigned short *frame) {
   pc = ((unsigned long)frame[1] << 16) | frame[2];
   TRACE("crash vector %ld pc %06lx sr %04x access %06lx", vector, pc,
         (unsigned)sr, access);
+  TRACE("crash d0-d3 %08lx %08lx %08lx %08lx", regs[0], regs[1], regs[2],
+        regs[3]);
+  TRACE("crash d4-d7 %08lx %08lx %08lx %08lx", regs[4], regs[5], regs[6],
+        regs[7]);
+  TRACE("crash a0-a3 %08lx %08lx %08lx %08lx", regs[8], regs[9], regs[10],
+        regs[11]);
+  TRACE("crash a4-a7 %08lx %08lx %08lx %08lx", regs[12], regs[13], regs[14],
+        regs[15]);
+  /* The words around the PC; a bus error's PC is a few bytes past the
+     faulting instruction. */
+  code = (const unsigned short *)((pc & ~1UL) - kCrashCodeBefore);
+  for (int i = 0; i < kCrashCodeWords; i += kCrashCodePerLine) {
+    TRACE("crash code %06lx %04x %04x %04x %04x %04x %04x %04x %04x",
+          (unsigned long)(code + i), code[i], code[i + 1], code[i + 2],
+          code[i + 3], code[i + 4], code[i + 5], code[i + 6], code[i + 7]);
+  }
+  {
+    /* The stack the faulting code was using: right after the frame. */
+    const unsigned short *after = frame + kShortFrameWords;
+    for (int i = 0; i < kCrashStackWords; i += kCrashCodePerLine) {
+      TRACE("crash stack %06lx %04x%04x %04x%04x %04x%04x %04x%04x",
+            (unsigned long)(after + i), after[i], after[i + 1], after[i + 2],
+            after[i + 3], after[i + 4], after[i + 5], after[i + 6],
+            after[i + 7]);
+    }
+  }
   textAt(0, TEXT_ROWS - 1);
   textPrintf("CRASH vector %ld pc $%06lX sr $%04X access $%06lX", vector, pc,
              (unsigned)sr, access);

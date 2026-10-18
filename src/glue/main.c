@@ -8,6 +8,7 @@
  * the diagnostic screen (EPIC-00 STORY-04), then enters the Mac ROM (EPIC-02).
  */
 
+#include "disk.h"
 #include "mac.h"
 #include "mem.h"
 #include "screen.h"
@@ -51,31 +52,11 @@ static unsigned long glueSumWords(unsigned long first, unsigned long last,
   return sum;
 }
 
-#if defined(_DEBUG) && (_DEBUG > 0)
-/* The harness's preloaded blob, if any (mem.h): its length and the 32-bit
-   sum of its bytes, traced for the harness to compare. */
-static void gluePreloadProbe(void) {
-  const unsigned long at = glueRamBytes - GLUE_PRELOAD_BELOW_TOP_BYTES;
-  const volatile unsigned long *head = (const volatile unsigned long *)at;
-  const volatile unsigned char *data;
-  unsigned long sum = 0;
-  if (head[0] != GLUE_PRELOAD_MAGIC) {
-    TRACE("preload none");
-    return;
-  }
-  data = (const volatile unsigned char *)(at + 2 * kBytesPerLong);
-  for (unsigned long i = 0; i < head[1]; ++i) {
-    sum += data[i];
-  }
-  TRACE("preload %lu %08lx", head[1], sum);
-}
-#endif
-
 void glueMain(void) {
   /* The Mac gets all the RAM; its screen sits below the sound buffer
      (D-19). The diagnostic screen uses it until the Mac draws there. */
-  const unsigned long memTop = glueRamBytes;
-  const unsigned long screen = memTop - MAC_SCREEN_BELOW_MEMTOP;
+  unsigned long memTop;
+  unsigned long screen;
   const unsigned long field = ROM_BASE_ADDR_UL + GLUE_CHECKSUM_OFFSET_BYTES;
   const unsigned long imageStored = *(const volatile unsigned long *)field;
   unsigned long imageComputed;
@@ -94,9 +75,10 @@ void glueMain(void) {
   TRACE_INIT();
   TRACE("boot %s %s %s", machine, APP_VERSION_STR, BUILD_ID_STR);
   TRACE("ram %lu mmu %02x", glueRamBytes, (unsigned)glueRamMmu);
-#if defined(_DEBUG) && (_DEBUG > 0)
-  gluePreloadProbe();
-#endif
+  /* Test builds: a RAM disk below the top of RAM takes the Mac's MemTop
+     down to its base. */
+  memTop = diskRamFind(glueRamBytes);
+  screen = memTop - MAC_SCREEN_BELOW_MEMTOP;
 
   mono = screenInit(screen);
   textInit((volatile unsigned char *)screen, mono);
