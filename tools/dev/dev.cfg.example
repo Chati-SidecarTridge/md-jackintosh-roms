@@ -1,0 +1,10 @@
+# tools/dev/dev.cfg: local paths (git-ignored). Copy this file to dev.cfg and
+# edit it. Nothing named here is ever committed (D-02).
+
+[emulators]
+hatari = /usr/local/bin/hatari
+
+[macrom]
+# A Mac Plus v3 ROM dump of your own (131072 bytes, checksum $4D1F8172).
+# Leave empty to assemble the mac_rom submodule instead (tools/macrom.py build).
+file =

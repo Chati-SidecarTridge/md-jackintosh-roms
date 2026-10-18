@@ -1,0 +1,3 @@
+[submodule "external/mac_rom"]
+	path = external/mac_rom
+	url = https://github.com/jonathanschilling/mac_rom.git
