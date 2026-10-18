@@ -8,3 +8,9 @@ hatari = /usr/local/bin/hatari
 # A Mac Plus v3 ROM dump of your own (131072 bytes, checksum $4D1F8172).
 # Leave empty to assemble the mac_rom submodule instead (tools/macrom.py build).
 file =
+
+[disks]
+# Mac disk images for the RAM-disk sessions (EPIC-03): raw, DiskCopy 4.2, or
+# MacBinary II around DiskCopy 4.2. They hold Apple's system software and
+# stay outside the repository. tools/dev/all_harness.sh boots system608.
+system608 =

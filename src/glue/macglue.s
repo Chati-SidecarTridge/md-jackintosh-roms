@@ -189,9 +189,101 @@ _glueShowHappyMac:
     movem.l (%sp)+, %d0-%d7/%a0-%a4/%a6
     jmp     (%a5)
 
+/* The Resource Manager's jCheckLoad vector ($7F0) comes here (sysreloc.c,
+   D-15). On entry A2 is the resource's reference entry and A4 the map's
+   handle (plus/toolbox/resource_mgr.s:607-617). The ROM's CheckLoad runs
+   first; then glueSysRelocCheck relocates a known resource. Every register
+   and the condition codes CheckLoad returned are kept. */
+    .globl _glueCheckLoad
+_glueCheckLoad:
+    move.l  %a4, -(%sp)                 /* the map's handle */
+    move.l  (%a4), -(%sp)               /* the map's base on entry */
+    move.l  %a2, -(%sp)                 /* the reference entry on entry */
+    movea.l _glueOrigCheckLoad, %a0
+    jsr     (%a0)
+    move    %sr, -(%sp)
+    movem.l %d0-%d2/%a0-%a1, -(%sp)
+    move.l  4 * 5 + 2 + 8(%sp), -(%sp)  /* the map's handle */
+    move.l  4 * 6 + 2 + 4(%sp), -(%sp)  /* the map's base */
+    move.l  4 * 7 + 2(%sp), -(%sp)      /* the reference entry */
+    jsr     _glueSysRelocCheck
+    lea     12(%sp), %sp
+    movem.l (%sp)+, %d0-%d2/%a0-%a1
+    move    (%sp)+, %ccr
+    lea     12(%sp), %sp
+    rts
+
+/* mm-deref-nil: the Memory Manager's pointer check (DEREFHANDLE_CONT,
+   plus/os/memory_mgr.s:1117-1127) reads the block header 8 bytes below the
+   pointer. For nil that is $FFFFF8: harmless garbage on a Plus, a bus error
+   in the ST's I/O space. A nil pointer takes the ROM's own "bad block"
+   exit (memWZErr) instead; anything else goes on as before. Replaces the
+   first 6 bytes, MOVE.L A0,D0 and AND.L (Lo3Bytes).W,D0. */
+    .globl _glueDerefCheck
+_glueDerefCheck:
+    move.l  %a0, %d0
+    and.l   MAC_LO3BYTES, %d0
+    cmp.l   #8, %d0
+    bcc.s   1f
+    movea.l %d0, %a0
+    subq.l  #8, %a0                     /* the exit adds the 8 back */
+    jmp     MACROM_ADDR(MACROM_DEREFHANDLE_CONT_4)
+1:
+    jmp     MACROM_ADDR(MACROM_DEREFHANDLE_CONT + 6)
+
+/* mm-setsize-nil: SetSize (plus/os/memory_mgr.s:1983) keeps the master
+   pointer in A1 and writes its flags through it (SETSIZE_EMPTY's BSET/BCLR,
+   SETSIZE_ERR's MOVE.B on every exit); for _SetPtrSize A1 is nil, and a
+   write to address 0 is a bus error on an ST (docs/macplus/spectre-notes.md
+   7.2). The entry's MOVEM and MOVE.B (A1),-(SP) are redone here with a nil
+   A1 pointing at a dummy byte; SetSize's own MOVEM at the exit gives the
+   caller its nil back. */
+    .globl _glueSetSizeEntry
+_glueSetSizeEntry:
+    movem.l %d1-%d6/%a0-%a3, -(%sp)
+    cmpa.w  #0, %a1
+    bne.s   1f
+    lea     glueSetSizeDummy, %a1
+1:
+    move.b  (%a1), -(%sp)
+    jmp     MACROM_ADDR(MACROM_SETSIZE + 6)
+
+    .bss
+glueSetSizeDummy:
+    .skip   2
+    .text
+
 /* ------------------------------------------------------------------------
  * OS traps for the C side
  */
+
+/* void glueInsTime(void *task) */
+    .globl _glueInsTime
+_glueInsTime:
+    movea.l 4(%sp), %a0
+    .short  0xA058                      /* _InsTime */
+    rts
+
+/* A routine that does nothing, for tasks the glue installs only to be
+   present. */
+    .globl _glueRts
+_glueRts:
+    rts
+
+/* void *glueNewPtrSysClear(unsigned long size) */
+    .globl _glueNewPtrSysClear
+_glueNewPtrSysClear:
+    move.l  4(%sp), %d0
+    .short  0xA71E                      /* _NewPtrSysClear */
+    move.l  %a0, %d0
+    rts
+
+/* unsigned long glueGetHandleSize(unsigned long handle) */
+    .globl _glueGetHandleSize
+_glueGetHandleSize:
+    movea.l 4(%sp), %a0
+    .short  0xA025                      /* _GetHandleSize */
+    rts
 
 /* long glueDrvrInstall(long refNum) */
     .globl _glueDrvrInstall
@@ -210,8 +302,7 @@ _glueAddDrive:
     rts
 
 /* ------------------------------------------------------------------------
- * The disk driver (EPIC-02: no disk yet; EPIC-03 gives it a backend). A
- * DRVR header (boot-map.md 5.4): flags read, write, control and status
+ * The disk driver (disk.c). A DRVR header (boot-map.md 5.4): flags read, write, control and status
  * enabled, need lock; the entry points as offsets from the header.
  */
     .even
@@ -233,31 +324,35 @@ drvrClose:
     moveq   #MAC_NOERR, %d0
     rts
 
-/* Prime, Control and Status end through IODone with D0 = the result
-   (plus/os/device_mgr.s:140-208), A1 = the DCE. */
+/* Prime, Control and Status (disk.c, with the parameter block and the DCE)
+   end through IODone with D0 = the result (plus/os/device_mgr.s:140-208),
+   A1 = the DCE. */
 drvrPrime:
     movem.l %d1-%d2/%a0-%a1, -(%sp)
+    move.l  %a1, -(%sp)
     move.l  %a0, -(%sp)
     jsr     _glueDriverPrime
-    addq.l  #4, %sp
+    addq.l  #8, %sp
     movem.l (%sp)+, %d1-%d2/%a0-%a1
     move.l  MAC_JIODONE, -(%sp)
     rts
 
 drvrControl:
     movem.l %d1-%d2/%a0-%a1, -(%sp)
+    move.l  %a1, -(%sp)
     move.l  %a0, -(%sp)
     jsr     _glueDriverControl
-    addq.l  #4, %sp
+    addq.l  #8, %sp
     movem.l (%sp)+, %d1-%d2/%a0-%a1
     move.l  MAC_JIODONE, -(%sp)
     rts
 
 drvrStatus:
     movem.l %d1-%d2/%a0-%a1, -(%sp)
+    move.l  %a1, -(%sp)
     move.l  %a0, -(%sp)
     jsr     _glueDriverStatus
-    addq.l  #4, %sp
+    addq.l  #8, %sp
     movem.l (%sp)+, %d1-%d2/%a0-%a1
     move.l  MAC_JIODONE, -(%sp)
     rts
@@ -265,31 +360,38 @@ drvrStatus:
 #if defined(_DEBUG) && (_DEBUG > 0)
 /* ------------------------------------------------------------------------
  * Debug builds: bus error, address error and the other faults the Mac would
- * turn into a bomb are traced with the frame, then the machine stops
- * (glueCrash). The 68000's bus and address error frames have 4 more words
- * in front of SR and PC.
+ * turn into a bomb are traced with the frame and the registers, then the
+ * machine stops (glueCrash). The 68000's bus and address error frames have
+ * 4 more words in front of SR and PC.
  */
     .globl _glueCrashBus
 _glueCrashBus:
-    move.l  %sp, -(%sp)
     move.l  #2, -(%sp)
-    jsr     _glueCrash
+    bra.s   glueCrashCommon
 
     .globl _glueCrashAddress
 _glueCrashAddress:
-    move.l  %sp, -(%sp)
     move.l  #3, -(%sp)
-    jsr     _glueCrash
+    bra.s   glueCrashCommon
 
     .globl _glueCrashIllegal
 _glueCrashIllegal:
-    move.l  %sp, -(%sp)
     move.l  #4, -(%sp)
-    jsr     _glueCrash
+    bra.s   glueCrashCommon
 
     .globl _glueCrashOther
 _glueCrashOther:
-    move.l  %sp, -(%sp)
     move.l  #0, -(%sp)
+
+/* Stack: the vector number, then the exception frame. Saves D0-D7/A0-A7
+   (A7 as it was before the exception) and calls
+   glueCrash(vector, frame, registers). */
+glueCrashCommon:
+    movem.l %d0-%d7/%a0-%a7, -(%sp)
+    lea     64 + 4(%sp), %a0            /* the exception frame */
+    move.l  %a0, 60(%sp)                /* A7 before the vector push */
+    move.l  %sp, -(%sp)                 /* the registers */
+    move.l  %a0, -(%sp)                 /* the frame */
+    move.l  64 + 8(%sp), -(%sp)         /* the vector number */
     jsr     _glueCrash
 #endif

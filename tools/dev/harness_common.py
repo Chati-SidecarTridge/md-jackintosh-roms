@@ -43,6 +43,21 @@ def emulator_path(name):
     return path
 
 
+def configured_disk(name):
+    """A disk image named in tools/dev/dev.cfg ([disks] NAME = path). Disk
+    images hold Apple's system software: they stay outside the repository
+    (D-02)."""
+    cfg = configparser.ConfigParser()
+    cfg.read(os.path.join(HERE, "dev.cfg"))
+    path = cfg.get("disks", name, fallback="").strip()
+    if not path:
+        raise HarnessError(f"no [disks] {name} in tools/dev/dev.cfg (see dev.cfg.example)")
+    path = os.path.expanduser(path)
+    if not os.path.exists(path):
+        raise HarnessError(f"[disks] {name}: {path} does not exist")
+    return path
+
+
 def version():
     with open(os.path.join(REPO, "version.txt"), encoding="utf-8") as handle:
         return handle.read().strip().lstrip("vV")
@@ -70,6 +85,59 @@ def merge_image(machine, build_type, run_dir):
     except (jackrom.JackRomError, macrom.MacRomError) as err:
         raise HarnessError(str(err)) from None
     return image
+
+
+def raw_disk_image(src, dst):
+    """A raw 512-byte-block image of src at dst: a raw image as it is, a
+    DiskCopy 4.2 image's data (at $54), or the same inside a MacBinary II
+    wrapper (data fork at 128), as hampa.ch's System disks come. The
+    DiskCopy data checksum is checked. Returns the size in bytes."""
+    import struct
+    with open(src, "rb") as handle:
+        data = handle.read()
+    if len(data) > 128 and data[0] == 0 and data[65:69] == b"dImg":
+        data = data[128:]
+    if len(data) > 0x54 and data[0x52:0x54] == b"\x01\x00":
+        size, _, checksum = struct.unpack(">III", data[0x40:0x4C])
+        raw = data[0x54:0x54 + size]
+        total = 0
+        for (word,) in struct.iter_unpack(">H", raw):
+            total = (total + word) & 0xFFFFFFFF
+            total = ((total >> 1) | (total << 31)) & 0xFFFFFFFF
+        if total != checksum:
+            raise HarnessError(f"{src}: DiskCopy data checksum {total:08x}, "
+                               f"expected {checksum:08x}")
+        data = raw
+    if not data or len(data) % 512:
+        raise HarnessError(f"{src}: {len(data)} bytes is not a whole number of blocks")
+    with open(dst, "wb") as handle:
+        handle.write(data)
+    return len(data)
+
+
+def partitioned_copy(raw, dst):
+    """A whole-disk image around a raw HFS volume, as a SCSI disk is laid
+    out: a driver descriptor ("ER") in block 0, a two-entry Apple partition
+    map from block 1 (the map, then the Apple_HFS partition at block 64),
+    then the volume. Returns the size in bytes."""
+    import struct
+    with open(raw, "rb") as handle:
+        volume = handle.read()
+    start, blocks = 64, len(volume) // 512
+    total = start + blocks
+
+    def entry(count, pstart, pblocks, name, ptype):
+        block = struct.pack(">HHIII32s32s", 0x504D, 0, count, pstart, pblocks,
+                            name.encode(), ptype.encode())
+        return block.ljust(512, b"\0")
+
+    ddm = struct.pack(">HHI", 0x4552, 512, total).ljust(512, b"\0")
+    pmap = (entry(2, 1, start - 1, "Apple", "Apple_partition_map")
+            + entry(2, start, blocks, "MacOS", "Apple_HFS"))
+    data = ddm + pmap + b"\0" * ((start - 3) * 512) + volume
+    with open(dst, "wb") as handle:
+        handle.write(data)
+    return len(data)
 
 
 def corrupt_copy(image, machine, dst):
