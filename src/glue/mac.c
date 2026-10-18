@@ -26,6 +26,14 @@ extern void glueRte(void);
 extern void glueHbl(void);
 extern void glueVbl(void);
 extern void glueTimerC(void);
+extern void glueAciaIsr(void);
+extern void glueBusError(void);
+extern unsigned long glueBusPrevious;
+extern unsigned long glueBusFixes;
+#if defined(_TEST) && (_TEST > 0)
+extern long glueBusSelfTest(void);
+#endif
+extern void glueIkbdInit(void);
 #if defined(_DEBUG) && (_DEBUG > 0)
 extern void glueCrashBus(void);
 extern void glueCrashAddress(void);
@@ -47,6 +55,7 @@ enum {
   kMfpVectorBase = 0x30, /* vectors 48-63 at $C0-$FC (D-17) */
   kMfpVectorCount = 16,
   kMfpTimerC = 5,
+  kMfpAcia = 6, /* GPIP 4 */
   kMfpIerbTimerC = 0x20,
   kTimerCPrescale200 = 0x70, /* TCDCR bits 6-4: divide by 200 */
   kTimerCData = 204,         /* 2457600 / 200 / 204 = 60.235 Hz */
@@ -98,6 +107,18 @@ void glueMacBoot(unsigned long memTop, unsigned long screen) {
   VECTOR(0x2C) = (unsigned long)glueCrashOther; /* line F */
 #endif
 
+  /* Writes to $0-$7 skipped, in every build (buserr.c); other bus errors
+     go on to the handler installed above. */
+  glueBusPrevious = VECTOR(0x08);
+  VECTOR(0x08) = (unsigned long)glueBusError;
+#if defined(_TEST) && (_TEST > 0)
+  {
+    const long balanced = glueBusSelfTest();
+    TRACE("buserr selftest %s fixes %lu", balanced ? "ok" : "unbalanced",
+          glueBusFixes);
+  }
+#endif
+
   /* INIT_MEMORY_MAP's globals (plus/boot/vectors.s:644-655), with the
      screen moved for 640x400 (D-19). */
   LOWMEM_LONG(MAC_MEMTOP) = memTop;
@@ -129,6 +150,7 @@ void glueHook(void) {
   }
   VECTOR((kMfpVectorBase + kMfpTimerC) * kLongBytes) =
       (unsigned long)glueTimerC;
+  VECTOR((kMfpVectorBase + kMfpAcia) * kLongBytes) = (unsigned long)glueAciaIsr;
   VECTOR(kVectorSpurious) = (unsigned long)glueRte;
   VECTOR(kVectorHbl) = (unsigned long)glueHbl;
   VECTOR(kVectorVbl) = (unsigned long)glueVbl;
@@ -144,6 +166,7 @@ void glueHook(void) {
   MFP_IMRB = kMfpIerbTimerC;
   MFP_IERB = kMfpIerbTimerC;
   glueSysRelocInstall();
+  glueIkbdInit();
   TRACE("mac hook");
 }
 

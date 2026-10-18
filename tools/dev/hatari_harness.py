@@ -152,7 +152,8 @@ def make_dumper(command, run_dir):
     return dump_memory
 
 
-def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: None):
+def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: None,
+             command=None, glue_map=None):
     """The EPIC-00 session: the diagnostic screen and its trace."""
     bank0, bank1 = BANKS[args.memsize]
     ram = args.memsize * 1024
@@ -204,12 +205,17 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             steps.fail("screenshot", "Hatari wrote no screenshot")
         steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
         return
+    if args.type == "debug-test":
+        # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
+        need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
     need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
     need("glue hook", r"@@ mac hook\n")
     if ramdisk:
         run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
+        if args.input:
+            run_input(trace, shot, steps, need, command, glue_map)
         return
     plot = trace.wait_for(r"@@ mac plotdisk [0-9a-f]{6} vbl (\d+)\n", 60, consume=False)
     need("question-mark disk", r"@@ mac plotdisk [0-9a-f]{6} vbl \d+\n", 60)
@@ -247,6 +253,86 @@ def finder_on_screen(png):
     mostly white with the menu titles (the grey desktop has 320 dark pixels
     on every row)."""
     return hc.dark_pixels(png, 0, 19, 640, 20) > 600 and hc.dark_pixels(png, 0, 10, 640, 11) < 200
+
+
+def run_input(trace, shot, steps, need, command, glue_map):
+    """EPIC-04: the IKBD as the Mac's keyboard and mouse, on the Finder.
+    Keys go through Hatari's control socket and the real IKBD path; the
+    cursor goes through the test builds' mailbox (glueTestInput), since the
+    control socket cannot move the mouse. The Finder is used as a person
+    would: select the disk, open it with Command-O, open the Apple menu,
+    then eject the disk with Command-Shift-1."""
+    mailbox = glue_symbol(glue_map, "_glueTestInput")
+    seq = [0]
+
+    def key(code, down):
+        command(f"hatari-event {'keydown' if down else 'keyup'} 0x{code:02x}")
+        time.sleep(0.2)
+
+    def chord(*codes):
+        for code in codes:
+            key(code, True)
+        for code in reversed(codes):
+            key(code, False)
+
+    def mouse(v, h, buttons):
+        seq[0] += 1
+        command(f"hatari-debug memwrite w ${mailbox + 2:x} ${v & 0xFFFF:x} "
+                f"${h & 0xFFFF:x} ${buttons:x}")
+        time.sleep(0.3)
+        command(f"hatari-debug memwrite w ${mailbox:x} ${seq[0]:x}")
+        need(f"cursor at {v},{h} buttons {buttons}",
+             rf"@@ input {seq[0]} at {v},{h} buttons {buttons}\n", 20)
+        time.sleep(0.5)
+
+    def screen_dark(name):
+        path = shot(name)
+        return path, hc.dark_pixels(hc.read_png(path), 0, 20, 640, 400)
+
+    _, desktop = screen_dark("desktop")
+
+    # Select the disk (its icon at the top right) and open it.
+    mouse(45, 600, 0)
+    mouse(45, 600, 1)
+    mouse(45, 600, 0)
+    chord(0x1D, 0x18)  # Control (Command) + O
+    need("Command-O", r"@@ key 3f\n", 20)
+    time.sleep(1.5)
+    path, dark = screen_dark("disk-window")
+    if dark > desktop * 0.85:
+        steps.fail("disk window", f"no window opened ({dark} dark pixels, desktop "
+                   f"{desktop}) in {path}")
+    steps.ok(f"disk window open {os.path.relpath(path, hc.REPO)}")
+
+    # File > Open by the mouse, on the disk's window: press on File, drag to
+    # Open (the menu's first item), release.
+    target = os.environ.get("JH_OPEN")  # "v,h" of an icon in the disk's window
+    if target:
+        v, h = (int(x) for x in target.split(","))
+        mouse(v, h, 0)
+        mouse(v, h, 1)
+        mouse(v, h, 0)
+        chord(0x1D, 0x18)  # Command-O
+        time.sleep(3)
+        shot("opened")
+
+    # The Apple menu.
+    mouse(10, 20, 0)
+    mouse(10, 20, 1)
+    path = shot("apple-menu")
+    box = (12, 22, 150, 82)
+    if hc.dark_pixels(hc.read_png(path), *box) > (box[2] - box[0]) * (box[3] - box[1]) // 4:
+        steps.fail("apple menu", f"no menu below the Apple in {path}")
+    steps.ok(f"Apple menu open {os.path.relpath(path, hc.REPO)}")
+    mouse(10, 20, 0)
+
+    # Command-Shift-1 (Control, Shift, 1): the Mac's own "eject disk 1",
+    # through the glue's driver.
+    chord(0x1D, 0x2A, 0x02)
+    need("Command down", r"@@ key 6f\n", 20)
+    need("Shift down", r"@@ key 71\n", 20)
+    need("1 down", r"@@ key 25\n", 20)
+    need("disk ejected", r"@@ disk eject\n", 20)
 
 
 def run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, dumps):
@@ -290,6 +376,9 @@ def main():
                         help="wrap the volume in an Apple partition map, as a whole hard disk")
     parser.add_argument("--write-protect", action="store_true",
                         help="the RAM disk is write-protected")
+    parser.add_argument("--input", action="store_true",
+                        help="after the Finder, type Command-Shift-1 and open the Apple menu "
+                             "(EPIC-04); needs --disk")
     parser.add_argument("--dump", action="append", metavar="ADDR:LEN",
                         help="after a crash, have Hatari's debugger dump this memory range "
                              "(repeatable; e.g. 0xB30:32)")
@@ -399,7 +488,7 @@ def main():
             conn.sendall((text + "\n").encode())
 
         run_diag(trace, shot, steps, args, ramdisk, mac_rom_part(image, args.image),
-                 make_dumper(command, run_dir))
+                 make_dumper(command, run_dir), command, glue_map)
     except (hc.HarnessError, socket.timeout, OSError) as err:
         error = str(err)
     finally:

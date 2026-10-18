@@ -107,6 +107,7 @@ _glueLevel1:
     lea     _glueViaShadow, %a1
     movea.l MAC_LVL1DT + 4 * MAC_LVL1_VBL, %a0
     jsr     (%a0)
+    jsr     _glueKbdTick                /* the keyboard (ikbd.c) */
 #if defined(_DEBUG) && (_DEBUG > 0)
     jsr     _glueTickProbe
 #endif
@@ -123,6 +124,78 @@ _glueLevel1:
     movem.l (%sp)+, %d0-%d3/%a0-%a3
     sf      _glueInLevel1
     rte
+
+/* The bus error vector (buserr.c): a write to $0-$7 is skipped and the
+   code resumes after the instruction; any other fault goes to the handler
+   the vector held before, with the frame as it came. */
+    .globl _glueBusError
+_glueBusError:
+    subq.l  #4, %sp                     /* room for A7, filled by glueBusFix */
+    movem.l %d0-%d7/%a0-%a6, -(%sp)
+    move.l  %sp, -(%sp)                 /* the registers, D0-D7/A0-A7 */
+    pea     64 + 4(%sp)                 /* the frame */
+    jsr     _glueBusFix
+    addq.l  #8, %sp
+    tst.l   %d0
+    beq.s   1f
+    move.l  %d0, 64 + 10(%sp)           /* the frame's PC */
+    movem.l (%sp)+, %d0-%d7/%a0-%a6
+    lea     4 + 8(%sp), %sp             /* A7's room; status, address, IR */
+    rte
+1:
+    movem.l (%sp)+, %d0-%d7/%a0-%a6
+    addq.l  #4, %sp
+    move.l  _glueBusPrevious, -(%sp)
+    rts
+
+#if defined(_TEST) && (_TEST > 0)
+/* long glueBusSelfTest(void): writes to address 0 in the forms Mac code
+   uses on nil handles; each must be skipped. Returns 1 when the stack came
+   back balanced. */
+    .globl _glueBusSelfTest
+_glueBusSelfTest:
+    move.l  %d2, -(%sp)
+    move.l  %sp, %d2
+    suba.l  %a0, %a0
+    moveq   #0x55, %d0
+    move.b  %d0, (%a0)                  /* MOVE.B Dn,(An) */
+    bset    #7, (%a0)                   /* BSET #imm,(An) */
+    move.b  %d0, -(%sp)
+    move.b  (%sp)+, (%a0)               /* MOVE.B (SP)+,(An) */
+    move.l  %d0, 4(%a0)                 /* MOVE.L Dn,d16(An) */
+    clr.w   (%a0)                       /* CLR.W (An) */
+    move.w  #0x1234, 2(%a0)             /* MOVE.W #imm,d16(An) */
+    moveq   #0, %d0
+    cmp.l   %sp, %d2
+    bne.s   2f
+    moveq   #1, %d0
+2:
+    move.l  (%sp)+, %d2
+    rts
+#endif
+
+/* The ACIAs' interrupt (MFP GPIP 4): the IKBD's bytes (ikbd.c). */
+    .globl _glueAciaIsr
+_glueAciaIsr:
+    movem.l %d0-%d1/%a0-%a1, -(%sp)
+    jsr     _glueIkbdIsr
+    movem.l (%sp)+, %d0-%d1/%a0-%a1
+    rte
+
+/* void glueCallLvl1(long slot): calls Lvl1DT[slot] as VIA_DISPATCH would,
+   A1 = the VIA shadow; from level-1 context only. The Mac's handlers may
+   use D0-D3/A0-A3. */
+    .globl _glueCallLvl1
+_glueCallLvl1:
+    move.l  4(%sp), %d0
+    movem.l %d2-%d3/%a2-%a3, -(%sp)
+    lsl.l   #2, %d0
+    lea     MAC_LVL1DT, %a0
+    movea.l 0(%a0,%d0.l), %a0
+    lea     _glueViaShadow, %a1
+    jsr     (%a0)
+    movem.l (%sp)+, %d2-%d3/%a2-%a3
+    rts
 
 /* ------------------------------------------------------------------------
  * Routines the ROM patches call (src/patches/plus_v3.ini)
