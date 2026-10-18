@@ -10,6 +10,7 @@
  */
 
 .globl _os_entry
+.globl _glueReset
 .extern _glueMain
 .extern _glueRamBytes
 .extern _glueRamMmu
@@ -49,7 +50,9 @@ _os_entry:
     .long   0                   /* os_run */
     .long   0                   /* os_dummy */
 
+/* Also the Mac ROM's reset vector (src/patches/plus_v3.ini). */
 _reset:
+_glueReset:
     move.w  #0x2700, %sr
     move.l  #GLUE_STACK_TOP_ADDR, %sp
     reset

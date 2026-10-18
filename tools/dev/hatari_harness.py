@@ -20,7 +20,6 @@ build/harness/ with the image, the trace, Hatari's log and the screenshots.
 
 import argparse
 import os
-import re
 import shutil
 import signal
 import socket
@@ -67,12 +66,10 @@ def hatari_args(image, args, run_dir, sock_path, parse_path):
 
 def glue_symbol(glue_map, name):
     """A symbol's address from the glue's link map (GLUE.MAP)."""
-    with open(glue_map, encoding="latin-1") as handle:
-        match = re.search(r"^\s+0x([0-9a-f]+)\s+" + re.escape(name) + r"\s*$",
-                          handle.read(), re.M)
-    if not match:
+    symbols = hc.jackrom.glue_symbols(glue_map)
+    if name not in symbols:
         raise hc.HarnessError(f"{name} not in {glue_map}")
-    return int(match.group(1), 16)
+    return symbols[name]
 
 
 def preload_files(run_dir, memsize, glue_map):
@@ -98,7 +95,17 @@ def preload_files(run_dir, memsize, glue_map):
     return script, f"@@ preload {len(payload)} {sum(payload):08x}\n"
 
 
-def run_diag(trace, shot, steps, args, preload_line):
+def mac_rom_part(image, machine):
+    """What the glue must report about the Mac ROM part of the merged image:
+    its computed checksum (patches change it) and its reset vector."""
+    _, glue_size, _ = hc.jackrom.MACHINES[machine]
+    with open(image, "rb") as handle:
+        rom = handle.read()[glue_size:]
+    return {"computed": hc.macrom.rom_checksum(rom),
+            "reset": struct.unpack(">I", rom[4:8])[0]}
+
+
+def run_diag(trace, shot, steps, args, preload_line, mac):
     """The EPIC-00 session: the diagnostic screen and its trace."""
     bank0, bank1 = BANKS[args.memsize]
     ram = args.memsize * 1024
@@ -134,7 +141,8 @@ def run_diag(trace, shot, steps, args, preload_line):
         need("image checksum fails", r"@@ image fail [0-9a-f]{8} [0-9a-f]{8}\n")
     else:
         need("image checksum", r"@@ image ok [0-9a-f]{8} [0-9a-f]{8}\n")
-    need("mac rom", rf"@@ macrom {MAC_ROM_CHECKSUM} {MAC_ROM_VERSION}\n")
+    need("mac rom", rf"@@ macrom {MAC_ROM_CHECKSUM} {mac['computed']:08x} {MAC_ROM_VERSION} "
+         rf"reset {mac['reset']:06x}\n")
     need("idle", r"@@ idle\n")
     path = shot("diag")
     if path is None:
@@ -240,7 +248,7 @@ def main():
                 time.sleep(0.05)
             return None
 
-        run_diag(trace, shot, steps, args, preload_line)
+        run_diag(trace, shot, steps, args, preload_line, mac_rom_part(image, args.image))
     except (hc.HarnessError, socket.timeout, OSError) as err:
         error = str(err)
     finally:

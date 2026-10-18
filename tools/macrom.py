@@ -9,7 +9,7 @@ one of two places:
   in the pinned toolchain image into build/macrom/macplus_v3.rom.
 
 Either way it must be the Plus v3 ROM: 131072 bytes, stored and computed
-checksum $4D1F8172, version $0075.
+checksum $4D1F8172, version $0075, and its known SHA-256.
 
 Usage:
   tools/macrom.py build          assemble the submodule's Plus v3, then check it
@@ -34,6 +34,10 @@ DEV_CFG = os.path.join(HERE, "dev", "dev.cfg")
 ROM_SIZE = 0x20000
 ROM_CHECKSUM = 0x4D1F8172
 ROM_VERSION = 0x0075
+# The Plus v3 ROM is one known file: the archive.org reference and the mac_rom
+# build are byte-identical (EPIC-00 STORY-02). The additive checksum alone can
+# be fooled by two compensating changes.
+ROM_SHA256 = "dd908e2b65772a6b1f0c859c24e9a0d3dcde17b1c6a24f4abd8955846d7895e7"
 ROM_TARGET_PLUS_V3 = 5  # mac_rom include/rom_target.inc
 
 
@@ -61,7 +65,12 @@ def check_rom(data):
             f"the Plus v3 ROM has ${ROM_CHECKSUM:08X}")
     if version != ROM_VERSION:
         raise MacRomError(f"version ${version:04X}, not ${ROM_VERSION:04X}")
-    return hashlib.sha256(data).hexdigest()
+    digest = hashlib.sha256(data).hexdigest()
+    if digest != ROM_SHA256:
+        raise MacRomError(
+            f"checksum and version match, but the SHA-256 is {digest}, not the "
+            f"Plus v3 ROM's {ROM_SHA256}")
+    return digest
 
 
 def check_file(path):
