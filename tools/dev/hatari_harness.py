@@ -162,8 +162,9 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     screen = memtop - MAC_SCREEN_BELOW_MEMTOP
 
     def need(name, pattern, timeout=STEP_TIMEOUT):
-        # A crash line from the glue's debug handlers ends the session at once.
-        match = trace.wait_for(rf"(?:{pattern})|(@@ crash [^\n]*\n)", timeout)
+        # A crash line from the glue's debug handlers, or a halt the step does
+        # not expect (an unknown System: EPIC-08), ends the session at once.
+        match = trace.wait_for(rf"(?:{pattern})|(@@ (?:crash|halt) [^\n]*\n)", timeout)
         if match is not None and match.group(1):
             dump_memory(args.dump)
         if match is None or match.group(1):
@@ -211,11 +212,27 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
     need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
+    # EPIC-08 STORY-03: HWCfgFlags $40 (XPRAM, no SCSI), and InitUtil's
+    # 'Bugs' signature written into the glue's XPRAM.
+    need("xpram", r"@@ mac xpram hwcfg 40 sig 42756773\n")
+    if args.type == "debug-test":
+        # EPIC-08 STORY-06: _SetPtrSize keeps a nil master pointer (the
+        # bus-error handler skips SetSize's flag writes through it).
+        need("set pointer size", r"@@ mm setptrsize grow -108 shrink 0\n")
     need("glue hook", r"@@ mac hook\n")
     if ramdisk:
         run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
         if args.input:
-            run_input(trace, shot, steps, need, command, glue_map)
+            def restart():
+                # The same boot again, the RAM disk kept (EPIC-08 STORY-01).
+                need("restart", rf"@@ boot {machine} {hc.version()} \S+\n", 60)
+                need("ram disk kept", rf"@@ disk ramdisk {ramdisk['bytes']} "
+                     rf"base {ramdisk['base']:06x} flags {ramdisk['flags']:x}\n")
+                need("mac enter again", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} "
+                     rf"screen {screen:06x}\n")
+                run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
+
+            run_input(trace, shot, steps, need, command, glue_map, restart)
         return
     plot = trace.wait_for(r"@@ mac plotdisk [0-9a-f]{6} vbl (\d+)\n", 60, consume=False)
     need("question-mark disk", r"@@ mac plotdisk [0-9a-f]{6} vbl \d+\n", 60)
@@ -223,8 +240,11 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     need("boot loop polls the drive", r"@@ mac read offline\n", 60)
     # The "?" blinks: shoot until one frame shows it in the disk's label
     # (src/glue/mac.c: the icon at x 304, y 174; the symbol 15 rows down,
-    # 1 byte right, 16x15 pixels).
-    for attempt in range(8):
+    # 1 byte right, 16x15 pixels). Each shot follows a trace line that drew
+    # the icon (an address, not 000000), not a random phase of the blink.
+    for attempt in range(16):
+        trace.skip()
+        trace.wait_for(r"@@ mac plotdisk (?!000000)[0-9a-f]{6} vbl \d+\n", 10)
         path = shot(f"question-disk-{attempt}")
         if path is None:
             steps.fail("screenshot", "Hatari wrote no screenshot")
@@ -232,7 +252,7 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             steps.ok(f"\"?\" disk on screen {os.path.relpath(path, hc.REPO)}")
             break
     else:
-        steps.fail("\"?\" disk on screen", f"no \"?\" in the disk's label in 8 shots; last {path}")
+        steps.fail("\"?\" disk on screen", f"no \"?\" in the disk's label in 16 shots; last {path}")
     # The Mac's tick rate against Hatari's mono VBL (EPIC-02 STORY-03).
     first = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
     second = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
@@ -255,13 +275,15 @@ def finder_on_screen(png):
     return hc.dark_pixels(png, 0, 19, 640, 20) > 600 and hc.dark_pixels(png, 0, 10, 640, 11) < 200
 
 
-def run_input(trace, shot, steps, need, command, glue_map):
+def run_input(trace, shot, steps, need, command, glue_map, restart):
     """EPIC-04: the IKBD as the Mac's keyboard and mouse, on the Finder.
     Keys go through Hatari's control socket and the real IKBD path; the
     cursor goes through the test builds' mailbox (glueTestInput), since the
     control socket cannot move the mouse. The Finder is used as a person
     would: select the disk, open it with Command-O, open the Apple menu,
-    then eject the disk with Command-Shift-1."""
+    the Chooser and AppleTalk (which fails cleanly), then eject the disk
+    with Command-Shift-1; then Special > Restart, and the Finder again from
+    the same RAM disk (EPIC-08)."""
     mailbox = glue_symbol(glue_map, "_glueTestInput")
     seq = [0]
 
@@ -324,7 +346,47 @@ def run_input(trace, shot, steps, need, command, glue_map):
     if hc.dark_pixels(hc.read_png(path), *box) > (box[2] - box[0]) * (box[3] - box[1]) // 4:
         steps.fail("apple menu", f"no menu below the Apple in {path}")
     steps.ok(f"Apple menu open {os.path.relpath(path, hc.REPO)}")
-    mouse(10, 20, 0)
+
+    # EPIC-08 STORY-04: the Chooser, from the Apple menu. AppleTalk Active
+    # fails cleanly (the glue marks both serial ports in use: no SCC), then
+    # the Chooser closes. A window or alert is seen by its frame, a column
+    # dark from row 90 to 240.
+    def framed(name, *columns):
+        path = shot(name)
+        png = hc.read_png(path)
+        return path, all(hc.dark_pixels(png, x, 90, x + 1, 240) == 150 for x in columns)
+
+    mouse(59, 50, 1)  # drag to Chooser, release
+    mouse(59, 50, 0)
+    time.sleep(3)
+    path, ok = framed("chooser", 121, 518)
+    if not ok:
+        steps.fail("chooser", f"no Chooser window in {path}")
+    steps.ok(f"Chooser open {os.path.relpath(path, hc.REPO)}")
+    for name, v, h in (("appletalk-active", 272, 395), ("appletalk-continue", 220, 291)):
+        mouse(v, h, 0)
+        mouse(v, h, 1)
+        mouse(v, h, 0)
+        time.sleep(3)
+    path, ok = framed("appletalk-alert", 137, 445)
+    if not ok:
+        steps.fail("appletalk", f"no \"AppleTalk cannot be opened\" alert in {path}")
+    steps.ok(f"AppleTalk fails cleanly {os.path.relpath(path, hc.REPO)}")
+    # Continue, then Continue on "make sure that the AppleTalk network is
+    # disconnected", as the Chooser goes back to Inactive.
+    for _ in range(2):
+        mouse(220, 291, 0)
+        mouse(220, 291, 1)
+        mouse(220, 291, 0)
+        time.sleep(2)
+    mouse(61, 133, 0)  # the Chooser's close box
+    mouse(61, 133, 1)
+    mouse(61, 133, 0)
+    time.sleep(2)
+    path, ok = framed("chooser-closed", 121)
+    if ok:
+        steps.fail("chooser closed", f"the Chooser is still open in {path}")
+    steps.ok(f"Chooser closed {os.path.relpath(path, hc.REPO)}")
 
     # Command-Shift-1 (Control, Shift, 1): the Mac's own "eject disk 1",
     # through the glue's driver.
@@ -333,6 +395,16 @@ def run_input(trace, shot, steps, need, command, glue_map):
     need("Shift down", r"@@ key 71\n", 20)
     need("1 down", r"@@ key 25\n", 20)
     need("disk ejected", r"@@ disk eject\n", 20)
+
+    # EPIC-08: Special > Restart. Press on Special, drag to Restart,
+    # release; the Mac restarts through glueReset, which keeps the RAM disk.
+    mouse(10, 185, 0)
+    mouse(10, 185, 1)
+    path = shot("special-menu")
+    steps.ok(f"Special menu {os.path.relpath(path, hc.REPO)}")
+    mouse(107, 190, 1)
+    mouse(107, 190, 0)
+    restart()
 
 
 def run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, dumps):
@@ -377,8 +449,9 @@ def main():
     parser.add_argument("--write-protect", action="store_true",
                         help="the RAM disk is write-protected")
     parser.add_argument("--input", action="store_true",
-                        help="after the Finder, type Command-Shift-1 and open the Apple menu "
-                             "(EPIC-04); needs --disk")
+                        help="after the Finder, use it: open the disk, the Apple menu, "
+                             "Command-Shift-1, then Special > Restart to the Finder again "
+                             "(EPIC-04, EPIC-08); needs --disk")
     parser.add_argument("--dump", action="append", metavar="ADDR:LEN",
                         help="after a crash, have Hatari's debugger dump this memory range "
                              "(repeatable; e.g. 0xB30:32)")

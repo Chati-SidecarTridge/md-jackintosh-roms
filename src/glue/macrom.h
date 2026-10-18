@@ -23,7 +23,6 @@
 #define MACROM_DEREFHANDLE_CONT 0x10470 /* plus/os/memory_mgr.s:1117 */
 /* DEREFHANDLE_CONT_4: memWZErr, the "free block" exit. */
 #define MACROM_DEREFHANDLE_CONT_4 0x10492
-#define MACROM_SETSIZE 0x10902 /* plus/os/memory_mgr.s:1983 */
 
 #define MACROM_ADDR(offset) (MAC_ROM_BASE_ADDR + (offset))
 
@@ -42,6 +41,8 @@
 #define MAC_SCSIDRVRS 0x0B2E
 #define MAC_LO3BYTES 0x031A
 #define MAC_SONYVARS 0x0134
+#define MAC_HWCFGFLAGS 0x0B22 /* bit 6: XPRAM (boot-hwcfg-xpram) */
+#define MAC_PORTAUSE 0x0290   /* PortAUse, then PortBUse: bit 7 set = free */
 #define MAC_SONYVARS_BYTES \
   0x310 /* DiskVarLth, plus/resources/res_drvr_sony.s:100 */
 #define MAC_SONY_TIMEQEL 0x118 /* TimeQEl(SonyVars), res_drvr_sony.s:132 */

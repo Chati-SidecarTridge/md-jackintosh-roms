@@ -61,7 +61,7 @@ _glueHbl:
     rte
 
 /* MFP Timer C, 60.235 Hz (D-18). Counts a tick and, every 2457600 / 40800
-   ticks, a second; then, if the interrupted code runs at IPL 0 or 2 and no
+   ticks, a second, which the RTC's seconds count too; then, if the interrupted code runs at IPL 0 or 2 and no
    delivery is under way, rewrites its return so that the CPU goes to
    glueLevel1 at IPL 1 first, as a Mac VIA interrupt would. */
     .globl _glueTimerC
@@ -74,6 +74,7 @@ _glueTimerC:
     bcs.s   1f
     sub.l   #2457600, %d0
     addq.w  #1, _glueSecondsPending
+    addq.l  #1, _glueRtcSeconds         /* the clock chip counts (mac.c) */
 1:
     move.l  %d0, _glueSecondAcc
     tst.b   _glueInLevel1
@@ -304,28 +305,6 @@ _glueDerefCheck:
 1:
     jmp     MACROM_ADDR(MACROM_DEREFHANDLE_CONT + 6)
 
-/* mm-setsize-nil: SetSize (plus/os/memory_mgr.s:1983) keeps the master
-   pointer in A1 and writes its flags through it (SETSIZE_EMPTY's BSET/BCLR,
-   SETSIZE_ERR's MOVE.B on every exit); for _SetPtrSize A1 is nil, and a
-   write to address 0 is a bus error on an ST (docs/macplus/spectre-notes.md
-   7.2). The entry's MOVEM and MOVE.B (A1),-(SP) are redone here with a nil
-   A1 pointing at a dummy byte; SetSize's own MOVEM at the exit gives the
-   caller its nil back. */
-    .globl _glueSetSizeEntry
-_glueSetSizeEntry:
-    movem.l %d1-%d6/%a0-%a3, -(%sp)
-    cmpa.w  #0, %a1
-    bne.s   1f
-    lea     glueSetSizeDummy, %a1
-1:
-    move.b  (%a1), -(%sp)
-    jmp     MACROM_ADDR(MACROM_SETSIZE + 6)
-
-    .bss
-glueSetSizeDummy:
-    .skip   2
-    .text
-
 /* ------------------------------------------------------------------------
  * OS traps for the C side
  */
@@ -350,6 +329,25 @@ _glueNewPtrSysClear:
     .short  0xA71E                      /* _NewPtrSysClear */
     move.l  %a0, %d0
     rts
+
+#if defined(_TEST) && (_TEST > 0)
+/* long glueSetPtrSize(void *ptr, unsigned long size): the result code.
+   Test builds only (mac.c's Memory Manager self-test). */
+    .globl _glueSetPtrSize
+_glueSetPtrSize:
+    movea.l 4(%sp), %a0
+    move.l  8(%sp), %d0
+    .short  0xA020                      /* _SetPtrSize */
+    ext.l   %d0
+    rts
+
+/* void glueDisposPtr(void *ptr) */
+    .globl _glueDisposPtr
+_glueDisposPtr:
+    movea.l 4(%sp), %a0
+    .short  0xA01F                      /* _DisposPtr */
+    rts
+#endif
 
 /* unsigned long glueGetHandleSize(unsigned long handle) */
     .globl _glueGetHandleSize
