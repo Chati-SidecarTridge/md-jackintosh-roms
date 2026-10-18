@@ -80,6 +80,8 @@ void glueMain(void) {
   const unsigned long macStored =
       *(const volatile unsigned long *)MAC_ROM_BASE_ADDR;
   unsigned long macComputed;
+  const unsigned long macReset =
+      *(const volatile unsigned long *)(MAC_ROM_BASE_ADDR + kBytesPerLong);
   const unsigned short macVersion =
       *(const volatile unsigned short *)(MAC_ROM_BASE_ADDR +
                                          kMacRomVersionOffset);
@@ -134,10 +136,12 @@ void glueMain(void) {
 
   macComputed = glueSumWords(MAC_ROM_BASE_ADDR + kBytesPerLong,
                              MAC_ROM_BASE_ADDR + MAC_ROM_SIZE_BYTES, 0);
-  TRACE("macrom %08lx %04x", macComputed, (unsigned)macVersion);
+  TRACE("macrom %08lx %08lx %04x reset %06lx", macStored, macComputed,
+        (unsigned)macVersion, macReset);
   textPrintf("Mac ROM   at $%06lX, version $%04X, checksum $%08lX %s\n",
              MAC_ROM_BASE_ADDR, (unsigned)macVersion, macComputed,
              macComputed == macStored ? "ok" : "(patched)");
+  textPrintf("          reset vector $%06lX\n", macReset);
 
   TRACE("idle");
   for (;;) {
