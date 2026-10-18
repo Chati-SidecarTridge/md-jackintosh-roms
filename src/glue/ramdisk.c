@@ -7,8 +7,8 @@
  * Hatari harness loads a raw disk image below the top of RAM and a 16-byte
  * descriptor in the last 16 bytes: "JKRD", the image's base, its size in
  * bytes, flags (bit 0 a fixed disk, bit 1 write-protected). The glue puts
- * the Mac's MemTop at the image's base, so the Mac never touches it. A cold
- * restart refills the RAM with $FF and loses the image (test builds only).
+ * the Mac's MemTop at the image's base, so the Mac never touches it. A
+ * restart keeps it: glueReset's $FF fill stops at the image (startup.s).
  */
 
 #include "disk.h"

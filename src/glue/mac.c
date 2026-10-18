@@ -32,8 +32,12 @@ extern unsigned long glueBusPrevious;
 extern unsigned long glueBusFixes;
 #if defined(_TEST) && (_TEST > 0)
 extern long glueBusSelfTest(void);
+extern void *glueNewPtrSysClear(unsigned long size);
+extern long glueSetPtrSize(void *ptr, unsigned long size);
+extern void glueDisposPtr(void *ptr);
 #endif
 extern void glueIkbdInit(void);
+static void glueRtcTraceXpram(void);
 #if defined(_DEBUG) && (_DEBUG > 0)
 extern void glueCrashBus(void);
 extern void glueCrashAddress(void);
@@ -55,7 +59,10 @@ enum {
   kMfpVectorBase = 0x30, /* vectors 48-63 at $C0-$FC (D-17) */
   kMfpVectorCount = 16,
   kMfpTimerC = 5,
-  kMfpAcia = 6, /* GPIP 4 */
+  kMfpAcia = 6,      /* GPIP 4 */
+  kSetPtrSmall = 16, /* the Memory Manager self-test's sizes */
+  kSetPtrLarge = 0x800,
+  kSetPtrTiny = 8,
   kMfpIerbTimerC = 0x20,
   kTimerCPrescale200 = 0x70, /* TCDCR bits 6-4: divide by 200 */
   kTimerCData = 204,         /* 2457600 / 200 / 204 = 60.235 Hz */
@@ -82,6 +89,7 @@ enum {
 
 #define LOWMEM_LONG(addr) (*(volatile unsigned long *)(unsigned long)(addr))
 #define LOWMEM_WORD(addr) (*(volatile unsigned short *)(unsigned long)(addr))
+#define LOWMEM_BYTE(addr) (*(volatile unsigned char *)(unsigned long)(addr))
 #define VECTOR(addr) LOWMEM_LONG(addr)
 
 /* ------------------------------------------------------------------------
@@ -166,16 +174,41 @@ void glueHook(void) {
   MFP_IMRB = kMfpIerbTimerC;
   MFP_IERB = kMfpIerbTimerC;
   glueSysRelocInstall();
+  /* No SCC: both serial ports in use, so .MPP (AppleTalk) and the serial
+     drivers' opens fail with portInUse (-97) instead of waiting for SCC
+     interrupts (plus/resources/res_drvr_mpp.s:1328-1330, res_serd.s:206-213).
+     The boot's $FF fill had left them free. */
+  LOWMEM_WORD(MAC_PORTAUSE) = 0;
   glueIkbdInit();
+  glueRtcTraceXpram();
+#if defined(_TEST) && (_TEST > 0)
+  {
+    /* The Memory Manager's nil-master-pointer paths (EPIC-08 STORY-06):
+       _SetPtrSize on a pointer block that cannot grow in place must fail
+       with memFullErr and leave the block where it is, and shrinking it
+       must work. Two pointers side by side in the system heap. */
+    void *first = glueNewPtrSysClear(kSetPtrSmall);
+    void *second = glueNewPtrSysClear(kSetPtrSmall);
+    const long grow = glueSetPtrSize(first, kSetPtrLarge);
+    const long shrink = glueSetPtrSize(first, kSetPtrTiny);
+    TRACE("mm setptrsize grow %ld shrink %ld", grow, shrink);
+    glueDisposPtr(second);
+    glueDisposPtr(first);
+  }
+#endif
   TRACE("mac hook");
 }
 
 /* ------------------------------------------------------------------------
- * The RTC and its 20 bytes of PRAM (plus/boot/vectors.s:367-443, rtc.s).
+ * The RTC and its 256 bytes of PRAM (plus/boot/vectors.s:367-443, rtc.s).
  * Commands: bit 7 set to read; z0aa0001 / z001aa01 the seconds bytes (the
- * two counters), z010aa01 PRAM $10-$13, z1aaaa01 PRAM $00-$0F, $31 the test
- * register, $35 the write-protect register. The Plus's HWCfgFlags stay 0,
- * so the extended (XPRAM) commands never come.
+ * two counters), z010aa01 PRAM $10-$13 (XPRAM $08-$0B), z1aaaa01 PRAM
+ * $00-$0F (XPRAM $10-$1F), $31 the test register, $35 the write-protect
+ * register, and the extended two-byte command z0111aaa 0aaaaa00 for any
+ * XPRAM byte (ReadXPRam/WriteXPRam, enabled by HWCfgFlags bit 6: the
+ * boot-hwcfg-xpram patch). The ROM passes the extended command's first
+ * byte in D1's low byte and the second in the next. Kept in RAM until
+ * the cartridge can save it (md-jackintosh-roms EPIC-05).
  */
 
 enum {
@@ -188,8 +221,16 @@ enum {
   kRtcPramLowCmd = 0x21, /* z010aa01: PRAM $10-$13 */
   kRtcPramCmd = 0x41,    /* z1aaaa01: PRAM $00-$0F */
   kRtcCmdMask = 0x7F,
-  kRtcPramBytes = 20,
-  kRtcPramHigh = 0x10,
+  kRtcXpramBytes = 256,
+  kRtcXpramLow = 0x08,       /* PRAM $10-$13 */
+  kRtcXpramHigh = 0x10,      /* PRAM $00-$0F */
+  kRtcXpramSignature = 0x0C, /* 'Bugs' once initialised */
+  kRtcExtendedMask = 0x78,
+  kRtcExtended = 0x38,   /* z0111aaa */
+  kRtcExtendedShift = 5, /* aaa: address bits 7-5 */
+  kRtcSecondShift = 10,  /* 0aaaaa00 in bits 15-8: address bits 4-0 */
+  kFiveBits = 0x1F,
+  kThreeBits = 7,
   kRtcWriteProtect = 0x35,
   kRtcTest = 0x31,
   kRtcProtectBit = 0x80,
@@ -199,9 +240,10 @@ enum {
   kFourBits = 0xF
 };
 
-static unsigned char glueRtcPram[kRtcPramBytes];
+static unsigned char glueRtcPram[kRtcXpramBytes];
 static unsigned char glueRtcProtect;
-static unsigned long glueRtcSeconds = MAC_CLOCK_START;
+/* The clock chip's seconds; glueTimerC counts them (macglue.s). */
+volatile unsigned long glueRtcSeconds = MAC_CLOCK_START;
 
 unsigned long glueRtc(unsigned long command, unsigned long data) {
   const unsigned cmd = (unsigned)(command & kRtcCmdMask);
@@ -209,9 +251,12 @@ unsigned long glueRtc(unsigned long command, unsigned long data) {
   unsigned char *cell = 0;
   unsigned char value = (unsigned char)(data & kByteMask);
 
-  if ((cmd & kRtcSelectMask) == kRtcSeconds &&
-      (cmd & kRtcRegisterGroup) != kRtcRegisterGroup &&
-      (cmd & kRtcPramLow) == 0) {
+  if ((cmd & kRtcExtendedMask) == kRtcExtended) {
+    cell = &glueRtcPram[((cmd & kThreeBits) << kRtcExtendedShift) |
+                        ((command >> kRtcSecondShift) & kFiveBits)];
+  } else if ((cmd & kRtcSelectMask) == kRtcSeconds &&
+             (cmd & kRtcRegisterGroup) != kRtcRegisterGroup &&
+             (cmd & kRtcPramLow) == 0) {
     /* Seconds: z00xaa01, byte aa, least significant first. */
     const unsigned shift = ((cmd >> 2) & kTwoBits) * kByteBits;
     if (read) {
@@ -222,18 +267,15 @@ unsigned long glueRtc(unsigned long command, unsigned long data) {
                        ((unsigned long)value << shift);
     }
     return 0;
-  }
-  if (cmd == kRtcWriteProtect) {
+  } else if (cmd == kRtcWriteProtect) {
     glueRtcProtect = value;
     return 0;
-  }
-  if (cmd == kRtcTest) {
+  } else if (cmd == kRtcTest) {
     return 0;
-  }
-  if ((cmd & kRtcPramLowMask) == kRtcPramLowCmd) {
-    cell = &glueRtcPram[kRtcPramHigh + ((cmd >> 2) & kTwoBits)];
+  } else if ((cmd & kRtcPramLowMask) == kRtcPramLowCmd) {
+    cell = &glueRtcPram[kRtcXpramLow + ((cmd >> 2) & kTwoBits)];
   } else if ((cmd & kRtcSelectMask) == kRtcPramCmd) {
-    cell = &glueRtcPram[(cmd >> 2) & kFourBits];
+    cell = &glueRtcPram[kRtcXpramHigh + ((cmd >> 2) & kFourBits)];
   }
   if (cell == 0) {
     TRACE("mac rtc unknown %02lx", command);
@@ -246,6 +288,18 @@ unsigned long glueRtc(unsigned long command, unsigned long data) {
     *cell = value;
   }
   return 0;
+}
+
+/* InitUtil (plus/hw/rtc.s:91-116) has run by the time of glueHook: with
+   HWCfgFlags bit 6 set it reads, then writes, the 'Bugs' signature at
+   XPRAM $0C through the extended commands. The harness checks the line. */
+static void glueRtcTraceXpram(void) {
+  TRACE("mac xpram hwcfg %02x sig %02x%02x%02x%02x",
+        (unsigned)LOWMEM_BYTE(MAC_HWCFGFLAGS),
+        (unsigned)glueRtcPram[kRtcXpramSignature],
+        (unsigned)glueRtcPram[kRtcXpramSignature + 1],
+        (unsigned)glueRtcPram[kRtcXpramSignature + 2],
+        (unsigned)glueRtcPram[kRtcXpramSignature + 3]);
 }
 
 /* ------------------------------------------------------------------------

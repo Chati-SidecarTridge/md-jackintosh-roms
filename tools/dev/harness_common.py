@@ -234,6 +234,11 @@ class Trace:
             else:
                 time.sleep(0.02)
 
+    def skip(self):
+        """Forget what has arrived so far: the next search starts after it."""
+        self.drain(0)
+        self.pos = len(self.data)
+
     def drain(self, seconds):
         """Read whatever arrives for this long, matching nothing."""
         end = time.time() + seconds
