@@ -4,10 +4,11 @@
  * Date: 2026-10-18
  * Copyright: 2026 - GOODDATA LABS SL
  * Description: C entry of the glue, called by startup.s with interrupts
- * masked, the RAM sized, .data copied and .bss cleared. For now it shows the
- * diagnostic screen (EPIC-00 STORY-04) and stops.
+ * masked, the RAM sized and filled, .data copied and .bss cleared. It shows
+ * the diagnostic screen (EPIC-00 STORY-04), then enters the Mac ROM (EPIC-02).
  */
 
+#include "mac.h"
 #include "mem.h"
 #include "screen.h"
 #include "text.h"
@@ -22,7 +23,6 @@ enum {
   kMmuBank0Shift = 2,
   kMmuBankMask = 0x3,
   kMacRomVersionOffset = 8,
-  kScreenAlignMask = 0xFF,
   kBytesPerWord = 2,
   kBytesPerLong = 4,
   kValueColumn = 10,
@@ -72,8 +72,10 @@ static void gluePreloadProbe(void) {
 #endif
 
 void glueMain(void) {
-  const unsigned long screen =
-      (glueRamBytes - SCREEN_BYTES) & ~(unsigned long)kScreenAlignMask;
+  /* The Mac gets all the RAM; its screen sits below the sound buffer
+     (D-19). The diagnostic screen uses it until the Mac draws there. */
+  const unsigned long memTop = glueRamBytes;
+  const unsigned long screen = memTop - MAC_SCREEN_BELOW_MEMTOP;
   const unsigned long field = ROM_BASE_ADDR_UL + GLUE_CHECKSUM_OFFSET_BYTES;
   const unsigned long imageStored = *(const volatile unsigned long *)field;
   unsigned long imageComputed;
@@ -143,8 +145,12 @@ void glueMain(void) {
              macComputed == macStored ? "ok" : "(patched)");
   textPrintf("          reset vector $%06lX\n", macReset);
 
-  TRACE("idle");
-  for (;;) {
-    __asm__ volatile("stop #0x2700");
+  if (imageComputed != imageStored) {
+    /* A damaged image must not run the Mac. */
+    TRACE("halt image");
+    for (;;) {
+      __asm__ volatile("stop #0x2700");
+    }
   }
+  glueMacBoot(memTop, screen);
 }

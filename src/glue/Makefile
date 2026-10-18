@@ -38,7 +38,9 @@ APP_VERSION := $(strip $(shell tr -d '\r\n' < ../../version.txt | sed 's/^[vV]//
 NO_EXT_LIB_FLAGS := -nostdlib -nodefaultlibs -nostartfiles
 
 CFLAGS := -m68000 -std=gnu99 -ffreestanding -fomit-frame-pointer $(OPT_FLAGS) -Wall -Wextra -Werror $(NO_EXT_LIB_FLAGS) $(DEBUG_DEFS) $(TEST_DEFS) -DAPP_VERSION_STR=\"$(APP_VERSION)\" -DBUILD_ID_STR=\"$(BUILD_ID)\" -DROM_BASE_ADDR_UL=$(ROM_BASE_ADDR_UL) -MMD -MP
-ASFLAGS := -m68000 -x assembler-with-cpp $(NO_EXT_LIB_FLAGS) $(DEBUG_DEFS) $(TEST_DEFS) -DROM_BASE_ADDR_UL=$(ROM_BASE_ADDR_UL) -MMD -MP
+# The assembler gets the base without the UL suffix: it is used in address
+# arithmetic there.
+ASFLAGS := -m68000 -x assembler-with-cpp $(NO_EXT_LIB_FLAGS) $(DEBUG_DEFS) $(TEST_DEFS) -DROM_BASE_ADDR_UL=$(ROM_BASE_ADDR_LD) -MMD -MP
 
 TARGET_BIN := $(BUILD_DIR)/GLUE.BIN
 TARGET_MAP := $(BUILD_DIR)/GLUE.MAP
@@ -47,8 +49,8 @@ BUILD_CONFIG_STAMP := $(BUILD_DIR)/.build_config
 LDFLAGS := $(NO_EXT_LIB_FLAGS) -Wl,-Map=$(TARGET_MAP),--entry,_os_entry,-T,$(LDSCRIPT),--oformat,binary
 
 # startup.s must stay first: the image starts with its reset header.
-SRCS_S := startup.s lib.s
-SRCS_C := main.c screen.c text.c
+SRCS_S := startup.s lib.s shadows.s macglue.s
+SRCS_C := main.c screen.c text.c mac.c
 ifeq ($(DEBUG),1)
 SRCS_S += natfeat.s
 SRCS_C += trace.c
