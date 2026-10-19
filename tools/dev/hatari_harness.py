@@ -65,7 +65,9 @@ def hatari_args(image, args, run_dir, sock_path, parse_path):
     if args.interactive:
         # Drive 2's swaps need the control socket (DiskSwapper).
         return cmd + (["--control-socket", sock_path] if args.swap else [])
-    return cmd + ["--fast-forward", "yes", "--fast-forward-key-repeat", "false",
+    # A card error holds its message 3 s: in real time, for its screenshot.
+    fast = "no" if (getattr(args, "fake", None) or {}).get("card") else "yes"
+    return cmd + ["--fast-forward", fast, "--fast-forward-key-repeat", "false",
                   "--statusbar", "false", "--drive-led", "false",
                   "--control-socket", sock_path,
                   "--screenshot-dir", os.path.join(run_dir, "shots")]
@@ -152,7 +154,7 @@ def watch_files(run_dir, addresses, memories, parse_path):
 # 2026-10-19 12:00 UTC in Mac seconds (since 1904-01-01): the fake's default.
 FAKE_CART_SECONDS = 0xE6FBB6C0
 FAKE_CART_ID = 0x4A4B0001
-FAKE_CART_STATE_BYTES = 7 * 4 + 256  # glueTestCart up to its status block
+FAKE_CART_STATE_BYTES = 8 * 4 + 256  # glueTestCart up to its status block
 
 
 def fake_cart_files(run_dir, glue_map, spec, parse_path):
@@ -162,13 +164,15 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path):
     (UTC, default 2026-10-19 12:00), valid-at (the TIME query from which the
     time is valid, default 1), pram (a 256-byte file served as PRAM.BIN,
     default none), zone (seconds east of UTC: a PRAM.BIN made with that
-    time zone). Returns the --parse script and the settings."""
+    time zone), card (the microSD card's state at APP_FREE+$40: 0 OK, 1 none,
+    2 unreadable, 3 no /jackintosh; with an error the fake serves nothing).
+    Returns the --parse script and the settings."""
     fake = {"id": FAKE_CART_ID, "seconds": FAKE_CART_SECONDS, "valid-at": 1, "pram": None,
-            "zone": None}
+            "zone": None, "card": 0}
     for item in filter(None, (spec or "").split(",")):
         key, _, value = item.partition("=")
         if key not in fake:
-            hc.die(f"--fake-cart: unknown {key!r} (id, seconds, valid-at, pram, zone)")
+            hc.die(f"--fake-cart: unknown {key!r} (id, seconds, valid-at, pram, zone, card)")
         fake[key] = value if key == "pram" else int(value, 0)
     if fake["zone"] is not None and not fake["pram"]:
         # A PRAM.BIN made here: XPRAM's 'Bugs' signature (so InitUtil keeps
@@ -180,7 +184,7 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path):
         fake["pram"] = os.path.join(run_dir, "pram.bin")
         with open(fake["pram"], "wb") as handle:
             handle.write(data)
-    # The fake's state (glueTestCart's fields and its PRAM.BIN, 284 bytes)
+    # The fake's state (glueTestCart's fields and its PRAM.BIN, 288 bytes)
     # lives in a file, like md-jackintosh's microSD: loaded at every boot
     # (_glueMain), saved at every reset (glueReset, before its $FF fill), so
     # a Mac restart finds the Multi-device again with the PRAM it saved.
@@ -193,8 +197,9 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path):
             pram = handle.read()
     state = os.path.join(run_dir, "fakecart.state")
     with open(state, "wb") as handle:
-        handle.write(struct.pack(">IIIIIII", 0x46414B45, fake["id"], fake["seconds"],
-                                 fake["valid-at"], 1 if fake["pram"] else 0, 0, 0) + pram)
+        handle.write(struct.pack(">IIIIIIII", 0x46414B45, fake["id"], fake["seconds"],
+                                 fake["valid-at"], 1 if fake["pram"] else 0, 0, 0,
+                                 fake["card"]) + pram)
     load = os.path.join(run_dir, "fakecart-load.ini")
     with open(load, "w", encoding="ascii") as handle:
         handle.write(f"loadbin {state} ${base:x}\n")
@@ -365,6 +370,17 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
         known = (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1
         need("Multi-device", rf"@@ cart hello {'ok' if known else 'other'} {fake['id']:08x}\n", 10)
         if known:
+            need("microSD card", rf"@@ cart card {fake['card']}\n", 10)
+        if known and fake["card"]:
+            # md-jackintosh stopped at its card: the reason on the screen
+            # for 3 s, no PRAM, no time, then the Mac with no disks.
+            need("no PRAM", r"@@ cart pram none\n", 10)
+            need("no time", r"@@ cart time not yet\n", 10)
+            path = shot("card-error")
+            if path is None:
+                steps.fail("screenshot", "Hatari wrote no screenshot")
+            steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
+        elif known:
             need("PRAM from the Multi-device",
                  rf"@@ cart pram {'loaded' if fake['pram'] else 'none'}\n", 10)
             if fake["valid-at"] <= 1:
@@ -396,7 +412,7 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     need("glue hook", r"@@ mac hook\n")
     if ramdisk:
         run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
-        if fake and (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1:
+        if cart_ok and not fake["card"]:
             # EPIC-05: the time once NTP has it (asked every 600 ticks), and
             # the PRAM the Mac changed written back 180 ticks after.
             # The two come in either order: look for each in the whole trace.

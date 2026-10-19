@@ -47,6 +47,17 @@
 #define CART_BUFFER_OFFSET 0x100
 #define CART_PRAM_BYTES 256
 
+/* The microSD card's state (md-jackintosh's MACDISK_CARD_*, added
+   2026-10-19): PENDING until the RP's attempt is over, then OK or the
+   reason it stopped (no disks, no PRAM, no NTP; its LED blinks). An older
+   md-jackintosh leaves the long at 0. */
+#define CART_CARD_OFFSET 0x40
+#define CART_CARD_OK 0
+#define CART_CARD_NONE 1       /* no card, or one that does not answer */
+#define CART_CARD_UNREADABLE 2 /* no FAT or exFAT file system */
+#define CART_CARD_NO_FOLDER 3  /* /jackintosh cannot be created */
+#define CART_CARD_PENDING 4
+
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the
    data. The unit table, kept current by the RP: four longs per unit. */
@@ -98,6 +109,9 @@ enum CartState {
   CART_STATE_OK = 2     /* md-jackintosh, a contract version we know */
 };
 extern int glueCartState;
+/* The card's state when glueCartState is CART_STATE_OK: CART_CARD_OK, or
+   NONE, UNREADABLE, NO_FOLDER. */
+extern unsigned long glueCartCard;
 /* The boot-time handshake (CMD_ST_HELLO, then the identity), the PRAM and
    the time, before the Mac starts; returns glueCartState. */
 int glueCartBoot(void);
