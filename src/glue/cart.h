@@ -98,6 +98,20 @@
 #define CART_KEY_NTP_PORT 15 /* decimal */
 #define CART_SETTINGS_RTC (CART_SETTINGS_SLOT + 4)
 #define CART_SETTINGS_ALL 16
+/* The ROM's options (EPIC-12, agreed 2026-10-20): keys 16-25, short
+   strings md-jackintosh keeps without reading them ("" means the ROM's
+   default), in GET_SETTINGS' answer after the RTC strings, behind a marker
+   (an older firmware leaves stale bytes there). */
+#define CART_KEY_OPTION 16
+#define CART_OPTIONS 10
+#define CART_OPTION_SIZE 16
+#define CART_OPTIONS_MAGIC 0x4F505431 /* "OPT1" */
+#define CART_SETTINGS_OPTIONS 1540    /* the marker */
+#define CART_SETTINGS_OPTION_FIELDS 1544
+#define CART_OPT_COUNTDOWN (CART_KEY_OPTION + 0) /* seconds: 0, 5, 10, 20 */
+#define CART_OPT_RAM (CART_KEY_OPTION + 1)       /* the Mac's KB, "" all */
+#define CART_OPT_RIGHT (CART_KEY_OPTION + 2)     /* off, cmd, double */
+#define CART_OPT_SCREEN (CART_KEY_OPTION + 3)    /* 640x400, 512x342 */
 
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the

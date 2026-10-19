@@ -51,6 +51,7 @@ struct MenuPage {
    glue's own RAM is too small for them. */
 struct MenuScratch {
   char settings[CART_SETTINGS_ALL][CART_PATH_SIZE];
+  char options[CART_OPTIONS][CART_OPTION_SIZE];
   struct MenuPage page;
 };
 #define MENU_SCRATCH ((struct MenuScratch *)GLUE_SCRATCH_ADDR)
@@ -61,6 +62,12 @@ static int menuSlot = 1;
 /* Whether md-jackintosh has the RTC settings (EPIC-13): an older one
    answers without them, and the bytes there are not "true" or "false". */
 static int menuHasRtc;
+/* Whether md-jackintosh keeps the ROM's options (EPIC-12): its "OPT1"
+   marker in GET_SETTINGS' answer. */
+static int menuHasOptions;
+#define menuOptions (MENU_SCRATCH->options)
+
+struct GlueOptions glueOptions = {0, GLUE_RIGHT_OFF, 0};
 
 static unsigned menuLength(const char *text) {
   unsigned length = 0;
@@ -117,7 +124,25 @@ static int menuGetSettings(void) {
   }
   menuHasRtc = menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true") ||
                menuSame(menuSettings[CART_KEY_RTC_ENABLED], "false");
+  menuHasOptions =
+      *(const volatile unsigned long *)(glueCartStatus + CART_BUFFER_OFFSET +
+                                        CART_SETTINGS_OPTIONS) ==
+      CART_OPTIONS_MAGIC;
+  for (int option = 0; option < CART_OPTIONS; ++option) {
+    menuOptions[option][0] = '\0';
+    if (menuHasOptions) {
+      menuCopy(menuOptions[option],
+               glueCartStatus + CART_BUFFER_OFFSET +
+                   CART_SETTINGS_OPTION_FIELDS + (option * CART_OPTION_SIZE),
+               CART_OPTION_SIZE);
+    }
+  }
   return 1;
+}
+
+/* An option's value ("" for the ROM's default). */
+static const char *menuOption(int key) {
+  return menuOptions[key - CART_KEY_OPTION];
 }
 
 /* The unit's setting already holding path, other than key's: the same
@@ -722,8 +747,111 @@ static void menuMain(void) {
   menuDrive("[I] HD0: ", CART_UNIT_HD0, CART_KEY_HD0);
   menuRtcLines();
   textPuts("\n\nSHIFT+A, SHIFT+B or SHIFT+I empties a drive.");
+  if (menuHasOptions) {
+    textPuts("\n\n[O]ptions: countdown, Mac RAM, right mouse button, screen");
+  }
   textAt(0, kFooterRow);
   textPuts("[E]xit to the Mac    Select an option:");
+}
+
+/* The countdown's values, in the order [C] steps them: no 0, as Diego
+   asked ("minimum value is 5. Maximum value 30"); "" is the default 20. */
+static const char *const kCountdowns[] = {"30", "20", "10", "5", 0};
+
+/* The ROM's options from md-jackintosh into glueOptions, and the
+   countdown's seconds (EPIC-12). */
+static int menuApplyOptions(void) {
+  enum { kRamMinKilobytes = 512 };
+  const char *countdown = menuOption(CART_OPT_COUNTDOWN);
+  long value = 0;
+  glueOptions.ramKilobytes = 0;
+  if (menuNumber(menuOption(CART_OPT_RAM), &value) &&
+      value >= kRamMinKilobytes) {
+    glueOptions.ramKilobytes = (unsigned long)value;
+  }
+  glueOptions.plusScreen = menuSame(menuOption(CART_OPT_SCREEN), "512x342");
+  glueOptions.rightButton = GLUE_RIGHT_OFF;
+  if (menuSame(menuOption(CART_OPT_RIGHT), "cmd")) {
+    glueOptions.rightButton = GLUE_RIGHT_COMMAND;
+  } else if (menuSame(menuOption(CART_OPT_RIGHT), "double")) {
+    glueOptions.rightButton = GLUE_RIGHT_DOUBLE;
+  }
+  for (int i = 0; kCountdowns[i] != 0; ++i) {
+    if (menuSame(countdown, kCountdowns[i]) && menuNumber(countdown, &value)) {
+      return (int)value; /* 30, 20, 10 or 5 (Diego, 2026-10-20) */
+    }
+  }
+  return kCountdownSeconds;
+}
+
+/* The next of values after current (values ends with 0), wrapping. */
+static const char *menuNext(const char *const *values, const char *current) {
+  int index = 0;
+  while (values[index] != 0 && !menuSame(values[index], current)) {
+    ++index;
+  }
+  return values[index] != 0 && values[index + 1] != 0 ? values[index + 1]
+                                                      : values[0];
+}
+
+/* The options page: each key steps its option through its values. */
+static void menuOptionsPage(void) {
+  static const char *const kRams[] = {"", "1024", "2048", "2560", 0};
+  static const char *const kRights[] = {"", "cmd", "double", 0};
+  static const char *const kScreens[] = {"", "512x342", 0};
+  enum { kScanC = 0x2E };
+  for (;;) {
+    const char *right = menuOption(CART_OPT_RIGHT);
+    int pressed;
+    int code;
+    menuTitle();
+    textAt(0, kHeaderRow);
+    textPuts("Options\n\n[C]ountdown at boot: ");
+    textPuts(menuOption(CART_OPT_COUNTDOWN)[0] != '\0'
+                 ? menuOption(CART_OPT_COUNTDOWN)
+                 : "20");
+    textPuts(" seconds\n[M]ac RAM: ");
+    if (menuOption(CART_OPT_RAM)[0] != '\0') {
+      textPrintf("%s KB", menuOption(CART_OPT_RAM));
+    } else {
+      textPuts("all of it");
+    }
+    textPuts("\n[R]ight mouse button: ");
+    if (menuSame(right, "cmd")) {
+      textPuts("Command-click");
+    } else if (menuSame(right, "double")) {
+      textPuts("double-click");
+    } else {
+      textPuts("off");
+    }
+    textPuts("\n[S]creen: ");
+    textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), centred"
+                                    : "640x400");
+    textAt(0, kFooterRow);
+    textPuts("Each key steps its option. They apply from this boot on.\n");
+    textPuts("[SPACE] or [ESC] for the main menu");
+    do {
+      pressed = kbdPoll();
+    } while (pressed < 0);
+    code = pressed & KBD_CODE_MASK;
+    if (code == KBD_SPACE || code == KBD_ESC) {
+      return;
+    }
+    if (code == kScanC) {
+      const char *countdown = menuOption(CART_OPT_COUNTDOWN);
+      (void)menuSet(
+          CART_OPT_COUNTDOWN,
+          menuNext(kCountdowns, countdown[0] != '\0' ? countdown : "20"));
+    } else if (code == KBD_M) {
+      (void)menuSet(CART_OPT_RAM, menuNext(kRams, menuOption(CART_OPT_RAM)));
+    } else if (code == KBD_R) {
+      (void)menuSet(CART_OPT_RIGHT, menuNext(kRights, right));
+    } else if (code == KBD_S) {
+      (void)menuSet(CART_OPT_SCREEN,
+                    menuNext(kScreens, menuOption(CART_OPT_SCREEN)));
+    }
+    (void)menuApplyOptions();
+  }
 }
 
 void glueMenu(void) {
@@ -739,9 +867,17 @@ void glueMenu(void) {
     glueCartNoTime(); /* md-jackintosh's TIME stays not valid */
   }
   kbdInit();
+  seconds = menuApplyOptions();
   TRACE("menu");
   menuMain();
-  menuStatus("Boot will continue in 20 seconds...");
+  if (counting) {
+    char line[sizeof("Boot will continue in 20 seconds...")];
+    menuFormat(line, sizeof(line), "Boot will continue in %d seconds...",
+               seconds);
+    menuStatus(line);
+  } else {
+    menuStatus("Countdown stopped. Press [E] to continue.");
+  }
   for (;;) {
     const int pressed = kbdPoll();
     int code;
@@ -789,6 +925,8 @@ void glueMenu(void) {
     } else if (code == KBD_R || code == KBD_H || code == KBD_P ||
                code == KBD_U) {
       notice = menuRtcKey(code);
+    } else if (code == KBD_O && menuHasOptions) {
+      menuOptionsPage();
     }
     menuMain();
     menuStatus(notice != 0 ? notice

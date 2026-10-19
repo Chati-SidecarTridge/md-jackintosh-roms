@@ -70,7 +70,7 @@ enum {
   kFakeReadSectors = 2,    /* the most a READ may ask of the fake */
   kFakeNoDrive = -1,
   kFakeTreeMax = 8,
-  kFakeBuffer = 2048, /* a LIST page (1676 bytes), the settings (1252) */
+  kFakeBuffer = 1800, /* a LIST page (1676 bytes), the settings (1704) */
   kFakeListMax = kFakeTreeMax + 1, /* its entries and ".." */
   kFakeCaseBit = 0x20
 };
@@ -93,6 +93,7 @@ struct GlueTestCart {
   unsigned long slot;                  /* FD0's current slot, 1-10 */
   unsigned long treeCount;
   char settings[CART_SETTINGS_ALL][CART_PATH_SIZE];
+  char options[CART_OPTIONS][CART_OPTION_SIZE]; /* EPIC-12 */
   struct GlueTestImage tree[kFakeTreeMax];
   int unitDrive[CART_UNITS]; /* the RAM disk behind each unit */
   unsigned char status[CART_BUFFER_OFFSET + kFakeBuffer]; /* window */
@@ -391,6 +392,17 @@ static long cartFakeList(const char *folder, unsigned long first,
    a unit's image is mounted at once. */
 static long cartFakeSet(unsigned long key, const char *path) {
   const char *folder = glueTestCart.settings[CART_KEY_FOLDER];
+  if (key >= CART_KEY_OPTION && key < CART_KEY_OPTION + CART_OPTIONS) {
+    /* A ROM option: stored, not read (md-jackintosh's checks). */
+    char *option = glueTestCart.options[key - CART_KEY_OPTION];
+    if (cartFakeLength(path) >= CART_OPTION_SIZE) {
+      return CART_RESULT_PARAM;
+    }
+    for (unsigned i = 0; i < CART_OPTION_SIZE; ++i) {
+      option[i] = i <= cartFakeLength(path) ? path[i] : '\0';
+    }
+    return CART_RESULT_OK;
+  }
   if (key >= CART_SETTINGS_ALL) {
     return CART_RESULT_PARAM;
   }
@@ -514,6 +526,11 @@ static long cartFake(long command, unsigned long first, unsigned long second,
            ++i) {
         buffer[CART_SETTINGS_RTC + i] =
             (unsigned char)glueTestCart.settings[CART_KEY_RTC_ENABLED][i];
+      }
+      *(unsigned long *)(buffer + CART_SETTINGS_OPTIONS) = CART_OPTIONS_MAGIC;
+      for (unsigned i = 0; i < CART_OPTIONS * CART_OPTION_SIZE; ++i) {
+        buffer[CART_SETTINGS_OPTION_FIELDS + i] =
+            (unsigned char)glueTestCart.options[0][i];
       }
       break;
     case CART_CMD_SET_SETTING:

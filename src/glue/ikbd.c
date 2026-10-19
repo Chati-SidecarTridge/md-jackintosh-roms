@@ -17,6 +17,7 @@
 
 #include "hw.h"
 #include "macrom.h"
+#include "menu.h"
 #include "trace.h"
 
 extern unsigned char glueViaShadow[];
@@ -44,6 +45,11 @@ enum {
   kKeyBreak = 0x80,
   kKeyCodeMask = 0x7F,
   kLeftButton = 0x02, /* in a relative mouse header */
+  kRightButton = 0x01,
+  kMacCommand = 0x37, /* the Mac Plus keyboard's Command key */
+  kDoubleTicks = 4,   /* each half of the right button's double-click: the
+                         ROM debounces 3 ticks, checks every other one */
+  kDoublePhases = 4,  /* down, up, down, up */
   /* The IKBD's reset command and its reply (TOS sends the same) */
   kIkbdReset = 0x80,
   kIkbdResetArg = 0x01,
@@ -309,6 +315,57 @@ static void glueKey(unsigned char scancode) {
   glueKeyPush((unsigned char)(((code << 1) | 1) | release));
 }
 
+/* The right mouse button (EPIC-12, glueOptions.rightButton): the left
+   button's state, and what the right one adds to it. */
+static int glueLeftDown;
+static int glueRightDown;
+static int glueRightHeld;
+static int glueRightCommandPending; /* Command sent, the click waits for it */
+static int glueDoublePhase;
+static int glueDoubleTicks;
+
+static void glueButtons(void) { glueSetButton(glueLeftDown || glueRightHeld); }
+
+static void glueRight(int down) {
+  const unsigned char command = (kMacCommand << 1) | 1;
+  if (down == glueRightDown) {
+    return;
+  }
+  glueRightDown = down;
+  if (glueOptions.rightButton == GLUE_RIGHT_COMMAND) {
+    if (down) {
+      glueKeyPush(command); /* the click waits until the Mac has it */
+      glueRightCommandPending = 1;
+    } else {
+      glueRightCommandPending = 0;
+      glueRightHeld = 0;
+      glueButtons();
+      glueKeyPush(command | kKeyBreak);
+    }
+  } else if (glueOptions.rightButton == GLUE_RIGHT_DOUBLE && down &&
+             glueDoublePhase == 0) {
+    glueDoublePhase = 1;
+    glueDoubleTicks = kDoubleTicks;
+  }
+}
+
+/* Each tick: the right button's Command-click or double-click. */
+static void glueRightTick(void) {
+  if (glueRightCommandPending && glueKeyHead == glueKeyTail) {
+    glueRightCommandPending = 0;
+    glueRightHeld = 1;
+    glueButtons();
+  }
+  if (glueDoublePhase != 0 && ++glueDoubleTicks >= kDoubleTicks) {
+    glueDoubleTicks = 0;
+    glueRightHeld = glueDoublePhase & 1; /* phases 1 and 3 down */
+    glueButtons();
+    if (++glueDoublePhase > kDoublePhases) {
+      glueDoublePhase = 0;
+    }
+  }
+}
+
 static void glueIkbdByte(unsigned char byte) {
   if (glueIkbdResync) {
     if (byte < kHeaderStatus) {
@@ -352,7 +409,9 @@ static void glueIkbdByte(unsigned char byte) {
   gluePacketNeeded = 0;
   if (gluePacket[0] >= kHeaderRelMouseLow &&
       gluePacket[0] <= kHeaderRelMouseHigh) {
-    glueSetButton((gluePacket[0] & kLeftButton) != 0);
+    glueLeftDown = (gluePacket[0] & kLeftButton) != 0;
+    glueButtons();
+    glueRight((gluePacket[0] & kRightButton) != 0);
     glueMouseMove((signed char)gluePacket[1], (signed char)gluePacket[2]);
   }
 }
@@ -389,6 +448,8 @@ void glueIkbdInit(void) {
   glueKeyHead = glueKeyTail = 0;
   gluePacketNeeded = 0;
   glueKbdWaiting = 0;
+  glueLeftDown = glueRightDown = glueRightHeld = 0;
+  glueRightCommandPending = glueDoublePhase = 0;
   glueSetButton(0);
   glueIkbdSyncTicks = kIkbdSyncTicks;
   glueIkbdSend(kIkbdReset);
@@ -400,6 +461,7 @@ void glueIkbdInit(void) {
    of the shift register. */
 void glueKbdTick(void) {
   int reply = -1;
+  glueRightTick();
   if (glueIkbdSyncTicks != 0 && --glueIkbdSyncTicks == 0) {
     TRACE("ikbd no reset reply");
   }
@@ -411,7 +473,9 @@ void glueKbdTick(void) {
     LOWMEM_WORD(kMTempH) = LOWMEM_WORD(kRawMouseH) = LOWMEM_WORD(kMouseH) =
         glueTestInput.h;
     LOWMEM_BYTE(kCrsrNew) = LOWMEM_BYTE(kCrsrCouple);
-    glueSetButton(glueTestInput.buttons & 1);
+    glueLeftDown = glueTestInput.buttons & 1;
+    glueButtons();
+    glueRight((glueTestInput.buttons & 2) != 0); /* bit 1: the right one */
     TRACE("input %u at %d,%d buttons %u", (unsigned)glueTestSeen,
           (int)glueTestInput.v, (int)glueTestInput.h,
           (unsigned)glueTestInput.buttons);
