@@ -62,7 +62,8 @@ def hatari_args(image, args, run_dir, sock_path, parse_path):
     if parse_path:
         cmd += ["--parse", parse_path]
     if args.interactive:
-        return cmd
+        # Drive 2's swaps need the control socket (DiskSwapper).
+        return cmd + (["--control-socket", sock_path] if args.swap else [])
     return cmd + ["--fast-forward", "yes", "--fast-forward-key-repeat", "false",
                   "--statusbar", "false", "--drive-led", "false",
                   "--control-socket", sock_path,
@@ -77,7 +78,8 @@ def glue_symbol(glue_map, name):
     return symbols[name]
 
 
-def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partition=False):
+def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partition=False,
+                  disk2=None, swaps=()):
     """The test builds' RAM disk (src/glue/ramdisk.c): the raw image placed
     64 KB-aligned below the top of RAM, a 16-byte descriptor ("JKRD", base,
     bytes, flags) in the last 16 bytes, and the debugger scripts that load
@@ -85,7 +87,11 @@ def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partit
     with $FF. A loadbin straight from --parse is lost before the first
     instruction, and a breakpoint on the reset PC never fires; a one-shot
     breakpoint with :trace (go on, no prompt) and :file (run the loadbins)
-    works. Returns the --parse script and the image's base."""
+    works. A second image (disk2, drive 2: EPIC-09) goes below the first,
+    its descriptor in the 16 bytes under the first image's base; its slot
+    is as big as the largest of it and the swaps (--swap), which DiskSwapper
+    loads there later. Returns the --parse script and the images' bases
+    (memtop: the lowest)."""
     raw = os.path.join(run_dir, "disk.raw")
     size = hc.raw_disk_image(disk, raw)
     if partition:
@@ -98,15 +104,31 @@ def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partit
     desc = os.path.join(run_dir, "ramdisk.desc")
     with open(desc, "wb") as handle:
         handle.write(struct.pack(">IIII", RAMDISK_MAGIC, base, size, flags))
+    loads = [(raw, base), (desc, top - RAMDISK_DESCRIPTOR)]
+    info = {"base": base, "bytes": size, "flags": flags, "memtop": base}
+    if disk2:
+        disks2 = []
+        for number, image in enumerate([disk2, *swaps]):
+            raw_n = os.path.join(run_dir, f"disk2-{number}.raw")
+            disks2.append((raw_n, hc.raw_disk_image(image, raw_n), image))
+        raw2, size2, _ = disks2[0]
+        slot = max(size for _, size, _ in disks2)
+        base2 = (base - RAMDISK_DESCRIPTOR - slot) & ~0xFFFF
+        desc2 = os.path.join(run_dir, "ramdisk2.desc")
+        with open(desc2, "wb") as handle:
+            handle.write(struct.pack(">IIII", RAMDISK_MAGIC, base2, size2, 0))
+        loads += [(raw2, base2), (desc2, base - RAMDISK_DESCRIPTOR)]
+        info.update({"base2": base2, "bytes2": size2, "memtop": base2, "disks2": disks2,
+                     "desc2": base - RAMDISK_DESCRIPTOR})
     load = os.path.join(run_dir, "ramdisk-load.ini")
     with open(load, "w", encoding="ascii") as handle:
-        handle.write(f"loadbin {raw} ${base:x}\n")
-        handle.write(f"loadbin {desc} ${top - RAMDISK_DESCRIPTOR:x}\n")
+        for path, address in loads:
+            handle.write(f"loadbin {path} ${address:x}\n")
     entry = glue_symbol(glue_map, "_glueMain")
     script = os.path.join(run_dir, "ramdisk.ini")
     with open(script, "w", encoding="ascii") as handle:
         handle.write(f"b pc = ${entry:x} :trace :once :file {load}\n")
-    return script, {"base": base, "bytes": size, "flags": flags}
+    return script, info
 
 
 def watch_files(run_dir, addresses, memories, parse_path):
@@ -152,19 +174,66 @@ def make_dumper(command, run_dir):
     return dump_memory
 
 
+class DiskSwapper:
+    """EPIC-09: drive 2's images in turn (--disk2, then each --swap, then the
+    first again), one each time the Mac ejects drive 2 (the glue's "@@ disk2
+    eject"): the next image is loaded into drive 2's slot with Hatari's
+    debugger, its size written into drive 2's descriptor (a restart keeps
+    it), and the glue's glueTestDisk mailbox tells the glue, which announces
+    the disk. service() is called while the harness waits."""
+
+    def __init__(self, ramdisk, command, glue_map, trace, report, need=None):
+        self.disks = ramdisk["disks2"]
+        self.base = ramdisk["base2"]
+        self.desc = ramdisk["desc2"]
+        self.mailbox = glue_symbol(glue_map, "_glueTestDisk")
+        self.command, self.trace, self.report, self.need = command, trace, report, need
+        self.current = 0
+        self.ejects = 0
+        self.seq = 0
+
+    def service(self):
+        self.trace.drain(0)
+        ejects = self.trace.data.count(b"@@ disk2 eject\n")
+        while self.ejects < ejects:
+            self.ejects += 1
+            self.current = (self.current + 1) % len(self.disks)
+            raw, size, image = self.disks[self.current]
+            self.command(f"hatari-debug loadbin {raw} ${self.base:x}")
+            self.command(f"hatari-debug memwrite w ${self.desc + 8:x} "
+                         f"${size >> 16:x} ${size & 0xFFFF:x}")
+            self.command(f"hatari-debug memwrite w ${self.mailbox + 2:x} $1 "
+                         f"${size >> 16:x} ${size & 0xFFFF:x} $0 $0")
+            time.sleep(0.5)  # the image and fields before the seq
+            self.seq += 1
+            self.command(f"hatari-debug memwrite w ${self.mailbox:x} ${self.seq:x}")
+            if self.need:  # the glue took it and announced the disk
+                self.need(f"drive 2 swapped to {os.path.basename(image)}",
+                          rf"@@ disk2 swapped in {size}\n", 20)
+                self.need("drive 2 disk announced", r"@@ disk2 inserted\n", 20)
+            else:
+                self.report(f"drive 2 swapped to {os.path.basename(image)}")
+
+    def wait(self, seconds):
+        end = time.time() + seconds
+        while time.time() < end:
+            self.service()
+            time.sleep(0.5)
+
+
 def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: None,
              command=None, glue_map=None):
     """The EPIC-00 session: the diagnostic screen and its trace."""
     bank0, bank1 = BANKS[args.memsize]
     ram = args.memsize * 1024
     mmu = (MMU_CODES[bank0] << 2) | MMU_CODES[bank1]
-    memtop = ramdisk["base"] if ramdisk else ram
+    memtop = ramdisk["memtop"] if ramdisk else ram
     screen = memtop - MAC_SCREEN_BELOW_MEMTOP
 
     def need(name, pattern, timeout=STEP_TIMEOUT):
         # A crash line from the glue's debug handlers, or a halt the step does
         # not expect (an unknown System: EPIC-08), ends the session at once.
-        match = trace.wait_for(rf"(?:{pattern})|(@@ (?:crash|halt) [^\n]*\n)", timeout)
+        match = trace.wait_for(rf"(?:{pattern})|(@@ (?:crash|halt|mac syserr) [^\n]*\n)", timeout)
         if match is not None and match.group(1):
             dump_memory(args.dump)
         if match is None or match.group(1):
@@ -180,6 +249,9 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     if ramdisk:
         need("ram disk", rf"@@ disk ramdisk {ramdisk['bytes']} base {ramdisk['base']:06x} "
              rf"flags {ramdisk['flags']:x}\n")
+        if "base2" in ramdisk:
+            need("ram disk 2", rf"@@ disk ramdisk2 {ramdisk['bytes2']} "
+                 rf"base {ramdisk['base2']:06x} flags 0\n")
     elif args.type == "debug-test":
         need("no ram disk", r"@@ disk ramdisk none\n")
     ste = int(args.image == "ste")
@@ -222,6 +294,19 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     need("glue hook", r"@@ mac hook\n")
     if ramdisk:
         run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
+        if "base2" in ramdisk:
+            run_disk2(trace, shot, steps, need)
+            swapper = (DiskSwapper(ramdisk, command, glue_map, trace, steps.ok, need)
+                       if len(ramdisk["disks2"]) > 1 else None)
+            if args.launch:
+                run_launch(trace, shot, steps, need, command, glue_map, args.launch,
+                           dump_memory, args.dump, args.then or (), swapper=swapper)
+        elif args.launch:
+            run_launch(trace, shot, steps, need, command, glue_map, args.launch,
+                       dump_memory, args.dump, args.then or (), disk_v=45)
+        if args.then and not args.launch:
+            run_actions(trace, shot, steps, need, command, glue_map, args.then, dump_memory,
+                        args.dump, swapper if "base2" in ramdisk else None)
         if args.input:
             def restart():
                 # The same boot again, the RAM disk kept (EPIC-08 STORY-01).
@@ -275,27 +360,31 @@ def finder_on_screen(png):
     return hc.dark_pixels(png, 0, 19, 640, 20) > 600 and hc.dark_pixels(png, 0, 10, 640, 11) < 200
 
 
-def run_input(trace, shot, steps, need, command, glue_map, restart):
-    """EPIC-04: the IKBD as the Mac's keyboard and mouse, on the Finder.
-    Keys go through Hatari's control socket and the real IKBD path; the
-    cursor goes through the test builds' mailbox (glueTestInput), since the
-    control socket cannot move the mouse. The Finder is used as a person
-    would: select the disk, open it with Command-O, open the Apple menu,
-    the Chooser and AppleTalk (which fails cleanly), then eject the disk
-    with Command-Shift-1; then Special > Restart, and the Finder again from
-    the same RAM disk (EPIC-08)."""
-    mailbox = glue_symbol(glue_map, "_glueTestInput")
-    seq = [0]
+MOUSE_SEQ = [0]
 
+
+def input_helpers(need, command, glue_map):
+    """The keyboard and mouse of the input sessions (EPIC-04): keys through
+    Hatari's control socket and the real IKBD path, the cursor and button
+    through the test builds' mailbox (glueTestInput), since the control
+    socket cannot move the mouse. Returns key(code, down), chord(*codes) and
+    mouse(v, h, buttons)."""
+    mailbox = glue_symbol(glue_map, "_glueTestInput")
+    seq = MOUSE_SEQ  # one count per session: the glue takes any new value
+
+    # Press and release go out back to back, the pause after: Hatari runs
+    # fast-forward, and a key held for a fraction of a real second is held
+    # past the Mac's auto-repeat threshold. The glue queues the transitions
+    # in order, so a chord's modifiers still apply.
     def key(code, down):
         command(f"hatari-event {'keydown' if down else 'keyup'} 0x{code:02x}")
-        time.sleep(0.2)
 
     def chord(*codes):
         for code in codes:
             key(code, True)
         for code in reversed(codes):
             key(code, False)
+        time.sleep(0.3)
 
     def mouse(v, h, buttons):
         seq[0] += 1
@@ -306,6 +395,148 @@ def run_input(trace, shot, steps, need, command, glue_map, restart):
         need(f"cursor at {v},{h} buttons {buttons}",
              rf"@@ input {seq[0]} at {v},{h} buttons {buttons}\n", 20)
         time.sleep(0.5)
+
+    return key, chord, mouse
+
+
+# ST scancodes for --then keys: letters, digits, space, Return, and a few marks.
+ST_KEYS = dict(zip("qwertyuiop", range(0x10, 0x1A)))
+ST_KEYS.update(zip("asdfghjkl", range(0x1E, 0x27)))
+ST_KEYS.update(zip("zxcvbnm", range(0x2C, 0x33)))
+ST_KEYS.update(zip("1234567890", range(0x02, 0x0C)))
+ST_KEYS.update({" ": 0x39, "\n": 0x1C, ",": 0x33, ".": 0x34, "-": 0x0C, "=": 0x0D,
+                ";": 0x27, "'": 0x28, "/": 0x35, "\t": 0x0F})
+ST_SHIFT = 0x2A
+# Shifted marks (a US layout): the key, typed with Shift.
+ST_SHIFTED = {"(": 0x0A, ")": 0x0B, ":": 0x27, '"': 0x28, "!": 0x02, "?": 0x35,
+              "_": 0x0C, "+": 0x0D, "*": 0x09, "<": 0x33, ">": 0x34}
+
+
+def type_text(key, text):
+    """Types text through the IKBD, Shift for capitals."""
+    for char in text:
+        shifted = char.isupper() or char in ST_SHIFTED
+        code = ST_SHIFTED.get(char, ST_KEYS.get(char.lower()))
+        if code is None:
+            hc.die(f"--then keys: no key for {char!r}")
+        if shifted:
+            key(ST_SHIFT, True)
+        key(code, True)
+        key(code, False)
+        if shifted:
+            key(ST_SHIFT, False)
+        time.sleep(0.15)
+
+
+def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memory, dumps,
+                swapper=None):
+    """EPIC-09: the --then actions, in order: keys:TEXT (typed; \\n for
+    Return), cmd:KEY (Command-KEY), click:V,H, press:V,H and release:V,H (a
+    menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME; a
+    crash during them fails the run."""
+    key, chord, mouse = input_helpers(need, command, glue_map)
+    for action in actions:
+        verb, _, arg = action.partition(":")
+        if verb == "keys":
+            type_text(key, arg.replace("\\n", "\n"))
+        elif verb == "cmd":
+            chord(0x1D, ST_KEYS[arg.lower()])  # Control is the Mac's Command
+        elif verb == "click":
+            cv, ch = (int(x) for x in arg.split(","))
+            mouse(cv, ch, 0)
+            mouse(cv, ch, 1)
+            mouse(cv, ch, 0)
+        elif verb in ("press", "release"):  # a menu: press, release on an item
+            cv, ch = (int(x) for x in arg.split(","))
+            mouse(cv, ch, 1 if verb == "press" else 0)
+        elif verb == "wait":
+            if swapper:
+                swapper.wait(float(arg))  # serving drive 2's swaps meanwhile
+            else:
+                time.sleep(float(arg))
+        elif verb == "shot":
+            path = shot(arg)
+            if path is None:
+                steps.fail(action, "Hatari wrote no screenshot")
+            steps.ok(f"{arg} {os.path.relpath(path, hc.REPO)}")
+        else:
+            hc.die(f"--then: unknown action {action!r}")
+        if swapper:
+            swapper.service()
+        crash = trace.wait_for(r"(@@ (?:crash|halt|mac syserr) [^\n]*\n)", 1)
+        if crash is not None:
+            dump_memory(dumps)
+            steps.fail(action, crash.group(1).decode().strip() +
+                       f"; screenshot {shot('crash')}")
+
+
+def run_launch(trace, shot, steps, need, command, glue_map, where, dump_memory, dumps,
+               actions=(), disk_v=105, swapper=None):
+    """EPIC-09: open drive 2's disk (or the startup disk, disk_v 45), then
+    the program whose icon is at where ("v,h", in that window) as a person
+    would: click it, Command-O. It
+    has launched when the menu bar is no longer the Finder's (rows 2-18);
+    a crash line fails the step at once. Then the actions (run_actions)."""
+    key, chord, mouse = input_helpers(need, command, glue_map)
+    # where: "v,h", or "v,h/v,h/...": folders to open on the way, the
+    # program last.
+    steps_to = [tuple(int(x) for x in point.split(",")) for point in where.split("/")]
+    v, h = steps_to[-1]
+
+    def menu_bar(png):
+        _, _, rows = png
+        return [bytes(1 if rows[y][x] < 128 else 0 for x in range(640)) for y in range(2, 18)]
+
+    # The disk opened first (drive 2's icon under the startup disk's); a
+    # window already open just comes to the front.
+    mouse(disk_v, 600, 0)
+    mouse(disk_v, 600, 1)
+    mouse(disk_v, 600, 0)
+    chord(0x1D, 0x18)
+    time.sleep(2)
+    finder = menu_bar(hc.read_png(shot("disk-window")))
+    for number, (fv, fh) in enumerate(steps_to[:-1], 1):
+        mouse(fv, fh, 0)
+        mouse(fv, fh, 1)
+        mouse(fv, fh, 0)
+        chord(0x1D, 0x18)
+        time.sleep(2)
+        shot(f"folder-{number}")
+    mouse(v, h, 0)
+    mouse(v, h, 1)
+    mouse(v, h, 0)
+    chord(0x1D, 0x18)  # Control (Command) + O
+    path = None
+    for _ in range(45):
+        crash = trace.wait_for(r"(@@ (?:crash|halt|mac syserr) [^\n]*\n)", 1)
+        path = shot("launched")
+        if path is None:
+            steps.fail("launch", "Hatari wrote no screenshot")
+        if crash is not None:
+            dump_memory(dumps)
+            steps.fail("launch", crash.group(1).decode().strip() + f"; screenshot {path}")
+        if menu_bar(hc.read_png(path)) != finder:
+            time.sleep(3)
+            path = shot("launched")
+            if path is None:
+                steps.fail("launch", "Hatari wrote no screenshot")
+            steps.ok(f"launched {os.path.relpath(path, hc.REPO)}")
+            run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memory,
+                        dumps, swapper)
+            return
+    steps.fail("launch", f"the Finder's menu bar after 45 s; last screenshot {path}")
+
+
+def run_input(trace, shot, steps, need, command, glue_map, restart):
+    """EPIC-04: the IKBD as the Mac's keyboard and mouse, on the Finder.
+    Keys go through Hatari's control socket and the real IKBD path; the
+    cursor goes through the test builds' mailbox (glueTestInput), since the
+    control socket cannot move the mouse. The Finder is used as a person
+    would: select the disk, open it with Command-O, open the Apple menu,
+    the Chooser and AppleTalk (which fails cleanly), then eject the disk
+    with Command-Shift-1; then Special > Restart, and the Finder again from
+    the same RAM disk (EPIC-08)."""
+    _, chord, mouse = input_helpers(need, command, glue_map)
 
     def screen_dark(name):
         path = shot(name)
@@ -407,6 +638,27 @@ def run_input(trace, shot, steps, need, command, glue_map, restart):
     restart()
 
 
+def run_disk2(trace, shot, steps, need):
+    """EPIC-09: the disk in drive 2 is announced with a disk-inserted event
+    and mounts: its icon appears under the startup disk's, mostly white
+    against the desktop's 50 % grey (x 585-615, rows 85-117; the label's
+    width depends on the name)."""
+    # Posted as soon as the event queue exists, before the System loads, so
+    # the line may already be behind the steps that matched since.
+    if b"@@ disk2 inserted\n" in trace.data:
+        steps.ok("disk 2 inserted")
+    else:
+        need("disk 2 inserted", r"@@ disk2 inserted\n", 30)
+    path = None
+    for _ in range(10):
+        path = shot("disk2")
+        if hc.dark_pixels(hc.read_png(path), 585, 85, 615, 117) < 0.4 * 30 * 32:
+            steps.ok(f"disk 2 on the desktop {os.path.relpath(path, hc.REPO)}")
+            return
+        time.sleep(1)
+    steps.fail("disk 2 on the desktop", f"no second disk icon in {path}")
+
+
 def run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, dumps):
     """EPIC-03: the Mac boots from the RAM disk, past the Happy Mac, the
     System's patches (relocated: D-15) and the Finder's launch, to the
@@ -443,6 +695,26 @@ def main():
                         help="boot from this disk image in the RAM disk (raw, DiskCopy 4.2, "
                              "or MacBinary II around DiskCopy 4.2), or @NAME for tools/dev/dev.cfg's "
                              "[disks] NAME; needs --type debug-test")
+    parser.add_argument("--disk2", metavar="FILE",
+                        help="a second disk image, in drive 2 (EPIC-09), FILE or @NAME as "
+                             "--disk; needs --disk")
+    parser.add_argument("--swap", action="append", metavar="FILE",
+                        help="another image for drive 2 (repeatable), FILE or @NAME: each time "
+                             "the Mac ejects drive 2 the next goes in, then the first again "
+                             "(EPIC-09, for Installers); also with --interactive")
+    parser.add_argument("--launch", metavar="V,H[/V,H...]",
+                        help="open the program whose icon is at V,H in drive 2's window, "
+                             "or the startup disk's without --disk2 (click, Command-O), and "
+                             "wait for its menu bar (EPIC-09); V,H/V,H opens folders on the "
+                             "way; needs --disk")
+    parser.add_argument("--then", action="append", metavar="ACTION",
+                        help="after --launch, in order (repeatable): keys:TEXT (letters, "
+                             "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, click:V,H, "
+                             "press:V,H, release:V,H, "
+                             "wait:SECONDS, shot:NAME")
+    parser.add_argument("--save-disk", metavar="FILE",
+                        help="at the end of a passing run, save the RAM disk (drive 1) as the "
+                             "Mac left it, raw, for a later --disk (EPIC-09)")
     parser.add_argument("--fixed", action="store_true", help="the RAM disk is a hard disk")
     parser.add_argument("--partition", action="store_true",
                         help="wrap the volume in an Apple partition map, as a whole hard disk")
@@ -469,6 +741,27 @@ def main():
             args.disk = hc.configured_disk(args.disk[1:])
         except hc.HarnessError as err:
             hc.die(str(err))
+    if args.disk2 and args.disk2.startswith("@"):
+        try:
+            args.disk2 = hc.configured_disk(args.disk2[1:])
+        except hc.HarnessError as err:
+            hc.die(str(err))
+    if args.swap:
+        try:
+            args.swap = [hc.configured_disk(x[1:]) if x.startswith("@") else x
+                         for x in args.swap]
+        except hc.HarnessError as err:
+            hc.die(str(err))
+        if not args.disk2:
+            hc.die("--swap needs --disk2")
+    if args.disk2 and not args.disk:
+        hc.die("--disk2 needs --disk")
+    if args.save_disk and (not args.disk or args.interactive or args.partition):
+        hc.die("--save-disk needs --disk, and neither --interactive nor --partition")
+    if args.launch and not args.disk:
+        hc.die("--launch needs --disk")
+    if args.disk2 and args.input:
+        hc.die("--input scripts the startup disk's desktop alone; drop --disk2")
     if args.disk and args.type != "debug-test":
         hc.die("--disk needs --type debug-test (the RAM disk is in test builds only)")
     if args.memsize == 2560 and args.image != "st":
@@ -477,7 +770,7 @@ def main():
     label = f"hatari-{args.image}-ram{args.memsize}-{args.type}" + \
         ("-rgb" if args.monitor == "rgb" else "") + \
         ("-corrupt" if args.corrupt else "") + ("-disk" if args.disk else "") + \
-        ("-hd" if args.partition else "") + \
+        ("-hd" if args.partition else "") + ("-disk2" if args.disk2 else "") + \
         ("-interactive" if args.interactive else "")
     run_dir = hc.new_run_dir(label)
     os.makedirs(os.path.join(run_dir, "shots"))
@@ -490,7 +783,8 @@ def main():
         image = hc.corrupt_copy(image, args.image, os.path.join(run_dir, "corrupt.img"))
     glue_map = os.path.join(hc.REPO, "build", f"{args.image}-{args.type}", "GLUE.MAP")
     parse_path, ramdisk = (ramdisk_files(run_dir, args.memsize, glue_map, args.disk,
-                                         args.fixed, args.write_protect, args.partition)
+                                         args.fixed, args.write_protect, args.partition,
+                                         args.disk2, args.swap or ())
                            if args.disk else (None, None))
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
@@ -504,7 +798,7 @@ def main():
     sock_dir = tempfile.mkdtemp(prefix="jh", dir="/tmp")
     sock_path = os.path.join(sock_dir, "ctl.sock")
     server = None
-    if not args.interactive:
+    if not args.interactive or args.swap:
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         server.bind(sock_path)
         server.listen(1)
@@ -524,6 +818,18 @@ def main():
     if args.interactive:
         print("Hatari is open; close it (or press Ctrl-C here) to end the run.", flush=True)
         try:
+            if args.swap:
+                # Serve drive 2's swaps while the user works.
+                try:
+                    conn, _ = server.accept()
+                    swapper = DiskSwapper(
+                        ramdisk, lambda text: conn.sendall((text + "\n").encode()),
+                        glue_map, trace, lambda line: print(line, flush=True))
+                    while proc.poll() is None:
+                        swapper.service()
+                        time.sleep(0.5)
+                except (OSError, socket.timeout) as err:
+                    print(f"drive 2 swaps stopped: {err}", flush=True)
             proc.wait()
         except KeyboardInterrupt:
             proc.send_signal(signal.SIGTERM)  # --confirm-quit false: no dialog
@@ -562,6 +868,19 @@ def main():
 
         run_diag(trace, shot, steps, args, ramdisk, mac_rom_part(image, args.image),
                  make_dumper(command, run_dir), command, glue_map)
+        if args.save_disk:
+            # The RAM disk as the Mac left it, for the next session's --disk.
+            out = os.path.abspath(args.save_disk)
+            if os.path.exists(out):
+                os.remove(out)
+            command(f"hatari-debug savebin {out} ${ramdisk['base']:x} ${ramdisk['bytes']:x}")
+            end = time.time() + 30
+            while time.time() < end and not (os.path.exists(out) and
+                                             os.path.getsize(out) == ramdisk["bytes"]):
+                time.sleep(0.5)
+            if not os.path.exists(out) or os.path.getsize(out) != ramdisk["bytes"]:
+                steps.fail("save disk", f"Hatari wrote no {out}")
+            steps.ok(f"disk saved to {os.path.relpath(out, hc.REPO)}")
     except (hc.HarnessError, socket.timeout, OSError) as err:
         error = str(err)
     finally:

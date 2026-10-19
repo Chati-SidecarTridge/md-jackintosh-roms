@@ -60,12 +60,17 @@ _glueHbl:
     ori.w   #0x0200, (%sp)
     rte
 
-/* MFP Timer C, 60.235 Hz (D-18). Counts a tick and, every 2457600 / 40800
-   ticks, a second, which the RTC's seconds count too; then, if the interrupted code runs at IPL 0 or 2 and no
-   delivery is under way, rewrites its return so that the CPU goes to
-   glueLevel1 at IPL 1 first, as a Mac VIA interrupt would. */
+/* MFP Timer C, 60.235 Hz (D-18). Puts the glue's bus error vector back if
+   Mac code overwrote it (a Plus never takes a bus error, so nothing there
+   minds a write to $8: Blockout copies through a nil pointer over $0-$E;
+   Spectre re-installed its handler every tick too). Counts a tick and,
+   every 2457600 / 40800 ticks, a second, which the RTC's seconds count too;
+   then, if the interrupted code runs at IPL 0 or 2 and no delivery is
+   under way, rewrites its return so that the CPU goes to glueLevel1 at IPL
+   1 first, as a Mac VIA interrupt would. */
     .globl _glueTimerC
 _glueTimerC:
+    move.l  #_glueBusError, 8.w
     move.l  %d0, -(%sp)
     addq.w  #1, _glueTicksPending
     move.l  _glueSecondAcc, %d0
@@ -109,6 +114,7 @@ _glueLevel1:
     movea.l MAC_LVL1DT + 4 * MAC_LVL1_VBL, %a0
     jsr     (%a0)
     jsr     _glueKbdTick                /* the keyboard (ikbd.c) */
+    jsr     _glueDiskTick               /* disks to announce (disk.c) */
 #if defined(_DEBUG) && (_DEBUG > 0)
     jsr     _glueTickProbe
 #endif
@@ -149,6 +155,19 @@ _glueBusError:
     move.l  _glueBusPrevious, -(%sp)
     rts
 
+/* The trace exception after a read re-run against our Mac ROM (buserr.c):
+   glueBusTraceFix moves the register back, clears the trace bit and puts
+   the trace vector back. */
+    .globl _glueBusTrace
+_glueBusTrace:
+    movem.l %d0-%d7/%a0-%a6, -(%sp)
+    move.l  %sp, -(%sp)                 /* the registers, D0-D7/A0-A6 */
+    pea     60 + 4(%sp)                 /* the frame: SR, PC */
+    jsr     _glueBusTraceFix
+    addq.l  #8, %sp
+    movem.l (%sp)+, %d0-%d7/%a0-%a6
+    rte
+
 #if defined(_TEST) && (_TEST > 0)
 /* long glueBusSelfTest(void): writes to address 0 in the forms Mac code
    uses on nil handles; each must be skipped. Returns 1 when the stack came
@@ -166,7 +185,16 @@ _glueBusSelfTest:
     move.l  %d0, 4(%a0)                 /* MOVE.L Dn,d16(An) */
     clr.w   (%a0)                       /* CLR.W (An) */
     move.w  #0x1234, 2(%a0)             /* MOVE.W #imm,d16(An) */
+    /* The Plus's ROM space (EPIC-09): a write skipped, then a read that
+       must see our Mac ROM's first word, A1 left as it was. */
+    movea.l #0x500000, %a1
+    move.w  #1, 2(%a1)                  /* MOVE.W #imm,d16(An) */
+    move.w  (%a1), %d1                  /* MOVE.W (An),Dn */
     moveq   #0, %d0
+    cmp.w   MAC_ROM_BASE_ADDR, %d1
+    bne.s   2f
+    cmpa.l  #0x500000, %a1
+    bne.s   2f
     cmp.l   %sp, %d2
     bne.s   2f
     moveq   #1, %d0
@@ -309,6 +337,17 @@ _glueDerefCheck:
  * OS traps for the C side
  */
 
+/* long gluePostDiskInserted(long drive): a disk-inserted event for the
+   drive, as .Sony posts when it sees a disk (Event Manager, diskEvt 7);
+   the result code (queue full). */
+    .globl _gluePostDiskInserted
+_gluePostDiskInserted:
+    move.l  4(%sp), %d0
+    movea.w #7, %a0                     /* diskEvt */
+    .short  0xA02F                      /* _PostEvent */
+    ext.l   %d0
+    rts
+
 /* void glueInsTime(void *task) */
     .globl _glueInsTime
 _glueInsTime:
@@ -320,6 +359,13 @@ _glueInsTime:
    present. */
     .globl _glueRts
 _glueRts:
+    rts
+
+/* A trap that does nothing and succeeds (D0 = noErr): _FlushCodeCache on
+   a 68000, which has no cache (mac.c). */
+    .globl _glueTrapNoErr
+_glueTrapNoErr:
+    moveq   #0, %d0
     rts
 
 /* void *glueNewPtrSysClear(unsigned long size) */

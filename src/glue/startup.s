@@ -69,8 +69,12 @@ _glueReset:
        then single longs; d5 and d6 are kept. */
     move.l  %d5, %a0
 #if defined(_TEST) && (_TEST > 0)
-    /* Test builds: a restart keeps the harness's RAM disk (ramdisk.c),
-       the fill stopping at the base of a "JKRD" image below the top. */
+    /* Test builds: a restart keeps the harness's RAM disks (ramdisk.c),
+       the fill stopping at the base of the lowest "JKRD" image: each
+       descriptor sits 16 bytes under the image above it, the first under
+       the top. Two at most (DISK_DRIVES). */
+    moveq   #1, %d1
+2:
     lea     -16(%a0), %a1
     cmpi.l  #0x4A4B5244, (%a1)
     bne.s   3f
@@ -82,6 +86,7 @@ _glueReset:
     cmp.l   %a1, %d0
     bcc.s   3f
     movea.l %d0, %a0
+    dbf     %d1, 2b
 3:
 #endif
     movea.w #8, %a1
