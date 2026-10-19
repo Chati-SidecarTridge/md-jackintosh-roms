@@ -37,6 +37,9 @@ runs=(
   "--image st --memsize 2560 --type debug-test --disk @system608"
   "--image ste --memsize 4096 --type debug-test --disk @system608 --input"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fixed --partition"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --launch 85,56 --then keys:Diego --then click:98,458 --then wait:3 --then keys:Hello --then cmd:s --then wait:3 --then keys:Jackintosh\\n --then wait:4 --then shot:saved"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --swap @excel103 --then click:105,600 --then cmd:e --then wait:6 --then shot:swapped"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @norton111 --launch 82,50 --then click:116,170 --then wait:5 --then shot:disk-doctor"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

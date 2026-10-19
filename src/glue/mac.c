@@ -37,7 +37,12 @@ extern long glueSetPtrSize(void *ptr, unsigned long size);
 extern void glueDisposPtr(void *ptr);
 #endif
 extern void glueIkbdInit(void);
+extern void glueTrapNoErr(void);
 static void glueRtcTraceXpram(void);
+#if defined(_DEBUG) && (_DEBUG > 0)
+/* DSErrCode as glueHook found it: a change is a system error (EPIC-09). */
+static unsigned short glueDsErrSeen;
+#endif
 #if defined(_DEBUG) && (_DEBUG > 0)
 extern void glueCrashBus(void);
 extern void glueCrashAddress(void);
@@ -59,7 +64,8 @@ enum {
   kMfpVectorBase = 0x30, /* vectors 48-63 at $C0-$FC (D-17) */
   kMfpVectorCount = 16,
   kMfpTimerC = 5,
-  kMfpAcia = 6,      /* GPIP 4 */
+  kMfpAcia = 6, /* GPIP 4 */
+  kDsGreeting = 40,
   kSetPtrSmall = 16, /* the Memory Manager self-test's sizes */
   kSetPtrLarge = 0x800,
   kSetPtrTiny = 8,
@@ -179,8 +185,19 @@ void glueHook(void) {
      interrupts (plus/resources/res_drvr_mpp.s:1328-1330, res_serd.s:206-213).
      The boot's $FF fill had left them free. */
   LOWMEM_WORD(MAC_PORTAUSE) = 0;
+  /* _FlushCodeCache: neither the Plus ROM nor System 6.0.8's patches for
+     it implement the trap, and programs call it unconditionally after
+     unpacking code (Norton Utilities 1.1.1). A 68000 has no cache: a trap
+     that succeeds is right. A System that implements it replaces this. */
+  if (LOWMEM_LONG(MAC_TRAP_FLUSHCODECACHE) ==
+      MACROM_ADDR(MACROM_UNIMPLEMENTED)) {
+    LOWMEM_LONG(MAC_TRAP_FLUSHCODECACHE) = (unsigned long)glueTrapNoErr;
+  }
   glueIkbdInit();
   glueRtcTraceXpram();
+#if defined(_DEBUG) && (_DEBUG > 0)
+  glueDsErrSeen = LOWMEM_WORD(MAC_DSERRCODE);
+#endif
 #if defined(_TEST) && (_TEST > 0)
   {
     /* The Memory Manager's nil-master-pointer paths (EPIC-08 STORY-06):
@@ -372,11 +389,21 @@ static void glueDrawSymbol(const unsigned char *src, int rowOffset, int rows) {
 
 #if defined(_DEBUG) && (_DEBUG > 0)
 /* Every 512 Mac ticks, Ticks against the Atari VBLs counted since the hook
-   (glueVbl): the harness turns the pair into the tick rate. */
+   (glueVbl): the harness turns the pair into the tick rate. And any new
+   system error: SysError stores its code in DSErrCode before it draws the
+   bomb (plus/debugger/debugger.s:237); the harness fails on the line. Not
+   40, dsGreeting: "Welcome to Macintosh" is drawn through SysError too. */
 void glueTickProbe(void) {
   const unsigned long ticks = LOWMEM_LONG(MAC_TICKS);
+  const unsigned short dsErr = LOWMEM_WORD(MAC_DSERRCODE);
   if ((ticks & kTickProbeMask) == 0) {
     TRACE("ticks %lu vbl %lu", ticks, glueVblCount);
+  }
+  if (dsErr != glueDsErrSeen) {
+    glueDsErrSeen = dsErr;
+    if (dsErr != kDsGreeting) {
+      TRACE("mac syserr %d", (int)(short)dsErr);
+    }
   }
 }
 #endif

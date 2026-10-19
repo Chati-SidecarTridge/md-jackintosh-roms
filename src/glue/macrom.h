@@ -21,6 +21,7 @@
 #define MACROM_ICON_DISK 0x0FA2         /* plus/boot/sad_mac.s */
 #define MACROM_DT_MHAPPYMAC 0x0FD2      /* plus/boot/sad_mac.s */
 #define MACROM_DEREFHANDLE_CONT 0x10470 /* plus/os/memory_mgr.s:1117 */
+#define MACROM_UNIMPLEMENTED 0x0806     /* plus/boot/vectors.s:1196 */
 /* DEREFHANDLE_CONT_4: memWZErr, the "free block" exit. */
 #define MACROM_DEREFHANDLE_CONT_4 0x10492
 
@@ -37,6 +38,12 @@
 #define MAC_PWMBUF2 0x0312
 #define MAC_SCRNBASE 0x0824
 #define MAC_JIODONE 0x08FC
+#define MAC_DSERRCODE 0x0AF0 /* the last system error */
+/* _FlushCodeCache ($A0BD)'s entry in the Plus's one trap table at $400. */
+#define MAC_TRAP_FLUSHCODECACHE (0x0400 + (0xBD * 4))
+#define MAC_EVTBUFPTR                                    \
+  0x0146 /* the event queue's buffer, set by _InitEvents \
+          */
 #define MAC_PWMBUF1 0x0B0A
 #define MAC_SCSIDRVRS 0x0B2E
 #define MAC_LO3BYTES 0x031A
@@ -79,6 +86,7 @@
 #define MAC_PARAMERR (-50)
 #define MAC_STATUSERR (-18)
 #define MAC_OFFLINERR (-65)
+#define MAC_NSDRVERR (-56) /* no such drive */
 
 /* The emulated clock starts at 2026-10-18 00:00 in Mac time (seconds since
    1904-01-01) until a real clock exists (Iteration 3). */

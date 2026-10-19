@@ -12,5 +12,12 @@ file =
 [disks]
 # Mac disk images for the RAM-disk sessions (EPIC-03): raw, DiskCopy 4.2, or
 # MacBinary II around DiskCopy 4.2. They hold Apple's system software and
-# stay outside the repository. tools/dev/all_harness.sh boots system608.
+# stay outside the repository. tools/dev/all_harness.sh boots system608 and
+# runs two programs from drive 2 (EPIC-09): word40a (hampa.ch's Microsoft
+# Word 4.0a, "Word Program") and norton111 (Norton Utilities 1.1.1 800K,
+# disk1, "Norton Emergency Disk"); and swaps excel103 (Microsoft Excel 1.03,
+# "Excel Program") into drive 2 when the Finder ejects Word's disk.
 system608 =
+word40a =
+norton111 =
+excel103 =
