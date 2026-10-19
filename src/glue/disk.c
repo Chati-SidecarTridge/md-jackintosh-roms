@@ -367,6 +367,14 @@ short glueDriverControl(const unsigned char *block, const unsigned char *dce) {
            md-jackintosh's EJECT would only cost a command. */
         return MAC_NOERR;
       }
+      if (LOWMEM_LONG(MAC_EVTBUFPTR) == kUnsetLong) {
+        /* The boot loop ejects a disk that is not a startup disk. An image
+           cannot be put back by hand, so the eject fails: the ROM drops the
+           drive from BootMask and tries the next (plus/boot/vectors.s:
+           1096-1104), and the disk is announced once the Finder runs. */
+        TRACE("disk%d kept at boot", drive + 1);
+        return MAC_CONTROLERR;
+      }
       glueBackend->eject(drive);
       glueDriveRefresh(drive);
       if (drive == 0) {

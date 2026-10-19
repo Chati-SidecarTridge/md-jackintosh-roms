@@ -47,6 +47,7 @@ runs=(
   "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --swap @excel103 --fake-cart --then click:105,600 --then cmd:e --then wait:6 --then shot:swapped"
   "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --fake-cart --then fake-restart:5 --then wait:4 --then click:45,600 --then cmd:o --then wait:3 --then shot:after"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --then fake-down --then click:45,600 --then cmd:o --then wait:8 --then fake-up --then wait:6 --then shot:after"
+  "--image ste --memsize 4096 --type debug-test --disk build/hd/hd0-small.raw --fixed --disk2 @word40a --fake-cart --then wait:3 --then shot:desk"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )
