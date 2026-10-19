@@ -432,8 +432,9 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper=None):
     """EPIC-09: the --then actions, in order: keys:TEXT (typed; \\n for
     Return), cmd:KEY (Command-KEY), click:V,H, press:V,H and release:V,H (a
-    menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME; a
-    crash during them fails the run."""
+    menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME, regs
+    and mem:ADDR,LEN (the registers or memory into stderr.txt); a crash
+    during them fails the run."""
     key, chord, mouse = input_helpers(need, command, glue_map)
     for action in actions:
         verb, _, arg = action.partition(":")
@@ -454,6 +455,13 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper.wait(float(arg))  # serving drive 2's swaps meanwhile
             else:
                 time.sleep(float(arg))
+        elif verb == "regs":  # the CPU's registers into stderr.txt, for debugging
+            command("hatari-debug r")
+            time.sleep(0.5)
+        elif verb == "mem":  # mem:ADDR,LEN: memory into stderr.txt, for debugging
+            address, length = arg.split(",")
+            command(f"hatari-debug m ${int(address, 0):x} {int(length, 0)}")
+            time.sleep(0.5)
         elif verb == "shot":
             path = shot(arg)
             if path is None:
@@ -710,7 +718,7 @@ def main():
     parser.add_argument("--then", action="append", metavar="ACTION",
                         help="after --launch, in order (repeatable): keys:TEXT (letters, "
                              "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, click:V,H, "
-                             "press:V,H, release:V,H, "
+                             "press:V,H, release:V,H, regs, mem:ADDR,LEN, "
                              "wait:SECONDS, shot:NAME")
     parser.add_argument("--save-disk", metavar="FILE",
                         help="at the end of a passing run, save the RAM disk (drive 1) as the "
