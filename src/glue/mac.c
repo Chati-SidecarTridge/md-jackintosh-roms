@@ -14,6 +14,7 @@
 #include "hw.h"
 #include "macrom.h"
 #include "mem.h"
+#include "menu.h"
 #include "sysreloc.h"
 #include "text.h"
 #include "trace.h"
@@ -102,6 +103,51 @@ enum {
  * Entering the ROM
  */
 
+/* The Mac's screen geometry (EPIC-12): the ROM's video patches read these
+   words instead of 512 and 342 (src/patches/plus_v3.ini, video-*), and
+   its ScrnBase comes from glueScreenBase, so the screen is 640x400 or the
+   Plus's 512x342 centred in it. They sit in the glue's RAM, below $8000,
+   for the patches' absolute short addresses. */
+unsigned long glueScreenBase;
+unsigned short glueScreenWidth;
+unsigned short glueScreenHeight;
+unsigned short glueScreenRight;  /* the width less the cursor's 32 */
+unsigned short glueScreenBottom; /* the height less the cursor's 16 */
+
+enum {
+  kWideWidth = 640,
+  kWideHeight = 400,
+  kPlusWidth = 512,
+  kPlusHeight = 342,
+  kCursorWidth = 32,
+  kCursorHeight = 16,
+  kRowBytes = 80,
+  kPlusTopRows = (kWideHeight - kPlusHeight) / 2,     /* 29 */
+  kPlusLeftBytes = (kWideWidth - kPlusWidth) / 2 / 8, /* 8 */
+  kScreenLongs = (kWideHeight * kRowBytes) / 4,
+  kBorderBlack = -1
+};
+
+static void glueScreenGeometry(unsigned long screen) {
+  const int plus = glueOptions.plusScreen;
+  glueScreenWidth = plus ? kPlusWidth : kWideWidth;
+  glueScreenHeight = plus ? kPlusHeight : kWideHeight;
+  glueScreenRight = (unsigned short)(glueScreenWidth - kCursorWidth);
+  glueScreenBottom = (unsigned short)(glueScreenHeight - kCursorHeight);
+  glueScreenBase = screen;
+  if (plus) {
+    /* A black border round the Plus's screen, as a CRT's. */
+    volatile long *fill = (volatile long *)screen;
+    for (int i = 0; i < kScreenLongs; ++i) {
+      fill[i] = kBorderBlack;
+    }
+    glueScreenBase +=
+        ((unsigned long)kPlusTopRows * kRowBytes) + kPlusLeftBytes;
+  }
+  TRACE("mac screen %ux%u at %06lx", (unsigned)glueScreenWidth,
+        (unsigned)glueScreenHeight, glueScreenBase);
+}
+
 void glueMacBoot(unsigned long memTop, unsigned long screen) {
   /* The VIA shadow's port B: mouse button up, sound off. */
   glueViaShadow[0] = kViaPortBButtonUp | kViaPortBSoundOff;
@@ -141,6 +187,7 @@ void glueMacBoot(unsigned long memTop, unsigned long screen) {
   LOWMEM_WORD(MAC_PWMVALUE) = kPwmSilence;
   LOWMEM_LONG(MAC_SOUNDBASE) = memTop - MAC_SOUNDBASE_BELOW_MEMTOP;
   LOWMEM_LONG(MAC_BUFPTR) = screen;
+  glueScreenGeometry(screen);
 
   TRACE("mac enter %06lx memtop %06lx screen %06lx",
         (unsigned long)MACROM_ADDR(MACROM_E_SOFTRESET), memTop, screen);
@@ -384,12 +431,23 @@ static unsigned char *glueIconAt(int row, int byte) {
          ((unsigned long)row * kScreenRowBytes) + byte;
 }
 
+/* The icon's place on the screen in use: 174, 38 on 640x400, the Plus's own
+   145, 30 on 512x342. */
+static int glueIconRow(void) {
+  return (glueScreenHeight / 2) - ((kWideHeight / 2) - kIconRow);
+}
+static int glueIconByte(void) {
+  enum { kPixelsPerWord = 16 }; /* half the width, in bytes */
+  return (glueScreenWidth / kPixelsPerWord) -
+         ((kWideWidth / kPixelsPerWord) - kIconByte);
+}
+
 /* DeviceLoop: 16 flag bytes; each bit, least significant first, gives one
    screen byte: 0 copies the next data byte, 1 writes a zero (the bit is the
    one LSR shifts out into the carry). 4 bytes a row; then each of the 31
    rows below is XORed with the one above. */
 static void glueDrawIcon(const unsigned char *src) {
-  unsigned char *row = glueIconAt(kIconRow, kIconByte);
+  unsigned char *row = glueIconAt(glueIconRow(), glueIconByte());
   unsigned char *dst = row;
   int count = 0;
   for (int i = 0; i < kIconSourceRows; ++i) {
@@ -419,7 +477,7 @@ static void glueDrawIcon(const unsigned char *src) {
 /* PutSymbol: rows of 2 bytes copied into the icon. */
 static void glueDrawSymbol(const unsigned char *src, int rowOffset, int rows) {
   unsigned char *dst =
-      glueIconAt(kIconRow + rowOffset, kIconByte + kSymbolByte);
+      glueIconAt(glueIconRow() + rowOffset, glueIconByte() + kSymbolByte);
   for (int i = 0; i < rows; ++i) {
     dst[0] = *src++;
     dst[1] = *src++;

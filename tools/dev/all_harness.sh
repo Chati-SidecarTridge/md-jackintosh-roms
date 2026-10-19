@@ -55,6 +55,11 @@ runs=(
   "--image ste --memsize 4096 --type debug-test --disk build/hd/hd0-small.raw --fixed --disk2 @word40a --fake-cart --fake-tree /jackintosh/HD.dsk=0 --fake-tree /jackintosh/Word.dsk.rw=1 --fake-set 12=/jackintosh/HD.dsk --fake-set 1=/jackintosh/Word.dsk.rw --fake-set 11= --then wait:4 --then shot:fd0"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --menu u --menu type:2 --menu return --menu h --menu type:time.apple.com --menu return --menu p --menu type:abc --menu return --menu r --menu shot:rtc --menu e"
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart valid-at=99 --fake-set 13=false"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --menu o --menu c --menu r --menu shot:options --menu esc --menu e"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 17=2048 --then wait:2 --then shot:mac2m"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 16=5 --menu shot:five --menu e"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 18=double --then rclick:45,600 --then wait:3 --then shot:rdouble"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 19=512x342 --then click:45,472 --then cmd:o --then wait:3 --then shot:plus"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

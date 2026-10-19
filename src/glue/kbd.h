@@ -24,11 +24,13 @@
 #define KBD_P 0x19
 #define KBD_H 0x23
 #define KBD_I 0x17
+#define KBD_O 0x18
 #define KBD_A 0x1E
 #define KBD_L 0x26
 #define KBD_RETURN 0x1C
 #define KBD_B 0x30
 #define KBD_M 0x32
+#define KBD_S 0x1F
 #define KBD_SPACE 0x39
 #define KBD_UP 0x48
 #define KBD_LEFT 0x4B

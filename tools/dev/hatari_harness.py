@@ -161,8 +161,9 @@ FAKE_CART_PATH = 96
 # glueTestCart up to its units: the header, PRAM.BIN, the SELECT count, FD0's
 # slot, the tree's size, 16 settings, the tree (src/glue/cart.c).
 FAKE_CART_SETTINGS = 16  # 13 paths, then the RTC's three (EPIC-13)
+FAKE_CART_OPTIONS = 10  # the ROM's option slots, 16 bytes each (EPIC-12)
 FAKE_CART_STATE_BYTES = (8 * 4 + 256 + 3 * 4 + FAKE_CART_SETTINGS * FAKE_CART_PATH
-                         + FAKE_CART_TREE_MAX * 104)
+                         + FAKE_CART_OPTIONS * 16 + FAKE_CART_TREE_MAX * 104)
 FAKE_CART_SELECT = 8 * 4 + 256  # selectSeq's offset
 
 
@@ -242,6 +243,9 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path, tree=(), settings=None)
         for key in range(FAKE_CART_SETTINGS):
             handle.write((settings or {}).get(key, "").encode("latin-1")
                          .ljust(FAKE_CART_PATH, b"\0")[:FAKE_CART_PATH])
+        for key in range(16, 16 + FAKE_CART_OPTIONS):
+            handle.write((settings or {}).get(key, "").encode("latin-1")
+                         .ljust(16, b"\0")[:16])
         for path, drive, size in list(tree) + [("", -1, 0)] * (FAKE_CART_TREE_MAX - len(tree)):
             handle.write(path.encode("latin-1").ljust(FAKE_CART_PATH, b"\0")
                          + struct.pack(">iI", drive, size))
@@ -440,6 +444,11 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
         need("no Multi-device", r"@@ cart hello none\n", 10)
     if fake and known and not fake["card"]:
         run_menu(trace, shot, steps, need, command, args.menu or ())
+        if fake["ram-kb"] and fake["ram-kb"] * 1024 < memtop:
+            # The Mac RAM option: its top and screen lower (EPIC-12).
+            memtop = fake["ram-kb"] * 1024
+            screen = memtop - MAC_SCREEN_BELOW_MEMTOP
+            need("Mac RAM option", rf"@@ mac ram {memtop}\n", 10)
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
         need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
@@ -543,7 +552,9 @@ def finder_on_screen(png):
     """The Finder's menu bar: row 19 a black line across the screen, row 10
     mostly white with the menu titles (the grey desktop has 320 dark pixels
     on every row)."""
-    return hc.dark_pixels(png, 0, 19, 640, 20) > 600 and hc.dark_pixels(png, 0, 10, 640, 11) < 200
+    top, left, width = PLUS_SCREEN if PLUS_SCREEN else (0, 0, 640)
+    return (hc.dark_pixels(png, left, top + 19, left + width, top + 20) > width - 40
+            and hc.dark_pixels(png, left, top + 10, left + width, top + 11) < 200)
 
 
 MOUSE_SEQ = [0]
@@ -580,6 +591,10 @@ def fake_up(command):
     command(f"hatari-debug memwrite w ${window + 0x0C:x} $4a4b $1")
     time.sleep(0.5)
 
+
+# EPIC-12's 512x342 option: the Mac's screen 29 rows down and 64 pixels in,
+# 512 wide, inside the 640x400 (row offset, column offset, width), or None.
+PLUS_SCREEN = None
 
 MENU_KEYS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D, "return": 0x1C,
              "space": 0x39, "esc": 0x01, "backspace": 0x0E}
@@ -727,6 +742,11 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
             cv, ch = (int(x) for x in arg.split(","))
             mouse(cv, ch, 0)
             mouse(cv, ch, 1)
+            mouse(cv, ch, 0)
+        elif verb == "rclick":  # the right button (EPIC-12's option), rclick:V,H
+            cv, ch = (int(x) for x in arg.split(","))
+            mouse(cv, ch, 0)
+            mouse(cv, ch, 2)
             mouse(cv, ch, 0)
         elif verb in ("press", "release"):  # a menu: press, release on an item
             cv, ch = (int(x) for x in arg.split(","))
@@ -1031,7 +1051,8 @@ def main():
                              "/jackintosh/<name> (repeatable)")
     parser.add_argument("--fake-set", action="append", metavar="KEY=PATH",
                         help="with --fake-cart: one of md-jackintosh's settings (0 FOLDER, 1-10 "
-                             "FD0's slots, 11 FD1, 12 HD0; repeatable)")
+                             "FD0's slots, 11 FD1, 12 HD0, 13-15 RTC, 16-25 the ROM's options; "
+                             "repeatable)")
     parser.add_argument("--menu", action="append", metavar="ACTION",
                         help="with --fake-cart: in the setup menu at boot, in order: a key "
                              "(shift+ and ctrl+ allowed), shot:NAME, wait:S; then [E]")
@@ -1114,6 +1135,11 @@ def main():
         parse_path, args.fake = fake_cart_files(run_dir, glue_map, args.fake_cart, parse_path,
                                                 tree, settings)
         args.fake["rtc-off"] = settings.get(13) == "false"  # EPIC-13
+        # EPIC-12: the Mac's RAM.
+        args.fake["ram-kb"] = int(settings[17]) if settings.get(17, "").isdigit() else 0
+        if settings.get(19) == "512x342":
+            global PLUS_SCREEN
+            PLUS_SCREEN = (29, 64, 512)
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 

@@ -23,6 +23,7 @@ unsigned char glueRamMmu;
 
 enum {
   kKilobyte = 1024,
+  kKilobyteShift = 10,
   kMmuBank0Shift = 2,
   kMmuBankMask = 0x3,
   kMacRomVersionOffset = 8,
@@ -178,6 +179,15 @@ void glueMain(void) {
       textPuts("no Multi-device: no disks\n");
       screenWaitFrames(screen, kNoticeFrames);
       break;
+  }
+  if (glueOptions.ramKilobytes != 0 &&
+      (glueOptions.ramKilobytes << kKilobyteShift) < memTop) {
+    /* The menu's Mac RAM option (EPIC-12): less than the machine has, the
+       screen and the sound buffer below the new top. */
+    memTop = glueOptions.ramKilobytes << kKilobyteShift;
+    screen = memTop - MAC_SCREEN_BELOW_MEMTOP;
+    (void)screenInit(screen);
+    TRACE("mac ram %lu", memTop);
   }
   glueMacBoot(memTop, screen);
 }
