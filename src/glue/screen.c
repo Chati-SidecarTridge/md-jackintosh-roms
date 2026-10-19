@@ -73,6 +73,12 @@ static int screenDetectSte(void) {
 
 int screenIsSte(void) { return screenSte; }
 
+void screenWaitFrames(unsigned long base, int frames) {
+  for (int frame = 0; frame < frames; ++frame) {
+    (void)screenWaitVbl(base);
+  }
+}
+
 int screenInit(unsigned long base) {
   int vbl;
   int mono;

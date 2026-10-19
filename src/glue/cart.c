@@ -27,7 +27,10 @@
 #include "trace.h"
 
 enum {
-  kHelloAttempts = 7,    /* about 10 s: the RP answers 1.5-3 s after power-on */
+  /* About 3 s with no cartridge. On the bench the RP answers 1.0-1.2 s after
+     power-on and our first hello goes out about 4 s after it: one try was
+     always enough (nine cold power-ons, 2026-10-19). */
+  kHelloAttempts = 2,
   kTimeRetryTicks = 600, /* ask for the time every 10 s ... */
   kTimeRetryLimit = 12,  /* ... for 2 minutes */
   kPramWriteTicks = 180, /* the PRAM written 3 s after its last change */

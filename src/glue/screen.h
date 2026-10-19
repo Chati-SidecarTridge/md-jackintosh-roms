@@ -17,3 +17,7 @@ int screenInit(unsigned long base);
 
 /* 1 when the Shifter is an STE's. */
 int screenIsSte(void);
+
+/* Waits for frames vertical blanks of the screen at base (71.2 a second on
+   a mono monitor). */
+void screenWaitFrames(unsigned long base, int frames);

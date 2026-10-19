@@ -29,7 +29,8 @@ enum {
   kBytesPerLong = 4,
   kValueColumn = 10,
   kImageRow = 6,
-  kCartRow = 9
+  kCartRow = 9,
+  kNoticeFrames = 72 /* about a second on a mono monitor */
 };
 
 /* The MMU's bank size code (memconf.inc): 0 128 KB, 1 512 KB, 2 2 MB. */
@@ -145,9 +146,11 @@ void glueMain(void) {
       break;
     case CART_STATE_OTHER:
       textPuts("another firmware answered: no disks\n");
+      screenWaitFrames(screen, kNoticeFrames); /* long enough to read */
       break;
     default:
       textPuts("no Multi-device: no disks\n");
+      screenWaitFrames(screen, kNoticeFrames);
       break;
   }
   glueMacBoot(memTop, screen);
