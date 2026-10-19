@@ -484,24 +484,31 @@ FAKE_CTX = {}
 FAKE_CART_WINDOW = FAKE_CART_STATE_BYTES + 3 * 4  # after the units' drives
 
 
-def fake_restart(command, seconds, wait):
+def fake_down(command):
     """EPIC-05: the fake behaves like an RP that restarts while the Mac
     runs (md-jackintosh, 2026-10-19): its window reads as fresh (no
     identity, every unit empty) and commands go to the real bus, where they
-    time out; then the identity and the units come back, change counters 1."""
-    base, units = FAKE_CTX["base"], FAKE_CTX["units"]
+    time out, until fake_up."""
+    base = FAKE_CTX["base"]
     window = base + FAKE_CART_WINDOW
     command(f"hatari-debug memwrite w ${base:x} $0 $0")                # enabled
     command(f"hatari-debug memwrite w ${window + 0x0C:x} $0 $0")       # identity
     for unit in range(3):
         command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
                 + " ".join(["$0"] * 8))
-    wait(seconds)
+
+
+def fake_up(command):
+    """The restarted RP: the identity and the units back, change counters 1.
+    The fake answers first, so a command sent once the identity is back
+    reaches it."""
+    base, units = FAKE_CTX["base"], FAKE_CTX["units"]
+    window = base + FAKE_CART_WINDOW
+    command(f"hatari-debug memwrite w ${base:x} $4641 $4b45")         # "FAKE"
     for unit, (flags, sectors) in units.items():
         command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
                 f"$0 ${flags:x} ${sectors >> 16:x} ${sectors & 0xFFFF:x} $0 $1 $0 $1")
     command(f"hatari-debug memwrite w ${window + 0x0C:x} $4a4b $1")
-    command(f"hatari-debug memwrite w ${base:x} $4641 $4b45")         # "FAKE"
     time.sleep(0.5)
 
 
@@ -576,7 +583,8 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
     Return), cmd:KEY (Command-KEY), click:V,H, press:V,H and release:V,H (a
     menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME, regs
     and mem:ADDR,LEN (the registers or memory into stderr.txt),
-    fake-restart:SECONDS (--fake-cart: the RP restarts); a crash during
+    fake-restart:SECONDS (--fake-cart: the RP restarts), or fake-down and
+    fake-up around other actions (the Mac uses its disk meanwhile); a crash during
     them fails the run."""
     key, chord, mouse = input_helpers(need, command, glue_map)
     for action in actions:
@@ -598,11 +606,15 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper.wait(float(arg))  # serving drive 2's swaps meanwhile
             else:
                 time.sleep(float(arg))
-        elif verb == "fake-restart":  # fake-restart:SECONDS (--fake-cart)
+        elif verb in ("fake-restart", "fake-down", "fake-up"):  # --fake-cart
             if not FAKE_CTX:
-                hc.die("--then fake-restart needs --fake-cart and --disk")
-            fake_restart(command, float(arg),
-                         swapper.wait if swapper else time.sleep)
+                hc.die(f"--then {verb} needs --fake-cart and --disk")
+            if verb != "fake-up":
+                fake_down(command)
+            if verb == "fake-restart":  # fake-restart:SECONDS
+                (swapper.wait if swapper else time.sleep)(float(arg))
+            if verb != "fake-down":
+                fake_up(command)
         elif verb == "regs":  # the CPU's registers into stderr.txt, for debugging
             command("hatari-debug r")
             time.sleep(0.5)
@@ -866,7 +878,7 @@ def main():
     parser.add_argument("--then", action="append", metavar="ACTION",
                         help="after --launch, in order (repeatable): keys:TEXT (letters, "
                              "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, click:V,H, "
-                             "press:V,H, release:V,H, regs, mem:ADDR,LEN, fake-restart:SECONDS, "
+                             "press:V,H, release:V,H, regs, mem:ADDR,LEN, fake-restart:SECONDS, fake-down, fake-up, "
                              "wait:SECONDS, shot:NAME")
     parser.add_argument("--save-disk", metavar="FILE",
                         help="at the end of a passing run, save the RAM disk (drive 1) as the "

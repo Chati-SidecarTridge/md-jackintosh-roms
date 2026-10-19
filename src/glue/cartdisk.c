@@ -8,11 +8,15 @@
  * microSD over its app $07 disk commands (rp/src/include/macdisk.h there):
  * the unit table in the status block says what is inserted, its size and
  * whether it is read-only; READ fills the window's buffer (up to 32
- * sectors), WRITE carries up to 2; EJECT empties a unit. A unit whose change
+ * sectors), WRITE carries up to 2; EJECT empties a unit until the ST boots
+ * again (the hello mounts the empty units' images again). A unit whose change
  * counter moves is reported as inserted. While the RP restarts (its window
- * reads as fresh: no identity, every unit empty) nothing is reported and
- * the Mac keeps its view; a unit that comes back with the same size stays
- * mounted (md-jackintosh's advice, 2026-10-19). The copy out of the window
+ * reads as fresh or as nothing: no identity) nothing is reported, the units
+ * keep the state last read, and a read or write waits for the RP to come
+ * back (a reflash takes about 25 s): a unit gone offline would set off the
+ * File Manager's disk switch, which ejects it (seen on the bench,
+ * 2026-10-19). A unit that comes back with the same size stays mounted
+ * (md-jackintosh's advice, 2026-10-19). The copy out of the window
  * is md-drives-emulator's (glueCartCopy, cart.s), as Diego asked: "reuse as
  * much as possible the md-drives-emulator microfirmware".
  */
@@ -24,6 +28,10 @@
 
 enum { kBlockShift = 9, kIdMagicShift = 16, kIdVersionMask = 0xFFFF };
 
+/* How long a disk command waits for a restarting RP: about 60 s, the loop
+   being about as long as the senders' (cart.h). */
+#define CART_DISK_WAIT_SPINS (CART_TIMEOUT_SPINS * 40UL)
+
 #define UNIT_LONG(unit, field)                                           \
   (*(volatile unsigned long *)(glueCartStatus + CART_UNIT_TABLE_OFFSET + \
                                ((unit) * CART_UNIT_ENTRY_BYTES) + (field)))
@@ -33,6 +41,9 @@ enum { kBlockShift = 9, kIdMagicShift = 16, kIdVersionMask = 0xFFFF };
 /* The change counters and sizes the Mac was last told about. */
 static unsigned long cartDiskChanges[CART_UNITS];
 static unsigned long cartDiskSectors[CART_UNITS];
+/* Each unit's flags and size as last read while the RP was up. */
+static unsigned long cartDiskFlags[CART_UNITS];
+static unsigned long cartDiskBlocks[CART_UNITS];
 
 /* Whether the RP's window is md-jackintosh's (not mid-restart). */
 static int cartDiskUp(void) {
@@ -41,20 +52,41 @@ static int cartDiskUp(void) {
          (identity & kIdVersionMask) == CART_ID_VERSION;
 }
 
+/* Whether the RP is up, waiting for it while it restarts. */
+static int cartDiskWaitUp(void) {
+  if (cartDiskUp()) {
+    return 1;
+  }
+  TRACE("disk cart wait");
+  for (unsigned long spins = CART_DISK_WAIT_SPINS; spins != 0; --spins) {
+    if (cartDiskUp()) {
+      TRACE("disk cart back");
+      return 1;
+    }
+  }
+  TRACE("disk cart gone");
+  return 0;
+}
+
 static int cartDiskDrives(void) {
   for (int unit = 0; unit < CART_UNITS; ++unit) {
     cartDiskChanges[unit] = UNIT_LONG(unit, CART_UNIT_CHANGES);
     cartDiskSectors[unit] = UNIT_LONG(unit, CART_UNIT_SECTORS);
+    cartDiskFlags[unit] = UNIT_LONG(unit, CART_UNIT_FLAGS);
+    cartDiskBlocks[unit] = cartDiskSectors[unit];
   }
   return CART_UNITS;
 }
 
 static void cartDiskInfo(int drive, struct DiskInfo *info) {
-  const unsigned long flags = UNIT_LONG(drive, CART_UNIT_FLAGS);
-  info->present = (flags & CART_UNIT_FLAG_INSERTED) != 0;
+  if (cartDiskUp()) {
+    cartDiskFlags[drive] = UNIT_LONG(drive, CART_UNIT_FLAGS);
+    cartDiskBlocks[drive] = UNIT_LONG(drive, CART_UNIT_SECTORS);
+  }
+  info->present = (cartDiskFlags[drive] & CART_UNIT_FLAG_INSERTED) != 0;
   info->fixed = drive == CART_UNIT_HD0;
-  info->writeProtected = (flags & CART_UNIT_FLAG_READONLY) != 0;
-  info->blocks = info->present ? UNIT_LONG(drive, CART_UNIT_SECTORS) : 0;
+  info->writeProtected = (cartDiskFlags[drive] & CART_UNIT_FLAG_READONLY) != 0;
+  info->blocks = info->present ? cartDiskBlocks[drive] : 0;
 }
 
 /* A command's outcome as a Mac result code. */
@@ -84,9 +116,18 @@ static short cartDiskRead(int drive, unsigned long block, unsigned long count,
     const unsigned long chunk = count < (unsigned long)glueCartMaxReadSectors
                                     ? count
                                     : (unsigned long)glueCartMaxReadSectors;
-    const short result = cartDiskResult(glueCartCommand(
+    long sent;
+    short result;
+    if (!cartDiskWaitUp()) {
+      return MAC_IOERR;
+    }
+    sent = glueCartCommand(
         CART_CMD_DISK_READ, (long)(2 * sizeof(unsigned long)),
-        (unsigned long)drive | (chunk << CART_COUNT_SHIFT), block, 0, 0));
+        (unsigned long)drive | (chunk << CART_COUNT_SHIFT), block, 0, 0);
+    if (sent == CART_TIMEOUT && !cartDiskUp()) {
+      continue; /* the RP restarted under the command: again once back */
+    }
+    result = cartDiskResult(sent);
     if (result != MAC_NOERR) {
       return result;
     }
@@ -105,9 +146,18 @@ static short cartDiskWrite(int drive, unsigned long block, unsigned long count,
   while (count != 0) {
     const unsigned long chunk =
         count < CART_MAX_WRITE_SECTORS ? count : CART_MAX_WRITE_SECTORS;
-    const short result = cartDiskResult(glueCartCommandWrite(
+    long sent;
+    short result;
+    if (!cartDiskWaitUp()) {
+      return MAC_IOERR;
+    }
+    sent = glueCartCommandWrite(
         CART_CMD_DISK_WRITE, (unsigned long)drive | (chunk << CART_COUNT_SHIFT),
-        block, 0, src, (long)(chunk << kBlockShift)));
+        block, 0, src, (long)(chunk << kBlockShift));
+    if (sent == CART_TIMEOUT && !cartDiskUp()) {
+      continue; /* the RP restarted under the command: again once back */
+    }
+    result = cartDiskResult(sent);
     if (result != MAC_NOERR) {
       return result;
     }

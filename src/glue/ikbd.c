@@ -27,6 +27,8 @@ enum {
   kAciaReset = 0x03,
   kAciaConfig = 0x96, /* divide by 64, 8 bits, 1 stop, RX interrupt */
   kAciaRxFull = 0x01,
+  kAciaTxEmpty = 0x02,
+  kAciaTxSpins = 0x4000, /* a byte takes 1.3 ms at 7812.5 baud */
   /* MFP: GPIP 4 is the ACIAs' interrupt line, channel 6 */
   kMfpGpip4 = 0x10,
   kMfpIerbGpip4 = 0x40,
@@ -41,6 +43,12 @@ enum {
   kKeyBreak = 0x80,
   kKeyCodeMask = 0x7F,
   kLeftButton = 0x02, /* in a relative mouse header */
+  /* The IKBD's reset command and its reply (TOS sends the same) */
+  kIkbdReset = 0x80,
+  kIkbdResetArg = 0x01,
+  kIkbdVersionLow = 0xF0,
+  kIkbdVersionHigh = 0xF1,
+  kIkbdSyncTicks = 60,
   /* The VIA shadow */
   kViaPortB = 0x0000,
   kViaSr = 0x1400,
@@ -230,6 +238,9 @@ static unsigned gluePacketNeeded;
 
 /* The keyboard side of the shift register. */
 static int glueKbdWaiting;
+/* Ticks left to wait for the reset's reply; bytes are dropped until it
+   comes (0: the stream is in step). */
+static volatile unsigned glueIkbdSyncTicks;
 static unsigned char glueKbdCommand;
 static unsigned glueKbdNullTicks;
 
@@ -295,6 +306,15 @@ static void glueKey(unsigned char scancode) {
 }
 
 static void glueIkbdByte(unsigned char byte) {
+  if (glueIkbdSyncTicks != 0) {
+    /* A reset of the ST leaves the IKBD running: what arrives before the
+       reply is the rest of a packet already under way, and its delta
+       bytes ($F8-$FB) would read as headers with a button down. */
+    if (byte == kIkbdVersionLow || byte == kIkbdVersionHigh) {
+      glueIkbdSyncTicks = 0;
+    }
+    return;
+  }
   if (gluePacketNeeded == 0) {
     if (byte >= kHeaderRelMouseLow && byte <= kHeaderRelMouseHigh) {
       gluePacketNeeded = 3;
@@ -333,6 +353,13 @@ void glueIkbdIsr(void) {
   }
 }
 
+static void glueIkbdSend(unsigned char byte) {
+  for (unsigned spins = kAciaTxSpins;
+       spins != 0 && !(ACIA_CONTROL & kAciaTxEmpty); --spins) {
+  }
+  ACIA_DATA = byte;
+}
+
 void glueIkbdInit(void) {
   ACIA_CONTROL = kAciaReset;
   ACIA_CONTROL = kAciaConfig;
@@ -345,6 +372,9 @@ void glueIkbdInit(void) {
   gluePacketNeeded = 0;
   glueKbdWaiting = 0;
   glueSetButton(0);
+  glueIkbdSyncTicks = kIkbdSyncTicks;
+  glueIkbdSend(kIkbdReset);
+  glueIkbdSend(kIkbdResetArg);
   TRACE("mac ikbd");
 }
 
@@ -352,6 +382,9 @@ void glueIkbdInit(void) {
    of the shift register. */
 void glueKbdTick(void) {
   int reply = -1;
+  if (glueIkbdSyncTicks != 0 && --glueIkbdSyncTicks == 0) {
+    TRACE("ikbd no reset reply");
+  }
 #if defined(_TEST) && (_TEST > 0)
   if (glueTestInput.seq != glueTestSeen) {
     glueTestSeen = glueTestInput.seq;
