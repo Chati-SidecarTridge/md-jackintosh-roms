@@ -23,13 +23,17 @@ enum {
   kHexDigitBits = 4,
   kNumberDigits = 12,
   kLineBufferSize = 128,
-  kAsciiMask = 0x7F
+  kAsciiMask = 0x7F,
+  kFirstPrintable = 0x20,
+  kLastPrintable = 0x7E,
+  kInverseMask = 0xFF
 };
 
 static volatile unsigned char *textScreen;
 static int textMono;
 static unsigned short textColumn;
 static unsigned short textRow;
+static unsigned char textInvert; /* kInverseMask while in inverse video */
 
 void textInit(volatile unsigned char *screen, int mono) {
   textScreen = screen;
@@ -53,21 +57,25 @@ void textAt(unsigned short column, unsigned short row) {
    only (colour 1), in the interleaved word of its 16-pixel group. */
 static void textGlyph(unsigned short column, unsigned short row,
                       unsigned char character) {
-  const unsigned char *glyph = font8x8_basic[character & kAsciiMask];
+  const unsigned char *glyph;
   volatile unsigned char *cell;
+  if (character < kFirstPrintable || character > kLastPrintable) {
+    character = '?'; /* a file name's code page 437 byte, a control code */
+  }
+  glyph = font8x8_basic[character & kAsciiMask];
   if (textMono) {
     cell = textScreen +
            ((unsigned long)row * (kMonoLineBytes * 2 * kGlyphRows)) + column;
     for (int i = 0; i < kGlyphRows; ++i) {
-      cell[0] = glyph[i];
-      cell[kMonoLineBytes] = glyph[i];
+      cell[0] = (unsigned char)(glyph[i] ^ textInvert);
+      cell[kMonoLineBytes] = (unsigned char)(glyph[i] ^ textInvert);
       cell += 2 * kMonoLineBytes;
     }
   } else {
     cell = textScreen + ((unsigned long)row * (kMediumLineBytes * kGlyphRows)) +
            ((unsigned long)(column & ~1U) << 1) + (column & 1U);
     for (int i = 0; i < kGlyphRows; ++i) {
-      cell[0] = glyph[i];
+      cell[0] = (unsigned char)(glyph[i] ^ textInvert);
       cell += kMediumLineBytes;
     }
   }
@@ -85,6 +93,15 @@ void textPuts(const char *text) {
     }
     ++textColumn;
   }
+}
+
+void textInverse(int inverse) { textInvert = inverse ? kInverseMask : 0; }
+
+void textClearRow(unsigned short row) {
+  for (unsigned short column = 0; column < TEXT_COLUMNS; ++column) {
+    textGlyph(column, row, ' ');
+  }
+  textAt(0, row);
 }
 
 void textPrintf(const char *fmt, ...) {

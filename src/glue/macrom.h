@@ -39,6 +39,7 @@
 #define MAC_SCRNBASE 0x0824
 #define MAC_JIODONE 0x08FC
 #define MAC_DSERRCODE 0x0AF0 /* the last system error */
+#define MAC_BOOTDRIVE 0x0210 /* the drive the boot read its System from */
 /* _FlushCodeCache ($A0BD)'s entry in the Plus's one trap table at $400. */
 #define MAC_TRAP_FLUSHCODECACHE (0x0400 + (0xBD * 4))
 #define MAC_EVTBUFPTR                                    \

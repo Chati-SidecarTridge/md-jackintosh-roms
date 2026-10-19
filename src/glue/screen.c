@@ -24,6 +24,7 @@ enum {
   kByteMask = 0xFF,
   kVblStableReads = 4,      /* the counter held at the base: no line shows */
   kVblGuardPolls = 20000UL, /* several frames: never wait forever */
+  kFrameDrop = 16000,       /* the counter's fall at a frame's start */
   kSteBaseLoTest = 90,
   kPaletteBlack = 0x000,
   kPaletteWhite = 0x777
@@ -72,6 +73,15 @@ static int screenDetectSte(void) {
 }
 
 int screenIsSte(void) { return screenSte; }
+
+int screenNewFrame(void) {
+  static unsigned long last;
+  const unsigned long now = screenVideoCounter();
+  /* A torn read can look a little lower, never half a screen lower. */
+  const int started = now + kFrameDrop < last;
+  last = now;
+  return started;
+}
 
 void screenWaitFrames(unsigned long base, int frames) {
   for (int frame = 0; frame < frames; ++frame) {

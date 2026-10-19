@@ -58,6 +58,40 @@
 #define CART_CARD_NO_FOLDER 3  /* /jackintosh cannot be created */
 #define CART_CARD_PENDING 4
 
+/* The disk chooser's commands (md-jackintosh's MACDISK_CMD_LIST,
+   _GET_SETTINGS, _SET_SETTING, agreed 2026-10-19 for EPIC-06). Paths are
+   NUL-terminated in CART_PATH_SIZE bytes, names in code page 437. LIST
+   (send_write_sync: d3 = the first entry, data = the folder) answers in the
+   buffer: total, returned, flags, then CART_LIST_PAGE entries of
+   CART_LIST_ENTRY_SIZE: the name, its flags, its size. GET_SETTINGS
+   answers the settings' paths in key order, then FD0's current slot.
+   SET_SETTING (send_write_sync: d3 = the key, data = the path, "" clears)
+   saves it and, for a unit's image, mounts it at once. */
+#define CART_CMD_LIST 0x0706
+#define CART_CMD_GET_SETTINGS 0x0707
+#define CART_CMD_SET_SETTING 0x0708
+#define CART_PATH_SIZE 96
+#define CART_LIST_MAX 256
+#define CART_LIST_PAGE 16
+#define CART_LIST_ENTRY_SIZE 104
+#define CART_LIST_TOTAL 0x00 /* in the buffer */
+#define CART_LIST_RETURNED 0x04
+#define CART_LIST_FLAGS 0x08
+#define CART_LIST_ENTRIES 0x0C
+#define CART_LIST_MORE 0x1       /* the folder has more than CART_LIST_MAX */
+#define CART_LIST_WHOLE_CARD 0x1 /* LIST's d4: "/" as the top, for FOLDER */
+#define CART_ENTRY_FLAGS 96      /* in an entry, after the name */
+#define CART_ENTRY_SIZE 100
+#define CART_ENTRY_FOLDER 0x1
+#define CART_ENTRY_RW 0x2       /* the name ends in .rw */
+#define CART_ENTRY_TOO_LONG 0x4 /* its path does not fit CART_PATH_SIZE */
+#define CART_FD0_SLOTS 10
+#define CART_KEY_FOLDER 0
+#define CART_KEY_FD1 11
+#define CART_KEY_HD0 12
+#define CART_SETTINGS 13 /* paths in GET_SETTINGS' answer */
+#define CART_SETTINGS_SLOT (CART_SETTINGS * CART_PATH_SIZE) /* FD0's slot */
+
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the
    data. The unit table, kept current by the RP: four longs per unit. */

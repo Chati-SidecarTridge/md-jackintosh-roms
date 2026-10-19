@@ -142,6 +142,12 @@ static void ramDiskEject(int drive) {
   }
 }
 
+void diskRamInsert(int drive) {
+  if (drive >= 0 && drive < ramDiskCount) {
+    ramDisks[drive].present = 1;
+  }
+}
+
 static int ramDiskChanged(void) {
   const unsigned drive = glueTestDisk.drive;
   if (glueTestDisk.seq == ramDiskSwapSeen) {

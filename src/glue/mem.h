@@ -46,6 +46,12 @@
 #define GLUE_STACK_SIZE_BYTES 0x00000800
 #define GLUE_RAM_DATA_SIZE_BYTES (GLUE_RAM_SIZE_BYTES - GLUE_STACK_SIZE_BYTES)
 
+/* Scratch RAM for what runs only before the Mac starts (the setup menu's
+   buffers, EPIC-06): Mac RAM above the glue's block, which the Mac's boot
+   takes later; the screen and the test builds' RAM disks are at the top. */
+#define GLUE_SCRATCH_ADDR 0x00010000
+#define GLUE_SCRATCH_SIZE_BYTES 0x00004000
+
 /* The Mac's screen: 32000 bytes for 640x400, 256-byte aligned, below the
    sound buffer at MemTop - $300 (D-19). */
 #define MAC_SCREEN_BELOW_MEMTOP 0x00008100

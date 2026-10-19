@@ -49,6 +49,10 @@ runs=(
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --then fake-down --then click:45,600 --then cmd:o --then wait:8 --then fake-up --then wait:6 --then shot:after"
   "--image ste --memsize 4096 --type debug-test --disk build/hd/hd0-small.raw --fixed --disk2 @word40a --fake-cart --then wait:3 --then shot:desk"
   "--image st --memsize 4096 --type debug-test --fake-cart card=1"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --fake-cart --fake-tree /jackintosh/SystemTools.dsk.rw=0 --fake-tree /jackintosh/apps/Word.dsk.rw=1 --fake-set 1=/jackintosh/SystemTools.dsk.rw --fake-set 11= --menu b --menu return --menu down --menu space --menu shot:after --menu e --then wait:3 --then shot:desk"
+  "--image ste --memsize 4096 --type debug-test --disk build/hd/hd0-small.raw --fixed --disk2 @word40a --fake-cart --fake-tree /jackintosh/HD.dsk=0 --fake-tree /jackintosh/Word.dsk.rw=1 --fake-set 12=/jackintosh/HD.dsk --fake-set 1= --fake-set 11= --menu ctrl+a --menu 2 --menu down --menu space --menu shot:slots --menu m --menu e --then wait:3 --then select --then wait:4 --then shot:selected"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --fake-cart --fake-tree /jackintosh/SystemTools.dsk.rw=0 --fake-tree /macos/Word.dsk.rw=1 --fake-set 1=/jackintosh/SystemTools.dsk.rw --fake-set 11= --menu l --menu down --menu space --menu shot:main --menu e"
+  "--image ste --memsize 4096 --type debug-test --disk build/hd/hd0-small.raw --fixed --disk2 @word40a --fake-cart --fake-tree /jackintosh/HD.dsk=0 --fake-tree /jackintosh/Word.dsk.rw=1 --fake-set 12=/jackintosh/HD.dsk --fake-set 1=/jackintosh/Word.dsk.rw --fake-set 11= --then wait:4 --then shot:fd0"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

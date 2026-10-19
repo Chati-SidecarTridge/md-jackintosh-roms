@@ -59,6 +59,9 @@ SECTIONS
      initialised data copied from ROM. */
   ASSERT(__glue_rom_end <= ROM_BASE_ADDR_UL + GLUE_CHECKSUM_OFFSET_BYTES,
          "the glue reaches the image checksum")
+  /* .bss is NOLOAD, so the RAM region's length does not stop it. */
+  ASSERT(__bss_end <= GLUE_RAM_BASE_ADDR + GLUE_RAM_DATA_SIZE_BYTES,
+         "the glue's RAM reaches its stack")
 
   /DISCARD/ :
   {

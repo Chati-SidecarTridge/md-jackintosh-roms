@@ -49,6 +49,9 @@ extern const struct DiskBackend diskNoBackend;
 extern const struct DiskBackend diskCartBackend;
 #if defined(_TEST) && (_TEST > 0)
 extern const struct DiskBackend diskRamBackend;
+/* Test builds: a RAM disk the fake Multi-device ejected, put back (the fake's
+   SET_SETTING and SELECT, EPIC-06). */
+void diskRamInsert(int drive);
 #endif
 
 /* The test builds' RAM disk: finds the harness's descriptors below the top

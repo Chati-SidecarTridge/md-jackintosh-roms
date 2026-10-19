@@ -12,6 +12,7 @@
 #include "disk.h"
 #include "mac.h"
 #include "mem.h"
+#include "menu.h"
 #include "screen.h"
 #include "text.h"
 #include "trace.h"
@@ -157,6 +158,7 @@ void glueMain(void) {
     case CART_STATE_OK:
       if (glueCartCard == CART_CARD_OK) {
         textPuts("md-jackintosh: disks, PRAM and clock\n");
+        glueMenu(); /* the disks, as md-drives-emulator chooses them */
         break;
       }
       /* md-jackintosh stopped at its microSD card: the Mac starts with no

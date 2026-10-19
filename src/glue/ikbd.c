@@ -27,6 +27,7 @@ enum {
   kAciaReset = 0x03,
   kAciaConfig = 0x96, /* divide by 64, 8 bits, 1 stop, RX interrupt */
   kAciaRxFull = 0x01,
+  kAciaOverrun = 0x20,
   kAciaTxEmpty = 0x02,
   kAciaTxSpins = 0x4000, /* a byte takes 1.3 ms at 7812.5 baud */
   /* MFP: GPIP 4 is the ACIAs' interrupt line, channel 6 */
@@ -241,6 +242,9 @@ static int glueKbdWaiting;
 /* Ticks left to wait for the reset's reply; bytes are dropped until it
    comes (0: the stream is in step). */
 static volatile unsigned glueIkbdSyncTicks;
+/* After an overrun: bytes are dropped until a packet's header, since a
+   lost byte would make a mouse packet's deltas read as keys. */
+static int glueIkbdResync;
 static unsigned char glueKbdCommand;
 static unsigned glueKbdNullTicks;
 
@@ -306,6 +310,13 @@ static void glueKey(unsigned char scancode) {
 }
 
 static void glueIkbdByte(unsigned char byte) {
+  if (glueIkbdResync) {
+    if (byte < kHeaderStatus) {
+      return;
+    }
+    glueIkbdResync = 0;
+    gluePacketNeeded = 0;
+  }
   if (glueIkbdSyncTicks != 0) {
     /* A reset of the ST leaves the IKBD running: what arrives before the
        reply is the rest of a packet already under way, and its delta
@@ -348,7 +359,14 @@ static void glueIkbdByte(unsigned char byte) {
 
 /* The ACIA interrupt (macglue.s glueAciaIsr): every byte waiting. */
 void glueIkbdIsr(void) {
-  while (ACIA_CONTROL & kAciaRxFull) {
+  for (;;) {
+    const unsigned char status = ACIA_CONTROL;
+    if (!(status & kAciaRxFull)) {
+      break;
+    }
+    if (status & kAciaOverrun) {
+      glueIkbdResync = 1; /* a byte was lost before this one */
+    }
     glueIkbdByte(ACIA_DATA);
   }
 }

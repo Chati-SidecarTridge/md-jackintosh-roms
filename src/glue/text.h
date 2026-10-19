@@ -17,6 +17,12 @@ void textInit(volatile unsigned char *screen, int mono);
 void textClear(void);
 void textAt(unsigned short column, unsigned short row);
 void textPuts(const char *text);
+/* Inverse video for what is written next (the menus' title, selection and
+   status line, as romemul-switcher-rom draws them). */
+void textInverse(int inverse);
+/* The row blanked in the current video (inverse or not), the cursor at its
+   start. */
+void textClearRow(unsigned short row);
 void textPrintf(const char *fmt, ...);
 
 /* A small vsnprintf: %s %c %d %u %x %X, an optional 0 flag and width, and

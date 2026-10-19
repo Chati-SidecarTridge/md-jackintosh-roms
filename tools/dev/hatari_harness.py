@@ -136,11 +136,13 @@ def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partit
 
 def watch_files(run_dir, addresses, memories, parse_path):
     """--watch / --watch-mem: a breakpoint at each code address, or on each
-    change of the long at a memory address, that prints the registers to
-    stderr.txt and goes on (:trace); added to the --parse script."""
+    change of the long at a memory address, that prints the registers, the
+    top 64 bytes of the stack and A6's frame (its caller's return) to
+    stderr.txt and goes on (:trace); added
+    to the --parse script."""
     regs = os.path.join(run_dir, "watch-regs.ini")
     with open(regs, "w", encoding="ascii") as handle:
-        handle.write("r\n")
+        handle.write("r\nm a7 64\nm a6 16\n")
     script = parse_path or os.path.join(run_dir, "watch.ini")
     with open(script, "a", encoding="ascii") as handle:
         for addr in addresses or []:
@@ -154,10 +156,44 @@ def watch_files(run_dir, addresses, memories, parse_path):
 # 2026-10-19 12:00 UTC in Mac seconds (since 1904-01-01): the fake's default.
 FAKE_CART_SECONDS = 0xE6FBB6C0
 FAKE_CART_ID = 0x4A4B0001
-FAKE_CART_STATE_BYTES = 8 * 4 + 256  # glueTestCart up to its status block
+FAKE_CART_TREE_MAX = 8
+FAKE_CART_PATH = 96
+# glueTestCart up to its units: the header, PRAM.BIN, the SELECT count, FD0's
+# slot, the tree's size, 13 settings, the tree (src/glue/cart.c).
+FAKE_CART_STATE_BYTES = 8 * 4 + 256 + 3 * 4 + 13 * FAKE_CART_PATH + FAKE_CART_TREE_MAX * 104
+FAKE_CART_SELECT = 8 * 4 + 256  # selectSeq's offset
 
 
-def fake_cart_files(run_dir, glue_map, spec, parse_path):
+def fake_cart_tree(args, ramdisk):
+    """EPIC-06: the fake's microSD as image paths on the preloaded RAM disks,
+    and md-jackintosh's settings (key: path). By default /jackintosh holds the
+    --disk image (FD0's slot 1, or HD0 when --fixed) and the --disk2 one
+    (FD1), floppies named *.rw so they stay writable (the .rw rule);
+    --fake-tree PATH=DRIVE and --fake-set KEY=PATH change that."""
+    tree, settings = [], {0: "/jackintosh"}
+    if ramdisk:
+        sizes = [ramdisk["bytes"]] + ([ramdisk["bytes2"]] if "bytes2" in ramdisk else [])
+        fixed = bool(ramdisk["flags"] & RAMDISK_FIXED)
+        for drive, path in enumerate([args.disk] + ([args.disk2] if args.disk2 else [])):
+            name = os.path.basename(path) + ("" if drive == 0 and fixed else ".rw")
+            tree.append((f"/jackintosh/{name}", drive, sizes[drive]))
+            settings[(12 if fixed else 1) if drive == 0 else 11] = tree[-1][0]
+        if args.fake_tree:
+            tree = []
+            for item in args.fake_tree:
+                path, _, drive = item.rpartition("=")
+                if not path.startswith("/") or int(drive) >= len(sizes):
+                    hc.die(f"--fake-tree {item!r}: PATH=DRIVE, DRIVE a preloaded disk")
+                tree.append((path, int(drive), sizes[int(drive)]))
+    for item in args.fake_set or ():
+        key, _, path = item.partition("=")
+        settings[int(key)] = path
+    if len(tree) > FAKE_CART_TREE_MAX:
+        hc.die(f"--fake-tree: at most {FAKE_CART_TREE_MAX} images")
+    return tree, settings
+
+
+def fake_cart_files(run_dir, glue_map, spec, parse_path, tree=(), settings=None):
     """EPIC-05: the test builds' fake Multi-device (src/glue/cart.c,
     glueTestCart), filled when the CPU reaches _glueMain like the RAM disk.
     spec: KEY=VALUE,...: id (the identity long, default $4A4B0001), seconds
@@ -184,7 +220,7 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path):
         fake["pram"] = os.path.join(run_dir, "pram.bin")
         with open(fake["pram"], "wb") as handle:
             handle.write(data)
-    # The fake's state (glueTestCart's fields and its PRAM.BIN, 288 bytes)
+    # The fake's state (glueTestCart's fields, its PRAM.BIN, settings and tree)
     # lives in a file, like md-jackintosh's microSD: loaded at every boot
     # (_glueMain), saved at every reset (glueReset, before its $FF fill), so
     # a Mac restart finds the Multi-device again with the PRAM it saved.
@@ -200,6 +236,13 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path):
         handle.write(struct.pack(">IIIIIIII", 0x46414B45, fake["id"], fake["seconds"],
                                  fake["valid-at"], 1 if fake["pram"] else 0, 0, 0,
                                  fake["card"]) + pram)
+        handle.write(struct.pack(">III", 0, 1, len(tree)))
+        for key in range(13):
+            handle.write((settings or {}).get(key, "").encode("latin-1")
+                         .ljust(FAKE_CART_PATH, b"\0")[:FAKE_CART_PATH])
+        for path, drive, size in list(tree) + [("", -1, 0)] * (FAKE_CART_TREE_MAX - len(tree)):
+            handle.write(path.encode("latin-1").ljust(FAKE_CART_PATH, b"\0")
+                         + struct.pack(">iI", drive, size))
     load = os.path.join(run_dir, "fakecart-load.ini")
     with open(load, "w", encoding="ascii") as handle:
         handle.write(f"loadbin {state} ${base:x}\n")
@@ -390,6 +433,8 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
                 need("time not known yet", r"@@ cart time not yet\n", 10)
     else:
         need("no Multi-device", r"@@ cart hello none\n", 10)
+    if fake and known and not fake["card"]:
+        run_menu(trace, shot, steps, need, command, args.menu or ())
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
         need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
@@ -427,7 +472,10 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
                 if not re.search(pattern, trace.data):
                     steps.fail(name, f"no {pattern!r} within 120 s")
                 steps.ok(name)
-        if "base2" in ramdisk:
+        # A --fake-tree or --fake-set may put drive 2's image elsewhere
+        # (EPIC-06): then the run's actions check it.
+        swapper = None
+        if "base2" in ramdisk and not (args.fake_tree or args.fake_set):
             run_disk2(trace, shot, steps, need)
             swapper = (DiskSwapper(ramdisk, command, glue_map, trace, steps.ok, need)
                        if len(ramdisk["disks2"]) > 1 else None)
@@ -439,7 +487,7 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
                        dump_memory, args.dump, args.then or (), disk_v=45)
         if args.then and not args.launch:
             run_actions(trace, shot, steps, need, command, glue_map, args.then, dump_memory,
-                        args.dump, swapper if "base2" in ramdisk else None)
+                        args.dump, swapper)
         if args.input:
             def restart():
                 # The same boot again, the RAM disk kept (EPIC-08 STORY-01).
@@ -526,6 +574,59 @@ def fake_up(command):
                 f"$0 ${flags:x} ${sectors >> 16:x} ${sectors & 0xFFFF:x} $0 $1 $0 $1")
     command(f"hatari-debug memwrite w ${window + 0x0C:x} $4a4b $1")
     time.sleep(0.5)
+
+
+MENU_KEYS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D, "return": 0x1C,
+             "space": 0x39, "esc": 0x01}
+ST_CONTROL = 0x1D
+
+
+def run_menu(trace, shot, steps, need, command, actions):
+    """EPIC-06: md-jackintosh's setup menu at boot. --menu actions: a key
+    (a letter, a digit, up, down, left, right, return, space, esc; shift+ or
+    ctrl+ before it), shot:NAME, wait:SECONDS; then [E] unless an action
+    pressed it, or the countdown ran out."""
+    need("setup menu", r"@@ menu\n", 20)
+
+    def key(code, down):
+        command(f"hatari-event {'keydown' if down else 'keyup'} 0x{code:02x}")
+
+    for action in actions:
+        verb, _, arg = action.partition(":")
+        if verb == "shot":
+            path = shot(arg)
+            if path is None:
+                steps.fail(action, "Hatari wrote no screenshot")
+            steps.ok(f"menu screenshot {os.path.relpath(path, hc.REPO)}")
+            continue
+        if verb == "wait":
+            time.sleep(float(arg))
+            continue
+        mods = []
+        name = action
+        while "+" in name:
+            mod, _, name = name.partition("+")
+            mods.append({"shift": ST_SHIFT, "ctrl": ST_CONTROL}[mod])
+        code = MENU_KEYS.get(name, ST_KEYS.get(name))
+        if code is None:
+            hc.die(f"--menu: no key {action!r}")
+        # One event at a time: the menu polls the ACIA (no interrupt), and
+        # Hatari hands it a burst faster than it reads them.
+        for mod in mods:
+            key(mod, True)
+            time.sleep(0.05)
+        key(code, True)
+        time.sleep(0.05)
+        key(code, False)
+        for mod in reversed(mods):
+            time.sleep(0.05)
+            key(mod, False)
+        time.sleep(0.4)
+        steps.ok(f"menu key {action}")
+    if not re.search(rb"@@ menu boot\n", trace.data[trace.pos:]):
+        key(ST_KEYS["e"], True)
+        key(ST_KEYS["e"], False)
+    need("menu boot", r"@@ menu boot\n", 40)
 
 
 def input_helpers(need, command, glue_map):
@@ -622,6 +723,14 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper.wait(float(arg))  # serving drive 2's swaps meanwhile
             else:
                 time.sleep(float(arg))
+        elif verb == "select":  # md-jackintosh's SELECT button (EPIC-06)
+            if not FAKE_CTX:
+                hc.die("--then select needs --fake-cart and --disk")
+            FAKE_CTX["select"] = FAKE_CTX.get("select", 0) + 1
+            addr = FAKE_CTX["base"] + FAKE_CART_SELECT
+            command(f"hatari-debug memwrite w ${addr:x} ${FAKE_CTX['select'] >> 16:x} "
+                    f"${FAKE_CTX['select'] & 0xFFFF:x}")
+            time.sleep(0.5)
         elif verb in ("fake-restart", "fake-down", "fake-up"):  # --fake-cart
             if not FAKE_CTX:
                 hc.die(f"--then {verb} needs --fake-cart and --disk")
@@ -903,6 +1012,16 @@ def main():
                         help="test builds: a fake Multi-device answers the glue (EPIC-05): "
                              "id=HEX, seconds=N (UTC), valid-at=N, pram=FILE (256 bytes), "
                              "zone=SECONDS")
+    parser.add_argument("--fake-tree", action="append", metavar="PATH=DRIVE",
+                        help="with --fake-cart: an image on the fake's microSD (EPIC-06), "
+                             "DRIVE 0 the --disk image, 1 the --disk2 one; replaces the default "
+                             "/jackintosh/<name> (repeatable)")
+    parser.add_argument("--fake-set", action="append", metavar="KEY=PATH",
+                        help="with --fake-cart: one of md-jackintosh's settings (0 FOLDER, 1-10 "
+                             "FD0's slots, 11 FD1, 12 HD0; repeatable)")
+    parser.add_argument("--menu", action="append", metavar="ACTION",
+                        help="with --fake-cart: in the setup menu at boot, in order: a key "
+                             "(shift+ and ctrl+ allowed), shot:NAME, wait:S; then [E]")
     parser.add_argument("--fixed", action="store_true", help="the RAM disk is a hard disk")
     parser.add_argument("--partition", action="store_true",
                         help="wrap the volume in an Apple partition map, as a whole hard disk")
@@ -978,7 +1097,9 @@ def main():
     if args.fake_cart is not None:
         if args.type != "debug-test":
             hc.die("--fake-cart needs --type debug-test (the fake is in test builds only)")
-        parse_path, args.fake = fake_cart_files(run_dir, glue_map, args.fake_cart, parse_path)
+        tree, settings = fake_cart_tree(args, ramdisk)
+        parse_path, args.fake = fake_cart_files(run_dir, glue_map, args.fake_cart, parse_path,
+                                                tree, settings)
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 
