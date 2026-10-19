@@ -336,6 +336,17 @@ long glueRtcGmtDelta(void) {
 
 void glueRtcSetSeconds(unsigned long seconds) { glueRtcSeconds = seconds; }
 
+void glueRtcSetGmtDelta(long seconds) {
+  const long old = glueRtcGmtDelta();
+  const unsigned long raw = (unsigned long)seconds & kRtcGmtMask;
+  glueRtcPram[kRtcGmtDelta] = (unsigned char)(raw >> kWordShiftBits);
+  glueRtcPram[kRtcGmtDelta + 1] = (unsigned char)(raw >> kByteBits);
+  glueRtcPram[kRtcGmtDelta + 2] = (unsigned char)raw;
+  glueRtcSeconds += (unsigned long)(seconds - old); /* the local time moves */
+  glueRtcPramChanged = 1; /* saved to PRAM.BIN by glueCartTick */
+  glueRtcPramChangedTick = LOWMEM_LONG(MAC_TICKS);
+}
+
 /* InitUtil (plus/hw/rtc.s:91-116) has run by the time of glueHook: with
    HWCfgFlags bit 6 set it reads, then writes, the 'Bugs' signature at
    XPRAM $0C through the extended commands. The harness checks the line. */

@@ -91,6 +91,13 @@
 #define CART_KEY_HD0 12
 #define CART_SETTINGS 13 /* paths in GET_SETTINGS' answer */
 #define CART_SETTINGS_SLOT (CART_SETTINGS * CART_PATH_SIZE) /* FD0's slot */
+/* The RTC settings (EPIC-13, md-drives-emulator's RTC_ENABLED, RTC_NTP_HOST,
+   RTC_NTP_PORT): strings after FD0's slot in GET_SETTINGS' answer. */
+#define CART_KEY_RTC_ENABLED 13 /* "true" or "false" */
+#define CART_KEY_NTP_HOST 14
+#define CART_KEY_NTP_PORT 15 /* decimal */
+#define CART_SETTINGS_RTC (CART_SETTINGS_SLOT + 4)
+#define CART_SETTINGS_ALL 16
 
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the
@@ -152,6 +159,9 @@ int glueCartBoot(void);
 /* Every tick, from the glue's level-1 work: the time until it is known,
    the PRAM written back after the Mac changed it. */
 void glueCartTick(void);
+/* md-jackintosh's RTC is off (EPIC-13): its TIME never becomes valid, so
+   glueCartTick stops asking. */
+void glueCartNoTime(void);
 
 /* A command and its answer, from md-jackintosh or, in test builds, the
    fake one (cart.c); the status block they answer in, and the most sectors

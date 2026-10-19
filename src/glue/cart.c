@@ -92,7 +92,7 @@ struct GlueTestCart {
   unsigned long selectSeq;             /* the harness's SELECT presses */
   unsigned long slot;                  /* FD0's current slot, 1-10 */
   unsigned long treeCount;
-  char settings[CART_SETTINGS][CART_PATH_SIZE];
+  char settings[CART_SETTINGS_ALL][CART_PATH_SIZE];
   struct GlueTestImage tree[kFakeTreeMax];
   int unitDrive[CART_UNITS]; /* the RAM disk behind each unit */
   unsigned char status[CART_BUFFER_OFFSET + kFakeBuffer]; /* window */
@@ -391,10 +391,18 @@ static long cartFakeList(const char *folder, unsigned long first,
    a unit's image is mounted at once. */
 static long cartFakeSet(unsigned long key, const char *path) {
   const char *folder = glueTestCart.settings[CART_KEY_FOLDER];
-  if (key > CART_KEY_HD0) {
+  if (key >= CART_SETTINGS_ALL) {
     return CART_RESULT_PARAM;
   }
-  if (key == CART_KEY_FOLDER) {
+  if (key == CART_KEY_RTC_ENABLED) {
+    if (!cartFakeSame(path, "true") && !cartFakeSame(path, "false")) {
+      return CART_RESULT_PARAM;
+    }
+  } else if (key == CART_KEY_NTP_HOST || key == CART_KEY_NTP_PORT) {
+    if (path[0] == '\0') {
+      return CART_RESULT_PARAM; /* the RP's own checks are finer */
+    }
+  } else if (key == CART_KEY_FOLDER) {
     int exists = cartFakeSame(path, "/");
     for (unsigned long i = 0; i < glueTestCart.treeCount && !exists; ++i) {
       exists = cartFakeUnder(glueTestCart.tree[i].path, path);
@@ -448,7 +456,9 @@ static long cartFake(long command, unsigned long first, unsigned long second,
       ++glueTestCart.timeQueries;
       FAKE_LONG(CART_TIME_SECONDS_OFFSET) = glueTestCart.seconds;
       FAKE_LONG(CART_TIME_FLAGS_OFFSET) =
-          glueTestCart.timeQueries >= glueTestCart.timeValidAt
+          glueTestCart.timeQueries >= glueTestCart.timeValidAt &&
+                  !cartFakeSame(glueTestCart.settings[CART_KEY_RTC_ENABLED],
+                                "false")
               ? CART_TIME_FLAG_VALID
               : 0;
       break;
@@ -499,6 +509,12 @@ static long cartFake(long command, unsigned long first, unsigned long second,
         buffer[i] = (unsigned char)glueTestCart.settings[0][i];
       }
       *(unsigned long *)(buffer + CART_SETTINGS_SLOT) = glueTestCart.slot;
+      for (unsigned i = 0;
+           i < (CART_SETTINGS_ALL - CART_KEY_RTC_ENABLED) * CART_PATH_SIZE;
+           ++i) {
+        buffer[CART_SETTINGS_RTC + i] =
+            (unsigned char)glueTestCart.settings[CART_KEY_RTC_ENABLED][i];
+      }
       break;
     case CART_CMD_SET_SETTING:
       result = cartFakeSet(first, (const char *)data);
@@ -630,6 +646,11 @@ int glueCartBoot(void) {
   cartTime();
   cartTimeAsked = 0;
   return glueCartState;
+}
+
+void glueCartNoTime(void) {
+  cartTimeRetries = kTimeRetryLimit; /* TIME will not become valid */
+  TRACE("cart time off");
 }
 
 void glueCartTick(void) {
