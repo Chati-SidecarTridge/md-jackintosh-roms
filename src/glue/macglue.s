@@ -141,6 +141,7 @@ _glueLevel1:
     jsr     (%a0)
     jsr     _glueKbdTick                /* the keyboard (ikbd.c) */
     jsr     _glueDiskTick               /* disks to announce (disk.c) */
+    jsr     _glueCartTick               /* the Multi-device (cart.c) */
 #if defined(_DEBUG) && (_DEBUG > 0)
     jsr     _glueTickProbe
 #endif

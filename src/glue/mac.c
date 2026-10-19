@@ -242,6 +242,10 @@ enum {
   kRtcXpramLow = 0x08,       /* PRAM $10-$13 */
   kRtcXpramHigh = 0x10,      /* PRAM $00-$0F */
   kRtcXpramSignature = 0x0C, /* 'Bugs' once initialised */
+  kRtcGmtDelta = 0xED,       /* MachineLocation's gmtDelta, 3 bytes */
+  kRtcGmtSign = 0x800000UL,
+  kRtcGmtMask = 0xFFFFFFUL,
+  kWordShiftBits = 16,
   kRtcExtendedMask = 0x78,
   kRtcExtended = 0x38,   /* z0111aaa */
   kRtcExtendedShift = 5, /* aaa: address bits 7-5 */
@@ -259,6 +263,8 @@ enum {
 
 static unsigned char glueRtcPram[kRtcXpramBytes];
 static unsigned char glueRtcProtect;
+volatile int glueRtcPramChanged;
+volatile unsigned long glueRtcPramChangedTick;
 /* The clock chip's seconds; glueTimerC counts them (macglue.s). */
 volatile unsigned long glueRtcSeconds = MAC_CLOCK_START;
 
@@ -301,11 +307,34 @@ unsigned long glueRtc(unsigned long command, unsigned long data) {
   if (read) {
     return *cell;
   }
-  if (!(glueRtcProtect & kRtcProtectBit)) {
+  if (!(glueRtcProtect & kRtcProtectBit) && *cell != value) {
     *cell = value;
+    glueRtcPramChanged = 1; /* the Multi-device's copy is stale (cart.c) */
+    glueRtcPramChangedTick = LOWMEM_LONG(MAC_TICKS);
   }
   return 0;
 }
+
+void glueRtcLoadPram(const volatile unsigned char *bytes) {
+  for (int i = 0; i < kRtcXpramBytes; ++i) {
+    glueRtcPram[i] = bytes[i];
+  }
+}
+
+const unsigned char *glueRtcPramBytes(void) { return glueRtcPram; }
+
+/* MachineLocation (Inside Macintosh V-557) sits at XPRAM $E4: latitude,
+   longitude, then gmtFlags with gmtDelta, the seconds east of UTC, in the
+   low 24 bits, signed. 0 (UTC) unless a Map control panel set it. */
+long glueRtcGmtDelta(void) {
+  const unsigned long raw =
+      ((unsigned long)glueRtcPram[kRtcGmtDelta] << kWordShiftBits) |
+      ((unsigned long)glueRtcPram[kRtcGmtDelta + 1] << kByteBits) |
+      glueRtcPram[kRtcGmtDelta + 2];
+  return (raw & kRtcGmtSign) ? (long)(raw | ~kRtcGmtMask) : (long)raw;
+}
+
+void glueRtcSetSeconds(unsigned long seconds) { glueRtcSeconds = seconds; }
 
 /* InitUtil (plus/hw/rtc.s:91-116) has run by the time of glueHook: with
    HWCfgFlags bit 6 set it reads, then writes, the 'Bugs' signature at

@@ -18,6 +18,7 @@
 
 #include "disk.h"
 
+#include "cart.h"
 #include "macrom.h"
 #include "trace.h"
 
@@ -86,6 +87,8 @@ static struct {
 } glueDrives[DISK_DRIVES];
 
 static int glueDriveCount;
+/* The backend chosen at glueInstallDisk (EPIC-05 STORY-07). */
+static const struct DiskBackend *glueBackend = &diskNoBackend;
 /* Disks to announce once the event queue exists (glueDiskTick). */
 static unsigned char glueInsertPending[DISK_DRIVES];
 static int glueTransfersTraced;
@@ -135,16 +138,16 @@ static int glueIsAppleHfs(const unsigned char *type) {
 static void glueVolumeLocate(int drive) {
   struct DiskInfo info;
   unsigned long entries = 1;
-  diskBackendInfo(drive, &info);
+  glueBackend->info(drive, &info);
   glueVolumeStart[drive] = 0;
   glueVolumeBlocks[drive] = info.blocks;
   if (!info.present ||
-      diskBackendRead(drive, 0, 1, glueBlockBuffer) != MAC_NOERR ||
+      glueBackend->read(drive, 0, 1, glueBlockBuffer) != MAC_NOERR ||
       glueWord(glueBlockBuffer) != kDdmSignature) {
     return;
   }
   for (unsigned long i = 1; i <= entries && i <= kPmMaxEntries; ++i) {
-    if (diskBackendRead(drive, i, 1, glueBlockBuffer) != MAC_NOERR ||
+    if (glueBackend->read(drive, i, 1, glueBlockBuffer) != MAC_NOERR ||
         glueWord(glueBlockBuffer) != kPmSignature) {
       break;
     }
@@ -162,7 +165,7 @@ static void glueVolumeLocate(int drive) {
 
 static void glueDriveRefresh(int drive) {
   struct DiskInfo info;
-  diskBackendInfo(drive, &info);
+  glueBackend->info(drive, &info);
   glueDrives[drive].flags[0] = info.writeProtected ? kFlagWriteProtect : 0;
   if (!info.present) {
     glueDrives[drive].flags[1] = 0;
@@ -220,7 +223,17 @@ void glueInstallDisk(void) {
   glueOfflineTraced = 0;
   TRACE("mac sony %ld dce %06lx", err, (unsigned long)dce);
   (void)err; /* traced only in debug builds */
-  glueDriveCount = diskBackendDrives();
+  if (glueCartState == CART_STATE_OK) {
+    glueBackend = &diskCartBackend;
+  } else {
+#if defined(_TEST) && (_TEST > 0)
+    glueBackend = &diskRamBackend;
+#else
+    glueBackend = &diskNoBackend;
+#endif
+  }
+  TRACE("disk backend %s", glueBackend->name);
+  glueDriveCount = glueBackend->drives();
   for (int drive = 0; drive < glueDriveCount; ++drive) {
     glueVolumeLocate(drive);
     glueDriveRefresh(drive);
@@ -250,7 +263,7 @@ void glueDiskTick(void) {
   }
   /* A medium the backend has put in a drive since (a swap in test builds,
      md-jackintosh's media change later): announced like the others. */
-  changed = diskBackendChanged();
+  changed = glueBackend->changed();
   for (int drive = 0; drive < glueDriveCount; ++drive) {
     if (changed & (1 << drive)) {
       glueVolumeLocate(drive);
@@ -282,7 +295,7 @@ short glueDriverPrime(unsigned char *block, unsigned char *dce) {
   if (drive < 0) {
     return MAC_NSDRVERR;
   }
-  diskBackendInfo(drive, &info);
+  glueBackend->info(drive, &info);
   if (!info.present) {
     if (!glueOfflineTraced) {
       glueOfflineTraced = 1;
@@ -303,13 +316,13 @@ short glueDriverPrime(unsigned char *block, unsigned char *dce) {
     result =
         info.writeProtected
             ? MAC_WPRERR
-            : diskBackendWrite(
+            : glueBackend->write(
                   drive, glueVolumeStart[drive] + (position >> kBlockShift),
                   bytes >> kBlockShift, buffer);
   } else {
-    result = diskBackendRead(drive,
-                             glueVolumeStart[drive] + (position >> kBlockShift),
-                             bytes >> kBlockShift, buffer);
+    result = glueBackend->read(
+        drive, glueVolumeStart[drive] + (position >> kBlockShift),
+        bytes >> kBlockShift, buffer);
   }
   if (glueTransfersTraced < kTracedTransfers) {
     ++glueTransfersTraced;
@@ -344,11 +357,11 @@ short glueDriverControl(const unsigned char *block, const unsigned char *dce) {
     case kCsTrackCache:
       return MAC_NOERR;
     case kCsEject:
-      diskBackendInfo(drive, &info);
+      glueBackend->info(drive, &info);
       if (info.fixed) {
         return MAC_CONTROLERR;
       }
-      diskBackendEject(drive);
+      glueBackend->eject(drive);
       glueDriveRefresh(drive);
       if (drive == 0) {
         TRACE("disk eject");

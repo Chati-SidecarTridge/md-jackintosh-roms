@@ -3,19 +3,22 @@
  * Author: Diego Parrilla Santamaría
  * Date: 2026-10-18
  * Copyright: 2026 - GOODDATA LABS SL
- * Description: The backend of builds without a test RAM disk: no medium, so
- * the Mac shows the blinking "?" (EPIC-02). md-jackintosh's cartridge
- * backend replaces it in Iteration 2 (EPIC-06).
+ * Description: The backend with no medium, so the Mac shows the blinking
+ * "?" (EPIC-02): the driver's choice when md-jackintosh did not answer and
+ * there is no test RAM disk (EPIC-05 STORY-07). Also the no-op diskRamFind
+ * of builds without the RAM disk.
  */
 
 #include "disk.h"
 #include "macrom.h"
 
+#if !defined(_TEST) || (_TEST == 0)
 unsigned long diskRamFind(unsigned long ramTop) { return ramTop; }
+#endif
 
-int diskBackendDrives(void) { return 1; }
+static int noDiskDrives(void) { return 1; }
 
-void diskBackendInfo(int drive, struct DiskInfo *info) {
+static void noDiskInfo(int drive, struct DiskInfo *info) {
   (void)drive;
   info->present = 0;
   info->fixed = 0;
@@ -23,8 +26,8 @@ void diskBackendInfo(int drive, struct DiskInfo *info) {
   info->blocks = 0;
 }
 
-short diskBackendRead(int drive, unsigned long block, unsigned long count,
-                      void *buffer) {
+static short noDiskRead(int drive, unsigned long block, unsigned long count,
+                        void *buffer) {
   (void)drive;
   (void)block;
   (void)count;
@@ -32,8 +35,8 @@ short diskBackendRead(int drive, unsigned long block, unsigned long count,
   return MAC_OFFLINERR;
 }
 
-short diskBackendWrite(int drive, unsigned long block, unsigned long count,
-                       const void *buffer) {
+static short noDiskWrite(int drive, unsigned long block, unsigned long count,
+                         const void *buffer) {
   (void)drive;
   (void)block;
   (void)count;
@@ -41,6 +44,10 @@ short diskBackendWrite(int drive, unsigned long block, unsigned long count,
   return MAC_OFFLINERR;
 }
 
-void diskBackendEject(int drive) { (void)drive; }
+static void noDiskEject(int drive) { (void)drive; }
 
-int diskBackendChanged(void) { return 0; }
+static int noDiskChanged(void) { return 0; }
+
+const struct DiskBackend diskNoBackend = {
+    "none",      noDiskDrives, noDiskInfo,   noDiskRead,
+    noDiskWrite, noDiskEject,  noDiskChanged};

@@ -21,22 +21,35 @@ struct DiskInfo {
   unsigned long blocks; /* 512-byte blocks */
 };
 
-/* The most drives a backend serves: two floppies, as a Plus with an
-   external drive (EPIC-09 STORY-01). */
-#define DISK_DRIVES 2
+/* The most drives a backend serves: md-jackintosh's FD0, FD1 and HD0 (the
+   Mac's drives 1, 2, 3), or the test builds' RAM disks. */
+#define DISK_DRIVES 3
 
-/* A backend: drives 0 to diskBackendDrives() - 1, the Mac's drives 1 and up.
-   Results are Mac result codes (0 = noErr). */
-int diskBackendDrives(void);
-void diskBackendInfo(int drive, struct DiskInfo *info);
-short diskBackendRead(int drive, unsigned long block, unsigned long count,
-                      void *buffer);
-short diskBackendWrite(int drive, unsigned long block, unsigned long count,
-                       const void *buffer);
-void diskBackendEject(int drive);
-/* The drives whose medium was inserted since the last call, one bit each
-   (bit 0 the Mac's drive 1); polled every tick. */
-int diskBackendChanged(void);
+/* A backend (EPIC-05 STORY-07): drives 0 to drives() - 1, the Mac's drives
+   1 and up. Results are Mac result codes (0 = noErr). changed() returns the
+   drives whose medium was inserted since the last call, one bit each (bit 0
+   the Mac's drive 1), polled every tick. */
+struct DiskBackend {
+  const char *name;
+  int (*drives)(void);
+  void (*info)(int drive, struct DiskInfo *info);
+  short (*read)(int drive, unsigned long block, unsigned long count,
+                void *buffer);
+  short (*write)(int drive, unsigned long block, unsigned long count,
+                 const void *buffer);
+  void (*eject)(int drive);
+  int (*changed)(void);
+};
+
+/* No disk (nodisk.c); md-jackintosh's cartridge (cartdisk.c); the test
+   builds' RAM disks (ramdisk.c). The driver takes the cartridge's when
+   md-jackintosh answered at boot, else the RAM disks in test builds, else
+   none. */
+extern const struct DiskBackend diskNoBackend;
+extern const struct DiskBackend diskCartBackend;
+#if defined(_TEST) && (_TEST > 0)
+extern const struct DiskBackend diskRamBackend;
+#endif
 
 /* The test builds' RAM disk: finds the harness's descriptors below the top
    of RAM, one per image; returns the lowest image's base (the Mac's MemTop
@@ -44,7 +57,7 @@ int diskBackendChanged(void);
 unsigned long diskRamFind(unsigned long ramTop);
 
 /* Installs the driver at unit 4 (.Sony's slot, refNum -5) with the
-   backend's drives, called from InitIOMgr (glueSonyOpen). */
+   chosen backend's drives, called from InitIOMgr (glueSonyOpen). */
 void glueInstallDisk(void);
 
 /* Every tick: announces disks other than the startup one (disk.c). */

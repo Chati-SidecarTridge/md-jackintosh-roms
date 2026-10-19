@@ -86,6 +86,7 @@
 #define MAC_PARAMERR (-50)
 #define MAC_STATUSERR (-18)
 #define MAC_OFFLINERR (-65)
+#define MAC_IOERR (-36)
 #define MAC_NSDRVERR (-56) /* no such drive */
 
 /* The emulated clock starts at 2026-10-18 00:00 in Mac time (seconds since
