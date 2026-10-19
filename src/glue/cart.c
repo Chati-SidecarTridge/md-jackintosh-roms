@@ -31,6 +31,10 @@ enum {
      power-on and our first hello goes out about 4 s after it: one try was
      always enough (nine cold power-ons, 2026-10-19). */
   kHelloAttempts = 2,
+  /* How long PENDING may last: about 3 s (the RP's attempt takes 0.1-0.2 s,
+     up to about 1 s with a slow card; the loop is about as long as the
+     senders', cart.h). */
+  kCardWaitSpins = CART_TIMEOUT_SPINS * 2,
   kTimeRetryTicks = 600, /* ask for the time every 10 s ... */
   kTimeRetryLimit = 12,  /* ... for 2 minutes */
   kPramWriteTicks = 180, /* the PRAM written 3 s after its last change */
@@ -42,6 +46,7 @@ enum {
 #define LOWMEM_LONG(addr) (*(volatile unsigned long *)(unsigned long)(addr))
 
 int glueCartState;
+unsigned long glueCartCard = CART_CARD_OK;
 volatile unsigned char *glueCartStatus = /* the status block */
     (volatile unsigned char *)CART_APP_FREE_ADDR;
 int glueCartMaxReadSectors = CART_MAX_READ_SECTORS;
@@ -71,6 +76,7 @@ struct GlueTestCart {
   unsigned long pramPresent;
   unsigned long timeQueries;
   unsigned long pramWrites;
+  unsigned long card;                  /* CART_CARD_*, written at +$40 */
   unsigned char pram[CART_PRAM_BYTES]; /* PRAM.BIN */
   int unitDrive[CART_UNITS];           /* the RAM disk behind each unit */
   unsigned char status[CART_BUFFER_OFFSET +
@@ -108,11 +114,15 @@ static void cartFakeUnits(void) {
   for (int unit = 0; unit < CART_UNITS; ++unit) {
     glueTestCart.unitDrive[unit] = kFakeNoDrive;
   }
+  FAKE_LONG(CART_CARD_OFFSET) = glueTestCart.card;
   diskRamBackend.info(0, &info);
+  if (glueTestCart.card != CART_CARD_OK) {
+    info.present = 0; /* md-jackintosh stops at a card error: no disks */
+  }
   if (info.present) {
     glueTestCart.unitDrive[info.fixed ? CART_UNIT_HD0 : 0] = 0;
   }
-  if (diskRamBackend.drives() > 1) {
+  if (diskRamBackend.drives() > 1 && glueTestCart.card == CART_CARD_OK) {
     glueTestCart.unitDrive[1] = 1;
   }
   for (int unit = 0; unit < CART_UNITS; ++unit) {
@@ -156,6 +166,16 @@ static long cartFake(long command, unsigned long first, unsigned long second,
       unit < CART_UNITS ? glueTestCart.unitDrive[unit] : kFakeNoDrive;
   long result = CART_RESULT_OK;
   FAKE_LONG(CART_ID_OFFSET) = glueTestCart.id;
+  FAKE_LONG(CART_CARD_OFFSET) = glueTestCart.card;
+  if (glueTestCart.card != CART_CARD_OK && command != CART_CMD_ST_HELLO) {
+    /* A card error: the disks and the PRAM have no medium, the time is not
+       valid (no NTP). */
+    FAKE_LONG(CART_TIME_FLAGS_OFFSET) = 0;
+    FAKE_LONG(CART_RESULT_OFFSET) =
+        (unsigned long)(command == CART_CMD_TIME ? CART_RESULT_OK
+                                                 : CART_RESULT_NOMEDIUM);
+    return CART_OK;
+  }
   switch (command) {
     case CART_CMD_ST_HELLO:
       return CART_OK;
@@ -268,6 +288,22 @@ static void cartTime(void) {
   TRACE("cart time %08lx", seconds);
 }
 
+/* The microSD card's state, waiting while the RP has not tried it yet.
+   Still PENDING after the wait, or a value we do not know: boot as if it
+   were OK (the units say what is there). */
+static unsigned long cartCard(void) {
+  unsigned long card = STATUS_LONG(CART_CARD_OFFSET);
+  if (card == CART_CARD_PENDING) {
+    TRACE("cart card pending");
+    for (unsigned long spins = kCardWaitSpins;
+         spins != 0 && card == CART_CARD_PENDING; --spins) {
+      card = STATUS_LONG(CART_CARD_OFFSET);
+    }
+  }
+  TRACE("cart card %lu", card);
+  return card <= CART_CARD_NO_FOLDER ? card : CART_CARD_OK;
+}
+
 int glueCartBoot(void) {
   long result = CART_TIMEOUT;
   unsigned long identity;
@@ -302,6 +338,7 @@ int glueCartBoot(void) {
   }
   glueCartState = CART_STATE_OK;
   TRACE("cart hello ok %08lx", identity);
+  glueCartCard = cartCard();
 
   /* The PRAM before the time: the time zone is in it. */
   if (cartCommand(CART_CMD_PRAM_READ) == CART_OK &&

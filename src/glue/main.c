@@ -30,7 +30,8 @@ enum {
   kValueColumn = 10,
   kImageRow = 6,
   kCartRow = 9,
-  kNoticeFrames = 72 /* about a second on a mono monitor */
+  kNoticeFrames = 72,     /* about a second on a mono monitor */
+  kCardNoticeFrames = 214 /* about 3 s */
 };
 
 /* The MMU's bank size code (memconf.inc): 0 128 KB, 1 512 KB, 2 2 MB. */
@@ -53,6 +54,18 @@ static unsigned long glueSumWords(unsigned long first, unsigned long last,
     sum += *(const volatile unsigned short *)addr;
   }
   return sum;
+}
+
+/* What md-jackintosh's microSD card error means, for the screen. */
+static const char *cartCardText(unsigned long card) {
+  switch (card) {
+    case CART_CARD_NONE:
+      return "Multi-device: no microSD card";
+    case CART_CARD_UNREADABLE:
+      return "Multi-device: the microSD card has no FAT or exFAT file system";
+    default:
+      return "Multi-device: cannot create /jackintosh on the microSD card";
+  }
 }
 
 void glueMain(void) {
@@ -142,7 +155,18 @@ void glueMain(void) {
   textAt(kValueColumn, kCartRow);
   switch (glueCartBoot()) {
     case CART_STATE_OK:
-      textPuts("md-jackintosh: disks, PRAM and clock\n");
+      if (glueCartCard == CART_CARD_OK) {
+        textPuts("md-jackintosh: disks, PRAM and clock\n");
+        break;
+      }
+      /* md-jackintosh stopped at its microSD card: the Mac starts with no
+         disks, at the "?" (Diego, 2026-10-19). */
+      textPuts(cartCardText(glueCartCard));
+      textAt(kValueColumn, kCartRow + 1);
+      textPuts(
+          "Insert a card, press SELECT on the Multi-device, then reset "
+          "the ST\n");
+      screenWaitFrames(screen, kCardNoticeFrames);
       break;
     case CART_STATE_OTHER:
       textPuts("another firmware answered: no disks\n");
