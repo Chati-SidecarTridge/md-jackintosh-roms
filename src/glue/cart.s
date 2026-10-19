@@ -11,9 +11,13 @@
  * $FB8000 + word sign-extended; the answer is the token echoed at $FA2004
  * with the seed at $FA2008 moved on (the two-phase check). Unlike the
  * template these run from our ROM (the TOS Emulator's sockets, not the
- * cartridge), with the C calling convention, interrupts masked only while
- * the words go out, and a busy flag so that a command never starts inside
- * another one (an interrupt that wants to send gets CART_BUSY and defers).
+ * cartridge), with the C calling convention and a busy flag so that a
+ * command never starts inside another one (an interrupt that wants to send
+ * gets CART_BUSY and defers). Interrupts are masked only to test and set
+ * that flag; the words go out at IPL 5, or the caller's if higher, so the
+ * MFP's level 6 (the ACIA, Timer C) still runs: a 2-sector WRITE takes a
+ * few ms, and at IPL 7 the ACIA overran and a mouse packet lost a byte,
+ * whose deltas then read as keys (Esc while dragging, bench 2026-10-19).
  */
 
 #include "cart.h"
@@ -35,6 +39,7 @@ _glueCartSend:
     bra     9f
 1:
     st      _glueCartBusy
+    bsr     glueCartUnmask
     move.l  34(%sp), %d0                /* command */
     move.l  38(%sp), %d1                /* payload bytes after the token */
     move.l  42(%sp), %d3
@@ -104,6 +109,21 @@ _glueCartSend:
     movem.l (%sp)+, %d2-%d7/%a2
     rts
 
+/* From IPL 7 down to IPL 5, or to the caller's level when higher: the SR
+   the sender saved is at 4(%sp) here. Uses d0 and d1 only. */
+glueCartUnmask:
+    move.w  4(%sp), %d0
+    andi.w  #0x0700, %d0
+    cmpi.w  #0x0500, %d0
+    bhs.s   1f
+    move.w  #0x0500, %d0
+1:
+    move.w  4(%sp), %d1
+    andi.w  #0xF8FF, %d1
+    or.w    %d0, %d1
+    move.w  %d1, %sr
+    rts
+
 /* The wait for the answer: the token echoed at (a1) and the seed moved on
    (a token match alone could be the previous answer, seen between the RP's
    two stores). d2 = the token. Returns d0 = CART_OK or CART_TIMEOUT. */
@@ -137,6 +157,7 @@ _glueCartSendWrite:
     bra     9f
 1:
     st      _glueCartBusy
+    bsr     glueCartUnmask
     move.l  34(%sp), %d0                /* command */
     move.l  38(%sp), %d3
     move.l  42(%sp), %d4

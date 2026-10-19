@@ -70,6 +70,7 @@ enum {
 
 #define FIELD_LONG(pb, off) (*(unsigned long *)((pb) + (off)))
 #define LOWMEM_LONG(addr) (*(volatile unsigned long *)(unsigned long)(addr))
+#define LOWMEM_WORD(addr) (*(volatile short *)(unsigned long)(addr))
 #define FIELD_SHORT(pb, off) (*(short *)((pb) + (off)))
 
 /* The drive queue element and the four bytes before it: write-protected
@@ -91,6 +92,8 @@ static int glueDriveCount;
 static const struct DiskBackend *glueBackend = &diskNoBackend;
 /* Disks to announce once the event queue exists (glueDiskTick). */
 static unsigned char glueInsertPending[DISK_DRIVES];
+/* Whether the startup disk's announcement was dropped since the install. */
+static int glueBootDriveSkipped;
 static int glueTransfersTraced;
 static int glueOfflineTraced;
 
@@ -246,10 +249,13 @@ void glueInstallDisk(void) {
           ((unsigned long)glueDrives[drive].dQDrvSz2 << kSizeHighShift) |
               glueDrives[drive].dQDrvSz,
           glueDrives[drive].flags[0] != 0);
-    /* The startup disk is mounted by the boot; any other disk is announced
-       as .Sony announces an inserted disk, once there is an event queue. */
-    glueInsertPending[drive] = drive > 0 && glueDrives[drive].flags[1] != 0;
+    /* Every disk is announced as .Sony announces an inserted disk, once
+       there is an event queue, but the startup disk, which the boot mounts
+       (glueDiskTick): FD0 too, when the boot skipped it for HD0 (EPIC-06,
+       a program disk in FD0's slot 1). */
+    glueInsertPending[drive] = glueDrives[drive].flags[1] != 0;
   }
+  glueBootDriveSkipped = 0;
 }
 
 /* Every tick, from the glue's level-1 work (macglue.s), as .Sony polls its
@@ -269,6 +275,15 @@ void glueDiskTick(void) {
       glueVolumeLocate(drive);
       glueDriveRefresh(drive);
       glueInsertPending[drive] = 1;
+    }
+  }
+  if (!glueBootDriveSkipped) {
+    /* The event queue exists: the boot has chosen its drive and mounts it
+       itself. */
+    const int bootDrive = LOWMEM_WORD(MAC_BOOTDRIVE) - 1;
+    glueBootDriveSkipped = 1;
+    if (bootDrive >= 0 && bootDrive < glueDriveCount) {
+      glueInsertPending[bootDrive] = 0;
     }
   }
   for (int drive = 0; drive < glueDriveCount; ++drive) {

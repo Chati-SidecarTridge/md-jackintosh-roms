@@ -51,7 +51,7 @@ LDFLAGS := $(NO_EXT_LIB_FLAGS) -Wl,-Map=$(TARGET_MAP),--entry,_os_entry,-T,$(LDS
 # startup.s must stay first: the image starts with its reset header.
 SRCS_S := startup.s lib.s shadows.s macglue.s cart.s
 SRCS_C := main.c screen.c text.c mac.c disk.c sysreloc.c sysreloc_608.c ikbd.c buserr.c cart.c
-SRCS_C += nodisk.c cartdisk.c
+SRCS_C += nodisk.c cartdisk.c kbd.c menu.c
 ifeq ($(TEST),1)
 SRCS_C += ramdisk.c
 endif

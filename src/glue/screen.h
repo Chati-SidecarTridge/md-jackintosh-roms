@@ -21,3 +21,8 @@ int screenIsSte(void);
 /* Waits for frames vertical blanks of the screen at base (71.2 a second on
    a mono monitor). */
 void screenWaitFrames(unsigned long base, int frames);
+
+/* 1 the first time it is called after a new frame started (the video
+   counter fell back to the base), without waiting: for loops that poll
+   something else meanwhile. */
+int screenNewFrame(void);
