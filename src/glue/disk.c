@@ -361,6 +361,12 @@ short glueDriverControl(const unsigned char *block, const unsigned char *dce) {
       if (info.fixed) {
         return MAC_CONTROLERR;
       }
+      if (!info.present) {
+        /* Nothing to eject: the boot loop ejects every drive it tries while
+           the mouse button reads down (plus/boot/vectors.s:1064-1065), and
+           md-jackintosh's EJECT would only cost a command. */
+        return MAC_NOERR;
+      }
       glueBackend->eject(drive);
       glueDriveRefresh(drive);
       if (drive == 0) {

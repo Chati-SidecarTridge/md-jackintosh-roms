@@ -96,7 +96,10 @@ static void cartFakeUnit(int unit) {
   ++FAKE_UNIT(unit, CART_UNIT_CHANGES);
 }
 
-/* The units at the fake RP's power-on. */
+/* The units at each boot: md-jackintosh looks up its images again at every
+   CMD_ST_HELLO for the units left empty, so the floppies the Mac's Restart
+   ejected come back (agreed 2026-10-19); the RAM disks are all back after a
+   restart, so the fake looks up every unit. */
 static void cartFakeUnits(void) {
   struct DiskInfo info;
   for (int unit = 0; unit < CART_UNITS; ++unit) {
