@@ -8,6 +8,7 @@
  * the diagnostic screen (EPIC-00 STORY-04), then enters the Mac ROM (EPIC-02).
  */
 
+#include "cart.h"
 #include "disk.h"
 #include "mac.h"
 #include "mem.h"
@@ -27,7 +28,8 @@ enum {
   kBytesPerWord = 2,
   kBytesPerLong = 4,
   kValueColumn = 10,
-  kImageRow = 6
+  kImageRow = 6,
+  kCartRow = 9
 };
 
 /* The MMU's bank size code (memconf.inc): 0 128 KB, 1 512 KB, 2 2 MB. */
@@ -133,6 +135,20 @@ void glueMain(void) {
     for (;;) {
       __asm__ volatile("stop #0x2700");
     }
+  }
+  /* The Multi-device (EPIC-05): our ROM says hello itself, no TOS. */
+  textPuts("Cartridge ...");
+  textAt(kValueColumn, kCartRow);
+  switch (glueCartBoot()) {
+    case CART_STATE_OK:
+      textPuts("md-jackintosh: disks, PRAM and clock\n");
+      break;
+    case CART_STATE_OTHER:
+      textPuts("another firmware answered: no disks\n");
+      break;
+    default:
+      textPuts("no Multi-device: no disks\n");
+      break;
   }
   glueMacBoot(memTop, screen);
 }

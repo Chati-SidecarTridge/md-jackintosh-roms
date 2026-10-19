@@ -21,6 +21,7 @@ build/harness/ with the image, the trace, Hatari's log and the screenshots.
 
 import argparse
 import os
+import re
 import shutil
 import signal
 import socket
@@ -146,6 +147,76 @@ def watch_files(run_dir, addresses, memories, parse_path):
             value = int(addr, 0)
             handle.write(f"b (${value:x}).l ! (${value:x}).l :trace :file {regs}\n")
     return script
+
+
+# 2026-10-19 12:00 UTC in Mac seconds (since 1904-01-01): the fake's default.
+FAKE_CART_SECONDS = 0xE6FBB6C0
+FAKE_CART_ID = 0x4A4B0001
+FAKE_CART_STATE_BYTES = 7 * 4 + 256  # glueTestCart up to its status block
+
+
+def fake_cart_files(run_dir, glue_map, spec, parse_path):
+    """EPIC-05: the test builds' fake Multi-device (src/glue/cart.c,
+    glueTestCart), filled when the CPU reaches _glueMain like the RAM disk.
+    spec: KEY=VALUE,...: id (the identity long, default $4A4B0001), seconds
+    (UTC, default 2026-10-19 12:00), valid-at (the TIME query from which the
+    time is valid, default 1), pram (a 256-byte file served as PRAM.BIN,
+    default none), zone (seconds east of UTC: a PRAM.BIN made with that
+    time zone). Returns the --parse script and the settings."""
+    fake = {"id": FAKE_CART_ID, "seconds": FAKE_CART_SECONDS, "valid-at": 1, "pram": None,
+            "zone": None}
+    for item in filter(None, (spec or "").split(",")):
+        key, _, value = item.partition("=")
+        if key not in fake:
+            hc.die(f"--fake-cart: unknown {key!r} (id, seconds, valid-at, pram, zone)")
+        fake[key] = value if key == "pram" else int(value, 0)
+    if fake["zone"] is not None and not fake["pram"]:
+        # A PRAM.BIN made here: XPRAM's 'Bugs' signature (so InitUtil keeps
+        # it) and MachineLocation's gmtDelta, the classic 20 bytes invalid
+        # (so InitUtil writes them and the Mac has a change to save).
+        data = bytearray(256)
+        data[0x0C:0x10] = b"Bugs"
+        data[0xED:0xF0] = (fake["zone"] & 0xFFFFFF).to_bytes(3, "big")
+        fake["pram"] = os.path.join(run_dir, "pram.bin")
+        with open(fake["pram"], "wb") as handle:
+            handle.write(data)
+    # The fake's state (glueTestCart's fields and its PRAM.BIN, 284 bytes)
+    # lives in a file, like md-jackintosh's microSD: loaded at every boot
+    # (_glueMain), saved at every reset (glueReset, before its $FF fill), so
+    # a Mac restart finds the Multi-device again with the PRAM it saved.
+    base = glue_symbol(glue_map, "_glueTestCart")
+    pram = bytes(256)
+    if fake["pram"]:
+        if os.path.getsize(fake["pram"]) != 256:
+            hc.die(f"--fake-cart: {fake['pram']} is not 256 bytes")
+        with open(fake["pram"], "rb") as handle:
+            pram = handle.read()
+    state = os.path.join(run_dir, "fakecart.state")
+    with open(state, "wb") as handle:
+        handle.write(struct.pack(">IIIIIII", 0x46414B45, fake["id"], fake["seconds"],
+                                 fake["valid-at"], 1 if fake["pram"] else 0, 0, 0) + pram)
+    load = os.path.join(run_dir, "fakecart-load.ini")
+    with open(load, "w", encoding="ascii") as handle:
+        handle.write(f"loadbin {state} ${base:x}\n")
+    save = os.path.join(run_dir, "fakecart-save.ini")
+    with open(save, "w", encoding="ascii") as handle:
+        handle.write(f"savebin {state} ${base:x} {FAKE_CART_STATE_BYTES}\n")
+    script = parse_path or os.path.join(run_dir, "fakecart.ini")
+    with open(script, "a", encoding="ascii") as handle:
+        handle.write(f"b pc = ${glue_symbol(glue_map, '_glueMain'):x} :trace :file {load}\n")
+        handle.write(f"b pc = ${glue_symbol(glue_map, '_glueReset'):x} :trace :file {save}\n")
+    return script, fake
+
+
+def fake_cart_expected_seconds(fake):
+    """The local time the glue must set: UTC plus MachineLocation's
+    gmtDelta, the low 24 bits (signed) of the PRAM file's long at $EC."""
+    delta = 0
+    if fake["pram"]:
+        with open(fake["pram"], "rb") as handle:
+            data = handle.read()
+        delta = int.from_bytes(data[0xED:0xF0], "big", signed=True)
+    return (fake["seconds"] + delta) & 0xFFFFFFFF
 
 
 def mac_rom_part(image, machine):
@@ -278,12 +349,43 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             steps.fail("screenshot", "Hatari wrote no screenshot")
         steps.ok(f"screenshot {os.path.relpath(path, hc.REPO)}")
         return
+    # EPIC-05: the hello to the Multi-device times out (Hatari has none,
+    # C-02) and the boot goes on; or the test builds' fake one answers.
+    fake = getattr(args, "fake", None)
+    if fake and ramdisk:
+        # The fake's units are the RAM disks: FD0 the first (HD0 if fixed),
+        # FD1 the second (src/glue/cart.c, cartFakeUnits).
+        units = {(2 if ramdisk["flags"] & RAMDISK_FIXED else 0):
+                 (1 | (2 if ramdisk["flags"] & RAMDISK_WRITE_PROTECT else 0),
+                  ramdisk["bytes"] // 512)}
+        if "bytes2" in ramdisk:
+            units[1] = (1, ramdisk["bytes2"] // 512)
+        FAKE_CTX.update(base=glue_symbol(glue_map, "_glueTestCart"), units=units)
+    if fake:
+        known = (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1
+        need("Multi-device", rf"@@ cart hello {'ok' if known else 'other'} {fake['id']:08x}\n", 10)
+        if known:
+            need("PRAM from the Multi-device",
+                 rf"@@ cart pram {'loaded' if fake['pram'] else 'none'}\n", 10)
+            if fake["valid-at"] <= 1:
+                need("time from the Multi-device",
+                     rf"@@ cart time {fake_cart_expected_seconds(fake):08x}\n", 10)
+            else:
+                need("time not known yet", r"@@ cart time not yet\n", 10)
+    else:
+        need("no Multi-device", r"@@ cart hello none\n", 10)
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
         need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
     need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
+    # EPIC-05 STORY-07: the cartridge when md-jackintosh answered, else the
+    # RAM disks of test builds, else none.
+    cart_ok = fake and (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1
+    backend = ("cartridge" if cart_ok else
+               "ramdisk" if args.type == "debug-test" else "none")
+    need("disk backend", rf"@@ disk backend {backend}\n")
     # EPIC-08 STORY-03: HWCfgFlags $40 (XPRAM, no SCSI), and InitUtil's
     # 'Bugs' signature written into the glue's XPRAM.
     need("xpram", r"@@ mac xpram hwcfg 40 sig 42756773\n")
@@ -294,6 +396,21 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     need("glue hook", r"@@ mac hook\n")
     if ramdisk:
         run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, args.dump)
+        if fake and (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1:
+            # EPIC-05: the time once NTP has it (asked every 600 ticks), and
+            # the PRAM the Mac changed written back 180 ticks after.
+            # The two come in either order: look for each in the whole trace.
+            late = [("PRAM written back", rb"@@ cart pram saved 0 0\n")]
+            if fake["valid-at"] > 1:
+                late.append(("time from the Multi-device, retried",
+                             rf"@@ cart time {fake_cart_expected_seconds(fake):08x}\n".encode()))
+            for name, pattern in late:
+                end = time.time() + 120
+                while not re.search(pattern, trace.data) and time.time() < end:
+                    trace.drain(0.5)
+                if not re.search(pattern, trace.data):
+                    steps.fail(name, f"no {pattern!r} within 120 s")
+                steps.ok(name)
         if "base2" in ramdisk:
             run_disk2(trace, shot, steps, need)
             swapper = (DiskSwapper(ramdisk, command, glue_map, trace, steps.ok, need)
@@ -361,6 +478,31 @@ def finder_on_screen(png):
 
 
 MOUSE_SEQ = [0]
+# The fake Multi-device's window and units, for --then fake-restart (set by
+# run_diag when --fake-cart serves RAM disks).
+FAKE_CTX = {}
+FAKE_CART_WINDOW = FAKE_CART_STATE_BYTES + 3 * 4  # after the units' drives
+
+
+def fake_restart(command, seconds, wait):
+    """EPIC-05: the fake behaves like an RP that restarts while the Mac
+    runs (md-jackintosh, 2026-10-19): its window reads as fresh (no
+    identity, every unit empty) and commands go to the real bus, where they
+    time out; then the identity and the units come back, change counters 1."""
+    base, units = FAKE_CTX["base"], FAKE_CTX["units"]
+    window = base + FAKE_CART_WINDOW
+    command(f"hatari-debug memwrite w ${base:x} $0 $0")                # enabled
+    command(f"hatari-debug memwrite w ${window + 0x0C:x} $0 $0")       # identity
+    for unit in range(3):
+        command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
+                + " ".join(["$0"] * 8))
+    wait(seconds)
+    for unit, (flags, sectors) in units.items():
+        command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
+                f"$0 ${flags:x} ${sectors >> 16:x} ${sectors & 0xFFFF:x} $0 $1 $0 $1")
+    command(f"hatari-debug memwrite w ${window + 0x0C:x} $4a4b $1")
+    command(f"hatari-debug memwrite w ${base:x} $4641 $4b45")         # "FAKE"
+    time.sleep(0.5)
 
 
 def input_helpers(need, command, glue_map):
@@ -433,8 +575,9 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
     """EPIC-09: the --then actions, in order: keys:TEXT (typed; \\n for
     Return), cmd:KEY (Command-KEY), click:V,H, press:V,H and release:V,H (a
     menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME, regs
-    and mem:ADDR,LEN (the registers or memory into stderr.txt); a crash
-    during them fails the run."""
+    and mem:ADDR,LEN (the registers or memory into stderr.txt),
+    fake-restart:SECONDS (--fake-cart: the RP restarts); a crash during
+    them fails the run."""
     key, chord, mouse = input_helpers(need, command, glue_map)
     for action in actions:
         verb, _, arg = action.partition(":")
@@ -455,6 +598,11 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper.wait(float(arg))  # serving drive 2's swaps meanwhile
             else:
                 time.sleep(float(arg))
+        elif verb == "fake-restart":  # fake-restart:SECONDS (--fake-cart)
+            if not FAKE_CTX:
+                hc.die("--then fake-restart needs --fake-cart and --disk")
+            fake_restart(command, float(arg),
+                         swapper.wait if swapper else time.sleep)
         elif verb == "regs":  # the CPU's registers into stderr.txt, for debugging
             command("hatari-debug r")
             time.sleep(0.5)
@@ -671,7 +819,7 @@ def run_disk_boot(trace, shot, steps, need, ramdisk, dump_memory, dumps):
     """EPIC-03: the Mac boots from the RAM disk, past the Happy Mac, the
     System's patches (relocated: D-15) and the Finder's launch, to the
     Finder's desktop. A crash fails the step that was waiting."""
-    need("boot blocks read", r"@@ disk read 0\+2 0\n", 60)
+    need("boot blocks read", r"@@ disk\d? read 0\+2 0\n", 60)  # from any drive
     need("happy mac", r"@@ mac happy\n", 60)
     need("PTCH 117 relocated", r"@@ reloc 19012 bytes at [0-9a-f]{6} 299 of 299\n", 60)
     start = time.time()
@@ -718,11 +866,15 @@ def main():
     parser.add_argument("--then", action="append", metavar="ACTION",
                         help="after --launch, in order (repeatable): keys:TEXT (letters, "
                              "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, click:V,H, "
-                             "press:V,H, release:V,H, regs, mem:ADDR,LEN, "
+                             "press:V,H, release:V,H, regs, mem:ADDR,LEN, fake-restart:SECONDS, "
                              "wait:SECONDS, shot:NAME")
     parser.add_argument("--save-disk", metavar="FILE",
                         help="at the end of a passing run, save the RAM disk (drive 1) as the "
                              "Mac left it, raw, for a later --disk (EPIC-09)")
+    parser.add_argument("--fake-cart", nargs="?", const="", metavar="KEY=VALUE,...",
+                        help="test builds: a fake Multi-device answers the glue (EPIC-05): "
+                             "id=HEX, seconds=N (UTC), valid-at=N, pram=FILE (256 bytes), "
+                             "zone=SECONDS")
     parser.add_argument("--fixed", action="store_true", help="the RAM disk is a hard disk")
     parser.add_argument("--partition", action="store_true",
                         help="wrap the volume in an Apple partition map, as a whole hard disk")
@@ -794,6 +946,11 @@ def main():
                                          args.fixed, args.write_protect, args.partition,
                                          args.disk2, args.swap or ())
                            if args.disk else (None, None))
+    args.fake = None
+    if args.fake_cart is not None:
+        if args.type != "debug-test":
+            hc.die("--fake-cart needs --type debug-test (the fake is in test builds only)")
+        parse_path, args.fake = fake_cart_files(run_dir, glue_map, args.fake_cart, parse_path)
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 

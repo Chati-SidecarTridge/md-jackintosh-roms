@@ -14,7 +14,7 @@
  *
  * Disk swapping (EPIC-09): when the Mac ejects a drive, the harness may
  * load another image into its place and write glueTestDisk (the drive, the
- * new size and flags, then a new seq); diskBackendChanged reports it and
+ * new size and flags, then a new seq); ramDiskChanged reports it and
  * the driver announces the disk.
  */
 
@@ -81,9 +81,9 @@ unsigned long diskRamFind(unsigned long ramTop) {
   return top;
 }
 
-int diskBackendDrives(void) { return ramDiskCount > 1 ? ramDiskCount : 1; }
+static int ramDiskDrives(void) { return ramDiskCount > 1 ? ramDiskCount : 1; }
 
-void diskBackendInfo(int drive, struct DiskInfo *info) {
+static void ramDiskInfo(int drive, struct DiskInfo *info) {
   const int present = drive < ramDiskCount && ramDisks[drive].present;
   info->present = present;
   info->fixed = present && (ramDisks[drive].flags & kFlagFixed) != 0;
@@ -109,8 +109,8 @@ static void ramDiskCopy(unsigned char *dst, const unsigned char *src,
   }
 }
 
-short diskBackendRead(int drive, unsigned long block, unsigned long count,
-                      void *buffer) {
+static short ramDiskRead(int drive, unsigned long block, unsigned long count,
+                         void *buffer) {
   if (drive >= ramDiskCount || !ramDisks[drive].present) {
     return MAC_OFFLINERR;
   }
@@ -123,8 +123,8 @@ short diskBackendRead(int drive, unsigned long block, unsigned long count,
   return MAC_NOERR;
 }
 
-short diskBackendWrite(int drive, unsigned long block, unsigned long count,
-                       const void *buffer) {
+static short ramDiskWrite(int drive, unsigned long block, unsigned long count,
+                          const void *buffer) {
   if (drive >= ramDiskCount || !ramDisks[drive].present) {
     return MAC_OFFLINERR;
   }
@@ -136,13 +136,13 @@ short diskBackendWrite(int drive, unsigned long block, unsigned long count,
   return MAC_NOERR;
 }
 
-void diskBackendEject(int drive) {
+static void ramDiskEject(int drive) {
   if (drive < ramDiskCount) {
     ramDisks[drive].present = 0;
   }
 }
 
-int diskBackendChanged(void) {
+static int ramDiskChanged(void) {
   const unsigned drive = glueTestDisk.drive;
   if (glueTestDisk.seq == ramDiskSwapSeen) {
     return 0;
@@ -157,3 +157,7 @@ int diskBackendChanged(void) {
   TRACE("disk%u swapped in %lu", drive + 1, glueTestDisk.bytes);
   return 1 << drive;
 }
+
+const struct DiskBackend diskRamBackend = {
+    "ramdisk",    ramDiskDrives, ramDiskInfo,   ramDiskRead,
+    ramDiskWrite, ramDiskEject,  ramDiskChanged};

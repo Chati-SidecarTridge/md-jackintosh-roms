@@ -72,8 +72,8 @@ _glueReset:
     /* Test builds: a restart keeps the harness's RAM disks (ramdisk.c),
        the fill stopping at the base of the lowest "JKRD" image: each
        descriptor sits 16 bytes under the image above it, the first under
-       the top. Two at most (DISK_DRIVES). */
-    moveq   #1, %d1
+       the top. Three at most (DISK_DRIVES). */
+    moveq   #2, %d1
 2:
     lea     -16(%a0), %a1
     cmpi.l  #0x4A4B5244, (%a1)

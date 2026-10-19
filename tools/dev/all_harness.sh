@@ -40,6 +40,12 @@ runs=(
   "--image ste --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --launch 85,56 --then keys:Diego --then click:98,458 --then wait:3 --then keys:Hello --then cmd:s --then wait:3 --then keys:Jackintosh\\n --then wait:4 --then shot:saved"
   "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --swap @excel103 --then click:105,600 --then cmd:e --then wait:6 --then shot:swapped"
   "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @norton111 --launch 82,50 --then click:116,170 --then wait:5 --then shot:disk-doctor"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart valid-at=2,zone=3600"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart id=0x12340001"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --input"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fixed --fake-cart"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --swap @excel103 --fake-cart --then click:105,600 --then cmd:e --then wait:6 --then shot:swapped"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --disk2 @word40a --fake-cart --then fake-restart:5 --then wait:4 --then click:45,600 --then cmd:o --then wait:3 --then shot:after"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )
