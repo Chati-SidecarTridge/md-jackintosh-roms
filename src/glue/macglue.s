@@ -11,6 +11,11 @@
 
 #include "macrom.h"
 
+/* The MFP's vectors the glue serves, from its vector base $30 (mac.c,
+   kMfpVectorBase): Timer C (channel 5) and the ACIAs (channel 6). */
+    .equ    VEC_MFP_TIMERC, (0x30 + 5) * 4
+    .equ    VEC_MFP_ACIA, (0x30 + 6) * 4
+
     .text
 
 /* ------------------------------------------------------------------------
@@ -54,23 +59,44 @@ _glueVbl:
    times a second at IPL 0. It raises the interrupted code's IPL by 2 (0 to
    2, 1 to 3), so it does not come back until the Mac lowers its IPL again.
    The Plus ROM never sets IPL 2 itself, so a stacked IPL of 2 still means
-   "the Mac would take a level-1 interrupt now" (glueTimerC). */
+   "the Mac would take a level-1 interrupt now" (glueTimerC). It also puts
+   back the vectors the glue serves, which Mac programs take for their own:
+   a debugger installs its interrupt-switch handler at $70 and FPU
+   exception handlers at vectors 48-54, where the MFP's Timer C and ACIA
+   sit (THINK Pascal does both: its $70 handler arms a user break on a
+   level-4 interrupt at IPL 0, and a Timer C tick in its FPU handler aborts
+   the running program, EPIC-10). Coming down from IPL 2 the pending HBL is
+   taken before any VBL or MFP interrupt can find IPL 0, so a foreign
+   vector lasts microseconds; glueTimerC repeats it every tick. */
     .globl _glueHbl
 _glueHbl:
+    move.l  #_glueBusError, 8.w
+    move.l  #_glueVbl, 0x70.w
+    move.l  #_glueTimerC, VEC_MFP_TIMERC.w
+    move.l  #_glueAciaIsr, VEC_MFP_ACIA.w
     ori.w   #0x0200, (%sp)
     rte
 
-/* MFP Timer C, 60.235 Hz (D-18). Puts the glue's bus error vector back if
-   Mac code overwrote it (a Plus never takes a bus error, so nothing there
-   minds a write to $8: Blockout copies through a nil pointer over $0-$E;
-   Spectre re-installed its handler every tick too). Counts a tick and,
-   every 2457600 / 40800 ticks, a second, which the RTC's seconds count too;
-   then, if the interrupted code runs at IPL 0 or 2 and no delivery is
-   under way, rewrites its return so that the CPU goes to glueLevel1 at IPL
-   1 first, as a Mac VIA interrupt would. */
+/* MFP Timer C, 60.235 Hz (D-18). First puts back the vectors the glue
+   serves (bus error, HBL, VBL, Timer C, ACIA) if Mac code took them; Timer C
+   gets here through a program's handler that passes it on, or the HBL
+   handler has restored it already. A Plus never takes a bus error, so
+   nothing there minds a write to $8 (Blockout copies through a nil pointer
+   over $0-$E; Spectre re-installed its handler every tick too); levels 2
+   and 4 and vectors 48-54 are the SCC, the interrupt switch and the FPU on
+   a Mac but the HBL, the VBL and the MFP here (THINK Pascal's debugger takes
+   them all: EPIC-10). Then counts a tick and, every 2457600 / 40800 ticks,
+   a second, which the RTC's seconds count too; then, if the interrupted
+   code runs at IPL 0 or 2 and no delivery is under way, rewrites its return
+   so that the CPU goes to glueLevel1 at IPL 1 first, as a Mac VIA
+   interrupt would. */
     .globl _glueTimerC
 _glueTimerC:
     move.l  #_glueBusError, 8.w
+    move.l  #_glueHbl, 0x68.w
+    move.l  #_glueVbl, 0x70.w
+    move.l  #_glueTimerC, VEC_MFP_TIMERC.w
+    move.l  #_glueAciaIsr, VEC_MFP_ACIA.w
     move.l  %d0, -(%sp)
     addq.w  #1, _glueTicksPending
     move.l  _glueSecondAcc, %d0
