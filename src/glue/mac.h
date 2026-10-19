@@ -21,3 +21,6 @@ extern volatile int glueRtcPramChanged;
 extern volatile unsigned long glueRtcPramChangedTick;
 long glueRtcGmtDelta(void);
 void glueRtcSetSeconds(unsigned long seconds);
+/* The Mac's time zone (gmtDelta, seconds east of UTC) changed, the clock
+   moved by the difference, the PRAM marked for md-jackintosh (EPIC-13). */
+void glueRtcSetGmtDelta(long seconds);

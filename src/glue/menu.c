@@ -16,6 +16,8 @@
 
 #include "cart.h"
 #include "kbd.h"
+#include "lib.h"
+#include "mac.h"
 #include "mem.h"
 #include "screen.h"
 #include "text.h"
@@ -48,7 +50,7 @@ struct MenuPage {
 /* The menu's buffers, in the scratch RAM the Mac takes later (mem.h): the
    glue's own RAM is too small for them. */
 struct MenuScratch {
-  char settings[CART_SETTINGS][CART_PATH_SIZE];
+  char settings[CART_SETTINGS_ALL][CART_PATH_SIZE];
   struct MenuPage page;
 };
 #define MENU_SCRATCH ((struct MenuScratch *)GLUE_SCRATCH_ADDR)
@@ -56,6 +58,9 @@ struct MenuScratch {
 
 /* FD0's current slot (GET_SETTINGS): the one in the drive. */
 static int menuSlot = 1;
+/* Whether md-jackintosh has the RTC settings (EPIC-13): an older one
+   answers without them, and the bytes there are not "true" or "false". */
+static int menuHasRtc;
 
 static unsigned menuLength(const char *text) {
   unsigned length = 0;
@@ -81,6 +86,12 @@ static void menuFormat(char *out, unsigned long size, const char *fmt, ...) {
   __builtin_va_end(args);
 }
 
+static int menuSame(const char *left, const char *right) {
+  for (; *left != '\0' && *left == *right; ++left, ++right) {
+  }
+  return *left == *right;
+}
+
 static int menuGetSettings(void) {
   if (glueCartCommand(CART_CMD_GET_SETTINGS, 0, 0, 0, 0, 0) != CART_OK ||
       *(volatile long *)(glueCartStatus + CART_RESULT_OFFSET) !=
@@ -98,13 +109,15 @@ static int menuGetSettings(void) {
   if (menuSlot < 1 || menuSlot > CART_FD0_SLOTS) {
     menuSlot = 1;
   }
-  return 1;
-}
-
-static int menuSame(const char *left, const char *right) {
-  for (; *left != '\0' && *left == *right; ++left, ++right) {
+  for (int key = CART_KEY_RTC_ENABLED; key < CART_SETTINGS_ALL; ++key) {
+    menuCopy(menuSettings[key],
+             glueCartStatus + CART_BUFFER_OFFSET + CART_SETTINGS_RTC +
+                 ((key - CART_KEY_RTC_ENABLED) * CART_PATH_SIZE),
+             CART_PATH_SIZE);
   }
-  return *left == *right;
+  menuHasRtc = menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true") ||
+               menuSame(menuSettings[CART_KEY_RTC_ENABLED], "false");
+  return 1;
 }
 
 /* The unit's setting already holding path, other than key's: the same
@@ -452,6 +465,244 @@ static void menuDrive(const char *label, int unit, int key) {
   }
 }
 
+/* The keys of md-drives-emulator's text fields, by scancode (US places,
+   as the menu's keys): digits, letters, '.', '-' and the keypad's. */
+static int menuAscii(int code) {
+  static const char kDigits[] = "1234567890-="; /* $02-$0D */
+  static const char kTop[] = "qwertyuiop";      /* $10-$19 */
+  static const char kHome[] = "asdfghjkl";      /* $1E-$26 */
+  static const char kBottom[] = "zxcvbnm,./";   /* $2C-$35 */
+  static const char kKeypad[] = "789456123";    /* $67-$6F */
+  enum {
+    kScanDigits = 0x02,
+    kScanTop = 0x10,
+    kScanHome = 0x1E,
+    kScanBottom = 0x2C,
+    kScanKeypadMinus = 0x4A,
+    kScanKeypadPlus = 0x4E,
+    kScanKeypad = 0x67,
+    kScanKeypadZero = 0x70,
+    kScanKeypadDot = 0x71
+  };
+  if (code >= kScanDigits && code < kScanDigits + (int)sizeof(kDigits) - 1) {
+    return kDigits[code - kScanDigits];
+  }
+  if (code >= kScanTop && code < kScanTop + (int)sizeof(kTop) - 1) {
+    return kTop[code - kScanTop];
+  }
+  if (code >= kScanHome && code < kScanHome + (int)sizeof(kHome) - 1) {
+    return kHome[code - kScanHome];
+  }
+  if (code >= kScanBottom && code < kScanBottom + (int)sizeof(kBottom) - 1) {
+    return kBottom[code - kScanBottom];
+  }
+  if (code >= kScanKeypad && code < kScanKeypad + (int)sizeof(kKeypad) - 1) {
+    return kKeypad[code - kScanKeypad];
+  }
+  switch (code) {
+    case kScanKeypadZero:
+      return '0';
+    case kScanKeypadDot:
+      return '.';
+    case kScanKeypadMinus:
+      return '-';
+    case kScanKeypadPlus:
+      return '+';
+    default:
+      return 0;
+  }
+}
+
+/* md-drives-emulator's text input (term.c:388-417, 497-510): the prompt,
+   then the text echoed, Backspace, Return to take it, Esc to give up.
+   Returns 1 with out filled, 0 on Esc. */
+static int menuInput(const char *prompt, char *out, unsigned size) {
+  unsigned length = 0;
+  out[0] = '\0';
+  textClearRow(kFooterRow - 1);
+  textPuts(prompt);
+  textPuts(" ");
+  for (;;) {
+    const int pressed = kbdPoll();
+    int code;
+    int character;
+    if (pressed < 0) {
+      continue;
+    }
+    code = pressed & KBD_CODE_MASK;
+    if (code == KBD_ESC) {
+      return 0;
+    }
+    if (code == KBD_RETURN || code == KBD_ENTER) {
+      return 1;
+    }
+    if (code == KBD_BACKSPACE && length > 0) {
+      out[--length] = '\0';
+    } else {
+      character = menuAscii(code);
+      if (character == '=' && (pressed & KBD_SHIFT)) {
+        character = '+';
+      }
+      if (character == 0 || length + 1 >= size) {
+        continue;
+      }
+      out[length++] = (char)character;
+      out[length] = '\0';
+    }
+    textClearRow(kFooterRow - 1);
+    textPuts(prompt);
+    textPuts(" ");
+    textPuts(out);
+  }
+}
+
+/* md-drives-emulator's isValidDomain (emul.c:397-437): labels of
+   letters, digits and hyphens, none starting or ending with one. */
+static int menuValidHost(const char *host) {
+  enum { kLabelMax = 63, kHostMax = 95 };
+  unsigned label = 0;
+  unsigned length = 0;
+  char last = '.';
+  for (; host[length] != '\0'; ++length) {
+    const char character = host[length];
+    if (character == '.') {
+      if (label == 0 || last == '-') {
+        return 0;
+      }
+      label = 0;
+    } else if ((character >= 'a' && character <= 'z') ||
+               (character >= '0' && character <= '9') ||
+               (character == '-' && label != 0)) {
+      if (++label > kLabelMax) {
+        return 0;
+      }
+    } else {
+      return 0;
+    }
+    last = character;
+  }
+  return length != 0 && length <= kHostMax && last != '.' && last != '-';
+}
+
+/* A decimal number with an optional sign, or 0 when text is not one. */
+static int menuNumber(const char *text, long *value) {
+  const int negative = text[0] == '-';
+  unsigned long result = 0;
+  unsigned digits = 0;
+  enum { kMaxDigits = 5 };
+  if (text[0] == '-' || text[0] == '+') {
+    ++text;
+  }
+  for (; *text >= '0' && *text <= '9' && digits < kMaxDigits;
+       ++text, ++digits) {
+    result = (result << 3) + (result << 1) + (unsigned long)(*text - '0');
+  }
+  if (*text != '\0' || digits == 0) {
+    return 0;
+  }
+  *value = negative ? -(long)result : (long)result;
+  return 1;
+}
+
+/* The Mac's time zone in hours and minutes (gmtDelta, mac.c). */
+static void menuOffset(void) {
+  enum { kSecondsPerHour = 3600, kSecondsPerMinute = 60 };
+  const long delta = glueRtcGmtDelta();
+  unsigned short rest = 0;
+  const unsigned long hours = divU32U16(
+      (unsigned long)(delta < 0 ? -delta : delta), kSecondsPerHour, &rest);
+  textPrintf("%c%lu", delta < 0 ? '-' : '+', hours);
+  if (rest != 0) {
+    unsigned short seconds = 0;
+    textPrintf(":%02lu", divU32U16(rest, kSecondsPerMinute, &seconds));
+  }
+}
+
+/* md-drives-emulator's RTC lines (emul.c:917-953). [R], [H], [P] are
+   md-jackintosh's (shown when it has them), [U] the Mac's own zone. */
+static void menuRtcLines(void) {
+  if (!menuHasRtc) {
+    textPuts("\n\n[U] Offset:"); /* an older md-jackintosh: the Mac's zone */
+    menuOffset();
+    return;
+  }
+  if (!menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true")) {
+    textPuts("\n\n[R]TC Enabled? No"); /* nothing below, as md-drives */
+    return;
+  }
+  textPuts("\n\n[R]TC Enabled? Yes\n  [H]ost NTP: ");
+  textPuts(menuSettings[CART_KEY_NTP_HOST][0] != '\0'
+               ? menuSettings[CART_KEY_NTP_HOST]
+               : "Not set");
+  textPrintf("\n  [P]ort:%s [U] Offset:", menuSettings[CART_KEY_NTP_PORT]);
+  menuOffset();
+}
+
+/* [R], [H], [P], [U]: md-drives-emulator's prompts, checks and messages.
+   Returns the status line to show, or 0. */
+static const char *menuRtcKey(int code) {
+  enum {
+    kSecondsPerHour = 3600,
+    kOffsetMin = -12,
+    kOffsetMax = 14,
+    kPortMax = 65535
+  };
+  /* md-jackintosh reads them only when it starts: the computer's reset
+     button restarts the ST, not the Multi-device (its session, 2026-10-20). */
+  static const char kApplies[] =
+      "Saved: applies after a power cycle or Multi-device reset, not the reset "
+      "button.";
+  char text[CART_PATH_SIZE];
+  long value = 0;
+  const int enabled =
+      !menuHasRtc || menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true");
+  if (code == KBD_U && enabled) {
+    if (!menuInput("Enter the UTC offset:", text, sizeof(text))) {
+      return 0;
+    }
+    if (!menuNumber(text, &value) || value < kOffsetMin || value > kOffsetMax) {
+      return "Invalid UTC offset.";
+    }
+    glueRtcSetGmtDelta(value * kSecondsPerHour);
+    TRACE("menu offset %ld", value);
+    return 0;
+  }
+  if (!menuHasRtc) {
+    return 0;
+  }
+  if (code == KBD_R) {
+    return menuSet(CART_KEY_RTC_ENABLED, enabled ? "false" : "true") ==
+                   CART_RESULT_OK
+               ? kApplies
+               : "The Multi-device refused it.";
+  }
+  if (!enabled) {
+    return 0; /* md-drives-emulator prompts only with the RTC enabled */
+  }
+  if (code == KBD_H) {
+    if (!menuInput("Enter the NTP server host:", text, sizeof(text))) {
+      return 0;
+    }
+    if (!menuValidHost(text) ||
+        menuSet(CART_KEY_NTP_HOST, text) != CART_RESULT_OK) {
+      return "Invalid NTP server host.";
+    }
+    return kApplies;
+  }
+  if (code == KBD_P) {
+    if (!menuInput("Enter the NTP server port:", text, sizeof(text))) {
+      return 0;
+    }
+    if (!menuNumber(text, &value) || value < 1 || value > kPortMax ||
+        text[0] == '-' || text[0] == '+' ||
+        menuSet(CART_KEY_NTP_PORT, text) != CART_RESULT_OK) {
+      return "Invalid NTP server port.";
+    }
+    return kApplies;
+  }
+  return 0;
+}
+
 static void menuMain(void) {
   menuTitle();
   textAt(0, kHeaderRow);
@@ -469,6 +720,7 @@ static void menuMain(void) {
   menuDrive("[B] FD1: ", 1, CART_KEY_FD1);
   textPuts("\n");
   menuDrive("[I] HD0: ", CART_UNIT_HD0, CART_KEY_HD0);
+  menuRtcLines();
   textPuts("\n\nSHIFT+A, SHIFT+B or SHIFT+I empties a drive.");
   textAt(0, kFooterRow);
   textPuts("[E]xit to the Mac    Select an option:");
@@ -478,9 +730,13 @@ void glueMenu(void) {
   int seconds = kCountdownSeconds;
   int frames = 0;
   int counting = 1;
+  const char *notice = 0;
   if (!menuGetSettings()) {
     TRACE("menu none"); /* a firmware without the chooser's commands */
     return;
+  }
+  if (menuHasRtc && !menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true")) {
+    glueCartNoTime(); /* md-jackintosh's TIME stays not valid */
   }
   kbdInit();
   TRACE("menu");
@@ -530,9 +786,14 @@ void glueMenu(void) {
       }
     } else if (code == KBD_L) {
       menuBrowse(CART_KEY_FOLDER, "Folder: ", 1);
+    } else if (code == KBD_R || code == KBD_H || code == KBD_P ||
+               code == KBD_U) {
+      notice = menuRtcKey(code);
     }
     menuMain();
-    menuStatus("Countdown stopped. Press [E] to continue.");
+    menuStatus(notice != 0 ? notice
+                           : "Countdown stopped. Press [E] to continue.");
+    notice = 0;
   }
   menuStatus("Booting... Please wait...");
   TRACE("menu boot");

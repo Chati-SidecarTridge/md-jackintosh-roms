@@ -17,7 +17,12 @@
 #define KBD_ESC 0x01
 #define KBD_1 0x02
 #define KBD_0 0x0B
+#define KBD_BACKSPACE 0x0E
 #define KBD_E 0x12
+#define KBD_R 0x13
+#define KBD_U 0x16
+#define KBD_P 0x19
+#define KBD_H 0x23
 #define KBD_I 0x17
 #define KBD_A 0x1E
 #define KBD_L 0x26

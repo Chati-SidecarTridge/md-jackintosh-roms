@@ -159,8 +159,10 @@ FAKE_CART_ID = 0x4A4B0001
 FAKE_CART_TREE_MAX = 8
 FAKE_CART_PATH = 96
 # glueTestCart up to its units: the header, PRAM.BIN, the SELECT count, FD0's
-# slot, the tree's size, 13 settings, the tree (src/glue/cart.c).
-FAKE_CART_STATE_BYTES = 8 * 4 + 256 + 3 * 4 + 13 * FAKE_CART_PATH + FAKE_CART_TREE_MAX * 104
+# slot, the tree's size, 16 settings, the tree (src/glue/cart.c).
+FAKE_CART_SETTINGS = 16  # 13 paths, then the RTC's three (EPIC-13)
+FAKE_CART_STATE_BYTES = (8 * 4 + 256 + 3 * 4 + FAKE_CART_SETTINGS * FAKE_CART_PATH
+                         + FAKE_CART_TREE_MAX * 104)
 FAKE_CART_SELECT = 8 * 4 + 256  # selectSeq's offset
 
 
@@ -170,7 +172,7 @@ def fake_cart_tree(args, ramdisk):
     --disk image (FD0's slot 1, or HD0 when --fixed) and the --disk2 one
     (FD1), floppies named *.rw so they stay writable (the .rw rule);
     --fake-tree PATH=DRIVE and --fake-set KEY=PATH change that."""
-    tree, settings = [], {0: "/jackintosh"}
+    tree, settings = [], {0: "/jackintosh", 13: "true", 14: "pool.ntp.org", 15: "123"}
     if ramdisk:
         sizes = [ramdisk["bytes"]] + ([ramdisk["bytes2"]] if "bytes2" in ramdisk else [])
         fixed = bool(ramdisk["flags"] & RAMDISK_FIXED)
@@ -237,7 +239,7 @@ def fake_cart_files(run_dir, glue_map, spec, parse_path, tree=(), settings=None)
                                  fake["valid-at"], 1 if fake["pram"] else 0, 0, 0,
                                  fake["card"]) + pram)
         handle.write(struct.pack(">III", 0, 1, len(tree)))
-        for key in range(13):
+        for key in range(FAKE_CART_SETTINGS):
             handle.write((settings or {}).get(key, "").encode("latin-1")
                          .ljust(FAKE_CART_PATH, b"\0")[:FAKE_CART_PATH])
         for path, drive, size in list(tree) + [("", -1, 0)] * (FAKE_CART_TREE_MAX - len(tree)):
@@ -431,6 +433,9 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
                      rf"@@ cart time {fake_cart_expected_seconds(fake):08x}\n", 10)
             else:
                 need("time not known yet", r"@@ cart time not yet\n", 10)
+            if fake["rtc-off"]:
+                # EPIC-13: md-jackintosh's RTC off: TIME never valid, no more asking.
+                need("RTC off", r"@@ cart time off\n", 10)
     else:
         need("no Multi-device", r"@@ cart hello none\n", 10)
     if fake and known and not fake["card"]:
@@ -462,7 +467,7 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             # the PRAM the Mac changed written back 180 ticks after.
             # The two come in either order: look for each in the whole trace.
             late = [("PRAM written back", rb"@@ cart pram saved 0 0\n")]
-            if fake["valid-at"] > 1:
+            if fake["valid-at"] > 1 and not fake["rtc-off"]:
                 late.append(("time from the Multi-device, retried",
                              rf"@@ cart time {fake_cart_expected_seconds(fake):08x}\n".encode()))
             for name, pattern in late:
@@ -577,14 +582,14 @@ def fake_up(command):
 
 
 MENU_KEYS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D, "return": 0x1C,
-             "space": 0x39, "esc": 0x01}
+             "space": 0x39, "esc": 0x01, "backspace": 0x0E}
 ST_CONTROL = 0x1D
 
 
 def run_menu(trace, shot, steps, need, command, actions):
     """EPIC-06: md-jackintosh's setup menu at boot. --menu actions: a key
-    (a letter, a digit, up, down, left, right, return, space, esc; shift+ or
-    ctrl+ before it), shot:NAME, wait:SECONDS; then [E] unless an action
+    (a letter, a digit, up, down, left, right, return, space, esc,
+    backspace; shift+ or ctrl+ before it), type:TEXT, shot:NAME, wait:SECONDS; then [E] unless an action
     pressed it, or the countdown ran out."""
     need("setup menu", r"@@ menu\n", 20)
 
@@ -601,6 +606,14 @@ def run_menu(trace, shot, steps, need, command, actions):
             continue
         if verb == "wait":
             time.sleep(float(arg))
+            continue
+        if verb == "type":  # a text field: letters, digits, '.', '-'
+            for char in arg:
+                key(ST_KEYS[char], True)
+                time.sleep(0.05)
+                key(ST_KEYS[char], False)
+                time.sleep(0.15)
+            steps.ok(f"menu typed {arg!r}")
             continue
         mods = []
         name = action
@@ -1100,6 +1113,7 @@ def main():
         tree, settings = fake_cart_tree(args, ramdisk)
         parse_path, args.fake = fake_cart_files(run_dir, glue_map, args.fake_cart, parse_path,
                                                 tree, settings)
+        args.fake["rtc-off"] = settings.get(13) == "false"  # EPIC-13
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 
