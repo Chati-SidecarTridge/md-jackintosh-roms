@@ -10,6 +10,8 @@
 
 #include "cart.h"
 #include "disk.h"
+#include "hw.h"
+#include "lib.h"
 #include "mac.h"
 #include "mem.h"
 #include "menu.h"
@@ -20,6 +22,7 @@
 /* Set by startup.s from memconf.inc. */
 unsigned long glueRamBytes;
 unsigned char glueRamMmu;
+int glueMegaSte;
 
 enum {
   kKilobyte = 1024,
@@ -152,6 +155,8 @@ void glueMain(void) {
       __asm__ volatile("stop #0x2700");
     }
   }
+  glueMegaSte = probeRead(HW_MSTE_CTRL_ADDR); /* interrupts are masked */
+  TRACE("megaste %d", glueMegaSte);
   /* The Multi-device (EPIC-05): our ROM says hello itself, no TOS. */
   textPuts("Cartridge ...");
   textAt(kValueColumn, kCartRow);
@@ -188,6 +193,15 @@ void glueMain(void) {
     screen = memTop - MAC_SCREEN_BELOW_MEMTOP;
     (void)screenInit(screen);
     TRACE("mac ram %lu", memTop);
+  }
+  if (glueMegaSte) {
+    /* The menu's speed and cache (EPIC-14), after the menu and the
+       Multi-device's boot, whose waits are spin counts sized for 8 MHz. */
+    HW_MSTE_CTRL = glueOptions.megaSteCtrl;
+    if (glueOptions.megaSteCtrl & HW_MSTE_16MHZ) {
+      glueCartTimeoutSpins <<= 1; /* the loops run up to 2x as fast */
+    }
+    TRACE("megaste ctrl %02x", (unsigned)HW_MSTE_CTRL);
   }
   glueMacBoot(memTop, screen);
 }

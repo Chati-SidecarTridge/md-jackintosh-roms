@@ -12,6 +12,7 @@
 #include "mac.h"
 
 #include "hw.h"
+#include "lib.h"
 #include "macrom.h"
 #include "mem.h"
 #include "menu.h"
@@ -71,6 +72,8 @@ enum {
   kSetPtrLarge = 0x800,
   kSetPtrTiny = 8,
   kMfpIerbTimerC = 0x20,
+  kScuSysHblVbl = 0x14,      /* SCU system mask: levels 2 and 4 */
+  kScuVmeMfp = 0x40,         /* SCU VME mask: level 6 */
   kTimerCPrescale200 = 0x70, /* TCDCR bits 6-4: divide by 200 */
   kTimerCData = 204,         /* 2457600 / 200 / 204 = 60.235 Hz */
   kTimerDBits = 0x0F,
@@ -226,6 +229,15 @@ void glueHook(void) {
   MFP_TCDCR = (MFP_TCDCR & kTimerDBits) | kTimerCPrescale200;
   MFP_IMRB = kMfpIerbTimerC;
   MFP_IERB = kMfpIerbTimerC;
+  if (probeRead(HW_SCU_SYS_INT_MASK_ADDR)) {
+    /* A Mega STE: its SCU masks every level after a reset, so Timer C and
+       the ACIA never interrupted (EPIC-14). The levels the STE delivers:
+       HBL and VBL, and the MFP; not the SCC (level 5), which nothing
+       drives. TOS sets $14 and $60. */
+    HW_SCU_SYS_INT_MASK = kScuSysHblVbl;
+    HW_SCU_VME_INT_MASK = kScuVmeMfp;
+    TRACE("mac scu");
+  }
   glueSysRelocInstall();
   /* No SCC: both serial ports in use, so .MPP (AppleTalk) and the serial
      drivers' opens fail with portInUse (-97) instead of waiting for SCC

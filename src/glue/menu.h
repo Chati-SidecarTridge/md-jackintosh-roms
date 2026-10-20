@@ -27,5 +27,10 @@ struct GlueOptions {
   int plusScreen;             /* the Plus's 512x342, centred */
   int keyboard;               /* GLUE_LAYOUT_* (layout.h) */
   int mouseSpeed;             /* 1 slowest, 5 the ST's own, 10 fastest */
+  unsigned char megaSteCtrl;  /* $FF8E21's value on a Mega STE (hw.h) */
+  unsigned char megaSteIndex; /* its line on the options page */
 };
 extern struct GlueOptions glueOptions;
+
+/* A Mega STE (EPIC-14): main.c found its cache and processor control. */
+extern int glueMegaSte;
