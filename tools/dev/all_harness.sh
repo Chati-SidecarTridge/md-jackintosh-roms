@@ -65,6 +65,8 @@ runs=(
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=10 --menu o --menu t --menu shift+t --menu shift+t --menu shot:mouse --menu esc --menu e --then click:200,300 --then move:16,16=240,340"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=1 --then click:200,300 --then move:16,-16=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=205,297"
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 22=16c --input"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --disk2 @tetris1 --sound --launch 85,40 --then wait:3 --then click:200,300 --then wait:3 --then rec --then click:243,290 --then wait:6 --then heard"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --sound --then wait:2 --then press:10,20 --then release:75,70 --then wait:3 --then rec --then press:228,459 --then release:180,459 --then wait:3 --then heard"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

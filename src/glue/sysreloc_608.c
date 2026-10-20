@@ -116,8 +116,10 @@ static const struct SysRelocOperand relocPTCH117[] = {
     {0x449E, SYSRELOC_ROM}, {0x4958, SYSRELOC_ROM},
 };
 
-/* 'ptch' 3: 6836 bytes, 2 operands (2 ROM), SHA-256 ee6587d50aa0ac33... */
+/* 'ptch' 3: 6836 bytes, 3 operands (2 ROM, 1 IPL), SHA-256 ee6587d50aa0ac33...
+ */
 static const struct SysRelocOperand relocptch3[] = {
+    {0x1932, SYSRELOC_IPL},
     {0x19D6, SYSRELOC_ROM},
     {0x19E4, SYSRELOC_ROM},
 };
@@ -130,7 +132,7 @@ static const struct SysRelocOperand relocCACH1[] = {
 
 const struct SysRelocEntry sysRelocTable[] = {
     {19012UL, 0x0B29F1F7UL, 299, relocPTCH117}, /* 'PTCH' 117 */
-    {6836UL, 0x03A30ED4UL, 2, relocptch3},      /* 'ptch' 3 */
+    {6836UL, 0x03A30ED4UL, 3, relocptch3},      /* 'ptch' 3 */
     {2946UL, 0x0164D8D4UL, 2, relocCACH1},      /* 'CACH' 1 */
     {0, 0, 0, 0},
 };

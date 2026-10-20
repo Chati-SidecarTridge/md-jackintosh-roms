@@ -16,6 +16,8 @@
 #include "macrom.h"
 #include "mem.h"
 #include "menu.h"
+#include "screen.h"
+#include "sound.h"
 #include "sysreloc.h"
 #include "text.h"
 #include "trace.h"
@@ -190,6 +192,13 @@ void glueMacBoot(unsigned long memTop, unsigned long screen) {
   LOWMEM_WORD(MAC_PWMVALUE) = kPwmSilence;
   LOWMEM_LONG(MAC_SOUNDBASE) = memTop - MAC_SOUNDBASE_BELOW_MEMTOP;
   LOWMEM_LONG(MAC_BUFPTR) = screen;
+  glueSoundInit(0, GLUE_SOUND_OFF);
+  if (screenIsSte() && glueOptions.sound != GLUE_SOUND_OFF) {
+    /* The DMA sound's ring below the screen (EPIC-15). */
+    LOWMEM_LONG(MAC_BUFPTR) = screen - GLUE_SOUND_RING_ALLOC;
+    glueSoundInit((unsigned char *)(screen - GLUE_SOUND_RING_ALLOC),
+                  glueOptions.sound);
+  }
   glueScreenGeometry(screen);
 
   TRACE("mac enter %06lx memtop %06lx screen %06lx",

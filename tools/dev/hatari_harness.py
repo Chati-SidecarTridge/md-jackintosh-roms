@@ -57,7 +57,8 @@ STEP_TIMEOUT = 20
 def hatari_args(image, args, run_dir, sock_path, parse_path):
     cmd = [hc.emulator_path("hatari"), "--tos", image, "--machine", args.machine or args.image,
            "--memsize", str(args.memsize), "--ttram", "0",
-           "--monitor", args.monitor, "--natfeats", "yes", "--sound", "off",
+           "--monitor", args.monitor, "--natfeats", "yes",
+           "--sound", "44100" if args.sound else "off",
            "--patch-tos", "false", "--confirm-quit", "false",
            "--log-file", os.path.join(run_dir, "hatari.log")]
     if parse_path:
@@ -589,6 +590,23 @@ MOUSE_SEQ = [0]
 # The fake Multi-device's window and units, for --then fake-restart (set by
 # run_diag when --fake-cart serves RAM disks).
 FAKE_CTX = {}
+# EPIC-15: Hatari's sound recording (--sound): it writes hatari.wav in its
+# working directory, the run's folder.
+SOUND_WAV = None
+
+
+def wav_peak(path):
+    """The peak of a WAV Hatari recorded (16-bit PCM) and its seconds."""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    at = data.find(b"data")
+    rate = struct.unpack("<I", data[24:28])[0] if len(data) >= 28 else 44100
+    channels = struct.unpack("<H", data[22:24])[0] if len(data) >= 24 else 2
+    pcm = data[at + 8:] if at >= 0 else b""
+    pcm = pcm[:len(pcm) & ~1]
+    samples = struct.unpack(f"<{len(pcm) // 2}h", pcm)
+    peak = max((abs(x) for x in samples), default=0)
+    return peak, len(samples) / max(1, rate * channels)
 FAKE_CART_WINDOW = FAKE_CART_STATE_BYTES + 3 * 4  # after the units' drives
 
 
@@ -815,6 +833,16 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 (swapper.wait if swapper else time.sleep)(float(arg))
             if verb != "fake-down":
                 fake_up(command)
+        elif verb in ("rec", "heard"):  # --sound: record, then the WAV must not be silent
+            if SOUND_WAV is None:
+                hc.die("--then rec and heard need --sound")
+            command("hatari-shortcut recsound")
+            time.sleep(0.5)
+            if verb == "heard":
+                peak, seconds = wav_peak(SOUND_WAV)
+                if peak < 32:  # Hatari mixes DMA sound at +-1524 at most
+                    steps.fail(action, f"silent: peak {peak} over {seconds:.1f} s")
+                steps.ok(f"sound heard: peak {peak} over {seconds:.1f} s")
         elif verb == "regs":  # the CPU's registers into stderr.txt, for debugging
             command("hatari-debug r")
             time.sleep(0.5)
@@ -1055,6 +1083,8 @@ def main():
     parser.add_argument("--machine", choices=["megaste"],
                         help="the machine Hatari emulates instead of --image's (EPIC-14: the "
                              "ste image on a Mega STE)")
+    parser.add_argument("--sound", action="store_true",
+                        help="Hatari's sound on, for --then rec and heard (EPIC-15)")
     parser.add_argument("--megaste-ctrl", type=int, choices=(0, 2, 3),
                         help="with --machine megaste: the speed and cache without the menu "
                              "($FF8E21: 0 8 MHz, 2 16 MHz, 3 16 MHz with the cache)")
@@ -1169,6 +1199,9 @@ def main():
         ("-hd" if args.partition else "") + ("-disk2" if args.disk2 else "") + \
         ("-interactive" if args.interactive else "")
     run_dir = hc.new_run_dir(label)
+    if args.sound:
+        global SOUND_WAV
+        SOUND_WAV = os.path.join(run_dir, "hatari.wav")
     os.makedirs(os.path.join(run_dir, "shots"))
     os.makedirs(os.path.join(run_dir, "home"))
     try:
@@ -1221,7 +1254,8 @@ def main():
             open(os.path.join(run_dir, "stdout.txt"), "wb") as stdout_file:
         proc = subprocess.Popen(
             hatari_args(image, args, run_dir, sock_path, parse_path),
-            env=env, stdout=stdout_file, stderr=stderr_file)
+            env=env, stdout=stdout_file, stderr=stderr_file,
+            cwd=run_dir if args.sound else None)
     reader = open(stderr_path, "rb")
     trace = hc.Trace(reader.read)
     steps = hc.Steps()

@@ -19,6 +19,11 @@ Instruction shapes, the long right after the opcode word:
   CMPA.L #imm,An
 and MOVEM.x abs.l, whose address follows the register mask.
 
+One more kind is not an address (EPIC-15): System 6's _SysBeep returns
+silently unless the interrupt level is 0 (ANDI.W #$0700,D0 on the SR), and
+the glue runs the Mac at level 2 (D-17); its long becomes ANDI.W #$0500,D0,
+which lets level 2 through.
+
 Usage:
   tools/sysreloc.py list DISK                 every resource with ROM operands
   tools/sysreloc.py table DISK NAME TYPE:ID ... -o FILE.c
@@ -41,7 +46,11 @@ KINDS = (
     ("SCC", 0x9FFFF0, 0xA00000),
     ("SCC", 0xBFFFF0, 0xC00000),
 )
-KIND_CODES = {"ROM": 0, "DIAG": 1, "SEREGS": 2, "SCC": 3}
+KIND_CODES = {"ROM": 0, "DIAG": 1, "SEREGS": 2, "SCC": 3, "IPL": 4}
+# _SysBeep's opening (MOVEM.L, MOVE.W 60(SP),D7, MOVE SR,D0, then the
+# ANDI.W #$0700,D0 the IPL kind changes).
+SYSBEEP_OPENING = bytes.fromhex("48E7FF7E3E2F003C40C002400700")
+SYSBEEP_IPL_AT = 10
 
 
 class SysRelocError(Exception):
@@ -151,6 +160,12 @@ def rom_operands(code):
     return found
 
 
+def ipl_operands(code):
+    """(offset, "IPL") of _SysBeep's interrupt-level test (SYSBEEP_OPENING)."""
+    at = code.find(SYSBEEP_OPENING)
+    return [] if at < 0 or at & 1 else [(at + SYSBEEP_IPL_AT, "IPL")]
+
+
 def word_sum(code):
     padded = code + b"\0" * (len(code) & 1)
     return sum(struct.unpack(f">{len(padded) // 2}H", padded)) & 0xFFFFFFFF
@@ -222,7 +237,8 @@ def main(argv):
             key = (rtype.ljust(4), int(rid))
             if key not in res:
                 raise SysRelocError(f"no resource {spec}")
-            entries.append((key[0], key[1], res[key], rom_operands(res[key])))
+            offs = sorted(rom_operands(res[key]) + ipl_operands(res[key]))
+            entries.append((key[0], key[1], res[key], offs))
         write_table(args.output, args.name, entries)
         for rtype, rid, _, offs in entries:
             print(f"{rtype}:{rid} {len(offs)} operands")
