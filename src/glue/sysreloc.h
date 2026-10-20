@@ -16,7 +16,9 @@ enum {
   SYSRELOC_DIAG = 1,   /* $F8xxxx, the diagnostic-ROM probe: ROMBase, whose
                           first long is not the probe's $55AAAA55 */
   SYSRELOC_SEREGS = 2, /* $3FFC80-$3FFCFF: the glue's SERegs */
-  SYSRELOC_SCC = 3     /* $9FFFF8 / $BFFFF9 bases: the glue's SCC shadow */
+  SYSRELOC_SCC = 3,    /* $9FFFF8 / $BFFFF9 bases: the glue's SCC shadow */
+  SYSRELOC_IPL = 4     /* _SysBeep's ANDI.W #$0700,D0: #$0500, so that the
+                          glue's level 2 (D-17) counts as interrupts on */
 };
 
 struct SysRelocOperand {

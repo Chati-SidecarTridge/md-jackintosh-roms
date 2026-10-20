@@ -139,6 +139,7 @@ _glueLevel1:
     lea     _glueViaShadow, %a1
     movea.l MAC_LVL1DT + 4 * MAC_LVL1_VBL, %a0
     jsr     (%a0)
+    jsr     _glueSoundTick              /* the sound buffer, filled (sound.c) */
     jsr     _glueKbdTick                /* the keyboard (ikbd.c) */
     jsr     _glueDiskTick               /* disks to announce (disk.c) */
     jsr     _glueCartTick               /* the Multi-device (cart.c) */
@@ -256,6 +257,20 @@ _glueCallLvl1:
 /* ------------------------------------------------------------------------
  * Routines the ROM patches call (src/patches/plus_v3.ini)
  */
+
+/* sound-bootbeep: _SysBeep's beep (plus/boot/vectors.s:491-604), D3 its
+   ticks, interrupts masked or not (SR); return through A6. SysBeep saved
+   every register it needs (plus/debugger/debugger.s:311). */
+    .globl _glueBootBeep
+_glueBootBeep:
+    move.w  %sr, %d0
+    andi.l  #0x0700, %d0
+    move.l  %d0, -(%sp)
+    ext.l   %d3
+    move.l  %d3, -(%sp)
+    jsr     _glueBeep                   /* sound.c */
+    addq.l  #8, %sp
+    jmp     (%a6)
 
 /* rtc-clknomem: the RTC transaction (plus/boot/vectors.s:367-443). In: D1 the
    command byte, D2 the data byte for a write; out: D2 the byte read; return

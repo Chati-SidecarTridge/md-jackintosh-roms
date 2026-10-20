@@ -47,6 +47,8 @@ enum {
   kSccWriteLow = 0xBFFFF0UL,
   kSccWriteHigh = 0xC00000UL,
   kSccOffsetMask = 7,
+  kAndiIpl = 0x02400700UL,         /* ANDI.W #$0700,D0 */
+  kAndiIplOrSerial = 0x02400500UL, /* ANDI.W #$0500,D0: level 2 passes */
   kWordShift = 1,
   kByteBits = 8,
   /* The resource map (plus/toolbox/resource_mgr.s): the type list's offset,
@@ -172,6 +174,11 @@ void glueSysRelocCheck(unsigned long refAtEntry, unsigned long mapAtEntry,
             /* Read base $9FFFF8, write base $BFFFF9: the shadow interleaves
                them, so the low 3 bits are the offset into it. */
             movedTo = (unsigned long)glueSccShadow + (value & kSccOffsetMask);
+          }
+          break;
+        case SYSRELOC_IPL:
+          if (value == kAndiIpl) {
+            movedTo = kAndiIplOrSerial;
           }
           break;
         default:

@@ -57,6 +57,23 @@ _glueReset:
     move.l  #GLUE_STACK_TOP_ADDR, %sp
     reset
 
+    /* The STE's DMA sound off and a Mega STE at 8 MHz with no cache, which
+       a reset or the Mac's Restart may leave on (EPIC-15): DMA sound still
+       playing flips MFP GPIP 7, the monitor type, and RAM sizing must not
+       see a cache. Each write under its own bus-error vector, since only
+       those machines have the register. */
+    movea.l %sp, %a1
+    lea     1f, %a0
+    move.l  %a0, 0x8.w
+    clr.b   0xffff8901.w            /* DMA sound control */
+1:
+    movea.l %a1, %sp
+    lea     2f, %a0
+    move.l  %a0, 0x8.w
+    clr.b   0xffff8e21.w            /* Mega STE speed and cache */
+2:
+    movea.l %a1, %sp
+
     /* Size the two RAM banks with TOS's algorithm, before any RAM is used:
        d5 holds the bytes and d6 the MMU value until .bss is cleared. The
        MMU keeps that value: the Mac gets all the RAM there is. */

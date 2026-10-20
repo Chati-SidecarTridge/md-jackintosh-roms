@@ -22,6 +22,7 @@
 #include "mac.h"
 #include "mem.h"
 #include "screen.h"
+#include "sound.h"
 #include "text.h"
 #include "trace.h"
 
@@ -70,7 +71,7 @@ static int menuHasOptions;
 #define menuOptions (MENU_SCRATCH->options)
 
 struct GlueOptions glueOptions = {
-    0, GLUE_RIGHT_OFF, 0, GLUE_LAYOUT_US, GLUE_MOUSE_SPEED_DEFAULT, 0, 0};
+    0, GLUE_RIGHT_OFF, 0, GLUE_LAYOUT_US, GLUE_MOUSE_SPEED_DEFAULT, 0, 0, 1};
 
 static unsigned menuLength(const char *text) {
   unsigned length = 0;
@@ -761,8 +762,11 @@ static void menuMain(void) {
   textPuts("\n\nSHIFT+A, SHIFT+B or SHIFT+I empties a drive.");
   if (menuHasOptions) {
     textPuts(
-        "\n\n[O]ptions: countdown, Mac RAM, right mouse button, screen, "
-        "keyboard, mouse");
+        "\n\n[O]ptions: countdown, Mac RAM, right button, screen, keyboard, "
+        "mouse");
+    if (screenIsSte()) {
+      textPuts(", audio");
+    }
     if (glueMegaSte) {
       textPuts(", CPU");
     }
@@ -815,6 +819,12 @@ static int menuApplyOptions(void) {
       glueOptions.megaSteIndex = (unsigned char)i;
     }
   }
+  glueOptions.sound = GLUE_SOUND_FAST;
+  if (menuSame(menuOption(CART_OPT_SOUND), "off")) {
+    glueOptions.sound = GLUE_SOUND_OFF;
+  } else if (menuSame(menuOption(CART_OPT_SOUND), "smooth")) {
+    glueOptions.sound = GLUE_SOUND_SMOOTH;
+  }
   glueOptions.mouseSpeed = GLUE_MOUSE_SPEED_DEFAULT;
   if (menuNumber(menuOption(CART_OPT_MOUSE), &value) && value >= 1 &&
       value <= GLUE_MOUSE_SPEED_MAX) {
@@ -851,6 +861,7 @@ static void menuOptionsPage(void) {
   static const char *const kScreens[] = {"", "512x342", 0};
   enum { kScanC = 0x2E, kScanK = 0x25, kScanT = 0x14 };
   const int megaSteKey = glueMegaSte ? KBD_P : -1;
+  const int soundKey = screenIsSte() ? KBD_A : -1; /* DMA sound */
   for (;;) {
     const char *right = menuOption(CART_OPT_RIGHT);
     int pressed;
@@ -882,6 +893,12 @@ static void menuOptionsPage(void) {
     textPuts(kKeyboardNames[glueOptions.keyboard]);
     textPrintf("\nMouse [T]racking: %d (1 slowest, 10 fastest; SHIFT+T down)",
                glueOptions.mouseSpeed);
+    if (screenIsSte()) {
+      textPuts("\n[A]udio (EXPERIMENTAL): ");
+      textPuts(glueOptions.sound == GLUE_SOUND_SMOOTH
+                   ? "smooth (more CPU)"
+                   : (glueOptions.sound == GLUE_SOUND_FAST ? "fast" : "off"));
+    }
     if (glueMegaSte) {
       textPuts("\nMega STE [P]rocessor: ");
       textPuts(kMegaSteNames[glueOptions.megaSteIndex]);
@@ -895,7 +912,8 @@ static void menuOptionsPage(void) {
     } while (pressed < 0 ||
              !(code == KBD_SPACE || code == KBD_ESC || code == kScanC ||
                code == KBD_M || code == KBD_R || code == KBD_S ||
-               code == kScanK || code == kScanT || code == megaSteKey));
+               code == kScanK || code == kScanT || code == megaSteKey ||
+               code == soundKey));
     if (code == KBD_SPACE || code == KBD_ESC) {
       return;
     }
@@ -911,6 +929,10 @@ static void menuOptionsPage(void) {
     } else if (code == KBD_S) {
       (void)menuSet(CART_OPT_SCREEN,
                     menuNext(kScreens, menuOption(CART_OPT_SCREEN)));
+    } else if (code == soundKey) {
+      static const char *const kSounds[] = {"", "smooth", "off", 0};
+      (void)menuSet(CART_OPT_SOUND,
+                    menuNext(kSounds, menuOption(CART_OPT_SOUND)));
     } else if (code == megaSteKey) {
       (void)menuSet(CART_OPT_MEGASTE,
                     menuNext(kMegaSte, menuOption(CART_OPT_MEGASTE)));

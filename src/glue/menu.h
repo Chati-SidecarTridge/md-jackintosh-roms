@@ -29,6 +29,7 @@ struct GlueOptions {
   int mouseSpeed;             /* 1 slowest, 5 the ST's own, 10 fastest */
   unsigned char megaSteCtrl;  /* $FF8E21's value on a Mega STE (hw.h) */
   unsigned char megaSteIndex; /* its line on the options page */
+  int sound;                  /* GLUE_SOUND_* (sound.h): the STE's DMA sound */
 };
 extern struct GlueOptions glueOptions;
 

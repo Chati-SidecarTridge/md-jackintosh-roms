@@ -115,6 +115,7 @@
 #define CART_OPT_KEYBOARD (CART_KEY_OPTION + 4)  /* us, fr, de, es, uk */
 #define CART_OPT_MOUSE (CART_KEY_OPTION + 5)     /* speed 1-10, "" 5 */
 #define CART_OPT_MEGASTE (CART_KEY_OPTION + 6)   /* "" 8 MHz, 16, 16c */
+#define CART_OPT_SOUND (CART_KEY_OPTION + 7)     /* "" fast, smooth, off */
 
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the
