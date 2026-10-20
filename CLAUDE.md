@@ -44,7 +44,7 @@ One image per machine, the glue first so that the image starts with an Atari res
 
 | machine | image | glue | Mac Plus ROM (`ROMBase`) | free for glue |
 |---|---|---|---|---|
-| `st` (ST/STF/STFM) | 192 KB at `$FC0000` | `$FC0000`–`$FCFFFF` | `$FD0000`–`$FEFFFF` | 64 KB |
+| `st` (ST/STF/STFM, Mega ST) | 192 KB at `$FC0000` | `$FC0000`–`$FCFFFF` | `$FD0000`–`$FEFFFF` | 64 KB |
 | `ste` (STE) | 256 KB at `$E00000` | `$E00000`–`$E1FFFF` | `$E20000`–`$E3FFFF` | 128 KB |
 
 - **Reset header**: the first 8 bytes are the 68000's SSP and PC (the ST mirrors them at `$0`). Hatari also requires a TOS-like header: version word at bytes 2–3 in `$0100`–`$06FF` and the base address at bytes 8–11 (`$FC0000` or `$E00000`), and at most 224 KB at `$FC0000` (`../hatari/src/tos.c`, `TOS_LoadImage`) (C-05).
