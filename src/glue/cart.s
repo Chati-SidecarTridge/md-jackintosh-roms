@@ -128,7 +128,7 @@ glueCartUnmask:
    (a token match alone could be the previous answer, seen between the RP's
    two stores). d2 = the token. Returns d0 = CART_OK or CART_TIMEOUT. */
 glueCartWait:
-    move.l  #CART_TIMEOUT_SPINS, %d7
+    move.l  _glueCartTimeoutSpins, %d7
     moveq   #CART_OK, %d0
 1:
     cmp.l   (%a1), %d2

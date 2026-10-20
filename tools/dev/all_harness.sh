@@ -64,9 +64,30 @@ runs=(
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 20=de --launch 155,48 --then wait:2 --then st:0C,1A,s1A,27,28,s28,15,2C,s03,s04,a1A,a27,a28,29,2B,s0D,s29 --then wait:4 --then shot:de"
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=10 --menu o --menu t --menu shift+t --menu shift+t --menu shot:mouse --menu esc --menu e --then click:200,300 --then move:16,16=240,340"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=1 --then click:200,300 --then move:16,-16=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=205,297"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 22=16c --input"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )
+# "all_harness.sh megaste" (EPIC-14): the ste runs only, on Hatari's Mega STE
+# with 4 MB, the common size; "megaste16" also at 16 MHz with the cache, the
+# runs without the fake's menu through --megaste-ctrl.
+if [[ "${1:-}" == megaste* ]]; then
+  mega=()
+  for run in "${runs[@]}"; do
+    [[ "$run" == "--image ste"* ]] || continue
+    run="$(sed -E 's/ --memsize [0-9]+//' <<< "$run")"
+    run="${run/--image ste/--image ste --machine megaste --memsize 4096}"
+    if [[ "$1" == megaste16 ]]; then
+      if [[ "$run" == *--fake-cart* ]]; then
+        [[ "$run" == *"--fake-set 22="* ]] || run+=" --fake-set 22=16c"
+      else
+        run+=" --megaste-ctrl 3"
+      fi
+    fi
+    mega+=("$run")
+  done
+  runs=("${mega[@]}")
+fi
 for run in "${runs[@]}"; do
   line="$(python3 tools/dev/hatari_harness.py $run 2>&1 | tail -1)"
   echo "${line/ (*\/build\/harness\// (build/harness/}"

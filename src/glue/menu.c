@@ -15,6 +15,7 @@
 #include "menu.h"
 
 #include "cart.h"
+#include "hw.h"
 #include "kbd.h"
 #include "layout.h"
 #include "lib.h"
@@ -68,8 +69,8 @@ static int menuHasRtc;
 static int menuHasOptions;
 #define menuOptions (MENU_SCRATCH->options)
 
-struct GlueOptions glueOptions = {0, GLUE_RIGHT_OFF, 0, GLUE_LAYOUT_US,
-                                  GLUE_MOUSE_SPEED_DEFAULT};
+struct GlueOptions glueOptions = {
+    0, GLUE_RIGHT_OFF, 0, GLUE_LAYOUT_US, GLUE_MOUSE_SPEED_DEFAULT, 0, 0};
 
 static unsigned menuLength(const char *text) {
   unsigned length = 0;
@@ -762,6 +763,9 @@ static void menuMain(void) {
     textPuts(
         "\n\n[O]ptions: countdown, Mac RAM, right mouse button, screen, "
         "keyboard, mouse");
+    if (glueMegaSte) {
+      textPuts(", CPU");
+    }
   }
   textAt(0, kFooterRow);
   textPuts("[E]xit to the Mac    Select an option:");
@@ -775,6 +779,15 @@ static const char *const kCountdowns[] = {"30", "20", "10", "5", 0};
 static const char *const kKeyboards[] = {"", "fr", "de", "es", "uk", 0};
 static const char *const kKeyboardNames[] = {"US", "French", "German",
                                              "Spanish", "UK"};
+
+/* The Mega STE's speed and cache (EPIC-14), the control panel's three: ""
+   is 8 MHz, as a reset leaves it. The hardware keeps the cache off at 8 MHz
+   (md-drives-emulator's bench, its tests/atarist/src/test_runner.c). */
+static const char *const kMegaSte[] = {"", "16", "16c", 0};
+static const char *const kMegaSteNames[] = {"8 MHz", "16 MHz, cache off",
+                                            "16 MHz, cache on"};
+static const unsigned char kMegaSteCtrl[] = {0, HW_MSTE_16MHZ,
+                                             HW_MSTE_16MHZ | HW_MSTE_CACHE};
 
 /* The ROM's options from md-jackintosh into glueOptions, and the
    countdown's seconds (EPIC-12). */
@@ -792,6 +805,14 @@ static int menuApplyOptions(void) {
   for (int i = 1; kKeyboards[i] != 0; ++i) {
     if (menuSame(menuOption(CART_OPT_KEYBOARD), kKeyboards[i])) {
       glueOptions.keyboard = i;
+    }
+  }
+  glueOptions.megaSteCtrl = 0;
+  glueOptions.megaSteIndex = 0;
+  for (int i = 1; kMegaSte[i] != 0; ++i) {
+    if (menuSame(menuOption(CART_OPT_MEGASTE), kMegaSte[i])) {
+      glueOptions.megaSteCtrl = kMegaSteCtrl[i];
+      glueOptions.megaSteIndex = (unsigned char)i;
     }
   }
   glueOptions.mouseSpeed = GLUE_MOUSE_SPEED_DEFAULT;
@@ -829,6 +850,7 @@ static void menuOptionsPage(void) {
   static const char *const kRights[] = {"", "cmd", "double", 0};
   static const char *const kScreens[] = {"", "512x342", 0};
   enum { kScanC = 0x2E, kScanK = 0x25, kScanT = 0x14 };
+  const int megaSteKey = glueMegaSte ? KBD_P : -1;
   for (;;) {
     const char *right = menuOption(CART_OPT_RIGHT);
     int pressed;
@@ -860,6 +882,10 @@ static void menuOptionsPage(void) {
     textPuts(kKeyboardNames[glueOptions.keyboard]);
     textPrintf("\nMouse [T]racking: %d (1 slowest, 10 fastest; SHIFT+T down)",
                glueOptions.mouseSpeed);
+    if (glueMegaSte) {
+      textPuts("\nMega STE [P]rocessor: ");
+      textPuts(kMegaSteNames[glueOptions.megaSteIndex]);
+    }
     textAt(0, kFooterRow);
     textPuts("Each key steps its option. They apply from this boot on.\n");
     textPuts("[SPACE] or [ESC] for the main menu");
@@ -869,7 +895,7 @@ static void menuOptionsPage(void) {
     } while (pressed < 0 ||
              !(code == KBD_SPACE || code == KBD_ESC || code == kScanC ||
                code == KBD_M || code == KBD_R || code == KBD_S ||
-               code == kScanK || code == kScanT));
+               code == kScanK || code == kScanT || code == megaSteKey));
     if (code == KBD_SPACE || code == KBD_ESC) {
       return;
     }
@@ -885,6 +911,9 @@ static void menuOptionsPage(void) {
     } else if (code == KBD_S) {
       (void)menuSet(CART_OPT_SCREEN,
                     menuNext(kScreens, menuOption(CART_OPT_SCREEN)));
+    } else if (code == megaSteKey) {
+      (void)menuSet(CART_OPT_MEGASTE,
+                    menuNext(kMegaSte, menuOption(CART_OPT_MEGASTE)));
     } else if (code == kScanT) {
       /* 1-10, wrapping: T up, SHIFT+T down. */
       char speed[sizeof("10")];

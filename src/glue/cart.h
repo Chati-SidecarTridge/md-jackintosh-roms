@@ -114,6 +114,7 @@
 #define CART_OPT_SCREEN (CART_KEY_OPTION + 3)    /* 640x400, 512x342 */
 #define CART_OPT_KEYBOARD (CART_KEY_OPTION + 4)  /* us, fr, de, es, uk */
 #define CART_OPT_MOUSE (CART_KEY_OPTION + 5)     /* speed 1-10, "" 5 */
+#define CART_OPT_MEGASTE (CART_KEY_OPTION + 6)   /* "" 8 MHz, 16, 16c */
 
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the
@@ -166,6 +167,18 @@ enum CartState {
   CART_STATE_OK = 2     /* md-jackintosh, a contract version we know */
 };
 extern int glueCartState;
+
+/* The answer's wait in spins (cart.s): CART_TIMEOUT_SPINS, doubled when a
+   Mega STE runs at 16 MHz (EPIC-14), so no wait is shorter than at 8 MHz. */
+extern unsigned long glueCartTimeoutSpins;
+
+/* A Mega STE's cache answers the cartridge's reads from copies it made
+   before (md-drives-emulator, measured on a Mega STE: its sidecart_macros.s
+   megaste_cache_off), so while the Mac runs every command and every read of
+   the window happens with it off (EPIC-14). Off empties it; Back puts the
+   user's setting back. Nothing on other machines. */
+unsigned char glueCartCacheOff(void);
+void glueCartCacheBack(unsigned char saved);
 /* The card's state when glueCartState is CART_STATE_OK: CART_CARD_OK, or
    NONE, UNREADABLE, NO_FOLDER. */
 extern unsigned long glueCartCard;

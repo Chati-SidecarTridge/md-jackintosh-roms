@@ -22,9 +22,11 @@
 #include "cart.h"
 
 #include "disk.h"
+#include "hw.h"
 #include "mac.h"
 #include "macrom.h"
 #include "mem.h"
+#include "menu.h"
 #include "trace.h"
 
 enum {
@@ -48,7 +50,8 @@ enum {
 
 int glueCartState;
 unsigned long glueCartCard = CART_CARD_OK;
-volatile unsigned char *glueCartStatus = /* the status block */
+unsigned long glueCartTimeoutSpins = CART_TIMEOUT_SPINS; /* .data: per boot */
+volatile unsigned char *glueCartStatus =                 /* the status block */
     (volatile unsigned char *)CART_APP_FREE_ADDR;
 int glueCartMaxReadSectors = CART_MAX_READ_SECTORS;
 static int cartTimeKnown;
@@ -575,6 +578,22 @@ long glueCartCommandWrite(long command, unsigned long first,
   return glueCartSendWrite(command, first, second, third, data, bytes);
 }
 
+unsigned char glueCartCacheOff(void) {
+  unsigned char saved;
+  if (!glueMegaSte) {
+    return 0;
+  }
+  saved = HW_MSTE_CTRL;
+  HW_MSTE_CTRL = saved & (unsigned char)~HW_MSTE_CACHE;
+  return saved;
+}
+
+void glueCartCacheBack(unsigned char saved) {
+  if (glueMegaSte) {
+    HW_MSTE_CTRL = saved;
+  }
+}
+
 /* A command with no payload but the token. */
 static long cartCommand(long command) {
   return glueCartCommand(command, 0, 0, 0, 0, 0);
@@ -672,23 +691,33 @@ void glueCartNoTime(void) {
 
 void glueCartTick(void) {
   const unsigned long ticks = LOWMEM_LONG(MAC_TICKS);
+  int timeDue;
+  int pramDue;
+  unsigned char cache;
   if (glueCartState != CART_STATE_OK) {
     return;
   }
-  if (!cartTimeKnown && cartTimeRetries < kTimeRetryLimit &&
-      ticks - cartTimeAsked >= kTimeRetryTicks) {
+  timeDue = !cartTimeKnown && cartTimeRetries < kTimeRetryLimit &&
+            ticks - cartTimeAsked >= kTimeRetryTicks;
+  pramDue =
+      glueRtcPramChanged && ticks - glueRtcPramChangedTick >= kPramWriteTicks;
+  if (!timeDue && !pramDue) {
+    return; /* most ticks: a Mega STE's cache stays warm */
+  }
+  cache = glueCartCacheOff();
+  if (timeDue) {
     cartTimeAsked = ticks;
     ++cartTimeRetries;
     cartTime();
   }
-  if (glueRtcPramChanged && ticks - glueRtcPramChangedTick >= kPramWriteTicks) {
+  if (pramDue) {
     const long result = glueCartCommandWrite(
         CART_CMD_PRAM_WRITE, 0, 0, 0, glueRtcPramBytes(), CART_PRAM_BYTES);
-    if (result == CART_BUSY) {
-      return; /* inside another command: the next tick */
+    if (result != CART_BUSY) { /* inside another command: the next tick */
+      glueRtcPramChanged = 0;
+      TRACE("cart pram saved %ld %ld", result,
+            (long)STATUS_LONG(CART_RESULT_OFFSET));
     }
-    glueRtcPramChanged = 0;
-    TRACE("cart pram saved %ld %ld", result,
-          (long)STATUS_LONG(CART_RESULT_OFFSET));
   }
+  glueCartCacheBack(cache);
 }

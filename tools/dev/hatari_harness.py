@@ -55,7 +55,7 @@ STEP_TIMEOUT = 20
 
 
 def hatari_args(image, args, run_dir, sock_path, parse_path):
-    cmd = [hc.emulator_path("hatari"), "--tos", image, "--machine", args.image,
+    cmd = [hc.emulator_path("hatari"), "--tos", image, "--machine", args.machine or args.image,
            "--memsize", str(args.memsize), "--ttram", "0",
            "--monitor", args.monitor, "--natfeats", "yes", "--sound", "off",
            "--patch-tos", "false", "--confirm-quit", "false",
@@ -132,6 +132,27 @@ def ramdisk_files(run_dir, memsize, glue_map, disk, fixed, write_protect, partit
     with open(script, "w", encoding="ascii") as handle:
         handle.write(f"b pc = ${entry:x} :trace :once :file {load}\n")
     return script, info
+
+
+# EPIC-14: option 22's values, as $FF8E21's bits (menu.c kMegaSte).
+MEGASTE_OPTIONS = {"": 0, "16": 2, "16c": 3}
+# glueOptions.megaSteCtrl's offset (menu.h struct GlueOptions: five 32-bit
+# fields before it); the trace check proves the glue read it.
+GLUE_OPTIONS_MEGASTE = 20
+
+
+def megaste_files(run_dir, glue_map, ctrl, parse_path):
+    """--megaste-ctrl (EPIC-14): glueOptions.megaSteCtrl written at every
+    _glueMain (after .data is copied), for runs without the menu: the whole
+    suite at 16 MHz with the cache. Returns the --parse script."""
+    load = os.path.join(run_dir, "megaste-set.ini")
+    with open(load, "w", encoding="ascii") as handle:
+        handle.write(f"memwrite b ${glue_symbol(glue_map, '_glueOptions') + GLUE_OPTIONS_MEGASTE:x}"
+                     f" ${ctrl:x}\n")
+    script = parse_path or os.path.join(run_dir, "megaste.ini")
+    with open(script, "a", encoding="ascii") as handle:
+        handle.write(f"b pc = ${glue_symbol(glue_map, '_glueMain'):x} :trace :file {load}\n")
+    return script
 
 
 def watch_files(run_dir, addresses, memories, parse_path):
@@ -449,6 +470,13 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             memtop = fake["ram-kb"] * 1024
             screen = memtop - MAC_SCREEN_BELOW_MEMTOP
             need("Mac RAM option", rf"@@ mac ram {memtop}\n", 10)
+    if args.machine == "megaste":
+        # EPIC-14: the speed and cache the glue set: --megaste-ctrl, or the
+        # fake's option 22, else 8 MHz with no cache.
+        ctrl = args.megaste_ctrl
+        if ctrl is None:
+            ctrl = MEGASTE_OPTIONS.get((fake or {}).get("megaste", ""), 0)
+        need("Mega STE speed and cache", rf"@@ megaste ctrl {ctrl:02x}\n", 10)
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
         need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
@@ -1024,6 +1052,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.split("Usage:")[0])
     parser.add_argument("--image", choices=["st", "ste"], default="st",
                         help="the image, and the machine Hatari emulates")
+    parser.add_argument("--machine", choices=["megaste"],
+                        help="the machine Hatari emulates instead of --image's (EPIC-14: the "
+                             "ste image on a Mega STE)")
+    parser.add_argument("--megaste-ctrl", type=int, choices=(0, 2, 3),
+                        help="with --machine megaste: the speed and cache without the menu "
+                             "($FF8E21: 0 8 MHz, 2 16 MHz, 3 16 MHz with the cache)")
     parser.add_argument("--memsize", type=int, choices=sorted(BANKS), default=1024,
                         help="ST RAM in KB (D-12: 1024, 2560, 4096)")
     parser.add_argument("--type", choices=["debug", "debug-test"], default="debug")
@@ -1121,10 +1155,15 @@ def main():
         hc.die("--input scripts the startup disk's desktop alone; drop --disk2")
     if args.disk and args.type != "debug-test":
         hc.die("--disk needs --type debug-test (the RAM disk is in test builds only)")
+    if args.machine and args.image != "ste":
+        hc.die("--machine megaste runs the ste image")
+    if args.megaste_ctrl is not None and args.machine != "megaste":
+        hc.die("--megaste-ctrl needs --machine megaste")
     if args.memsize == 2560 and args.image != "st":
         hc.die("2560 KB needs two different banks: only the st machine has them")
 
-    label = f"hatari-{args.image}-ram{args.memsize}-{args.type}" + \
+    label = f"hatari-{args.image}{'-' + args.machine if args.machine else ''}" \
+        f"-ram{args.memsize}-{args.type}" + \
         ("-rgb" if args.monitor == "rgb" else "") + \
         ("-corrupt" if args.corrupt else "") + ("-disk" if args.disk else "") + \
         ("-hd" if args.partition else "") + ("-disk2" if args.disk2 else "") + \
@@ -1153,9 +1192,12 @@ def main():
         args.fake["rtc-off"] = settings.get(13) == "false"  # EPIC-13
         # EPIC-12: the Mac's RAM.
         args.fake["ram-kb"] = int(settings[17]) if settings.get(17, "").isdigit() else 0
+        args.fake["megaste"] = settings.get(22, "")  # EPIC-14
         if settings.get(19) == "512x342":
             global PLUS_SCREEN
             PLUS_SCREEN = (29, 64, 512)
+    if args.megaste_ctrl is not None:
+        parse_path = megaste_files(run_dir, glue_map, args.megaste_ctrl, parse_path)
     if args.watch or args.watch_mem:
         parse_path = watch_files(run_dir, args.watch, args.watch_mem, parse_path)
 

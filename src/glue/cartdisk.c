@@ -23,14 +23,18 @@
 
 #include "cart.h"
 #include "disk.h"
+#include "hw.h"
 #include "macrom.h"
+#include "menu.h"
 #include "trace.h"
 
 enum { kBlockShift = 9, kIdMagicShift = 16, kIdVersionMask = 0xFFFF };
 
 /* How long a disk command waits for a restarting RP: about 60 s, the loop
-   being about as long as the senders' (cart.h). */
-#define CART_DISK_WAIT_SPINS (CART_TIMEOUT_SPINS * 40UL)
+   being about as long as the senders' (cart.h): 40 of their waits, by
+   shifts (a long multiply would need libgcc). */
+#define CART_DISK_WAIT_SPINS \
+  ((glueCartTimeoutSpins << 5) + (glueCartTimeoutSpins << 3))
 
 #define UNIT_LONG(unit, field)                                           \
   (*(volatile unsigned long *)(glueCartStatus + CART_UNIT_TABLE_OFFSET + \
@@ -207,6 +211,61 @@ static int cartDiskChanged(void) {
   return changed;
 }
 
+/* Each entry with a Mega STE's cache off (glueCartCacheOff, EPIC-14): the
+   commands and every read of the window. The Mac polls changed every tick:
+   with the cache on, every kCachedPollTicks, so that it stays warm. */
+enum { kCachedPollTicks = 8 };
+
+static int cartDiskDrivesOff(void) {
+  const unsigned char cache = glueCartCacheOff();
+  const int drives = cartDiskDrives();
+  glueCartCacheBack(cache);
+  return drives;
+}
+
+static void cartDiskInfoOff(int drive, struct DiskInfo *info) {
+  const unsigned char cache = glueCartCacheOff();
+  cartDiskInfo(drive, info);
+  glueCartCacheBack(cache);
+}
+
+static short cartDiskReadOff(int drive, unsigned long block,
+                             unsigned long count, void *buffer) {
+  const unsigned char cache = glueCartCacheOff();
+  const short result = cartDiskRead(drive, block, count, buffer);
+  glueCartCacheBack(cache);
+  return result;
+}
+
+static short cartDiskWriteOff(int drive, unsigned long block,
+                              unsigned long count, const void *buffer) {
+  const unsigned char cache = glueCartCacheOff();
+  const short result = cartDiskWrite(drive, block, count, buffer);
+  glueCartCacheBack(cache);
+  return result;
+}
+
+static void cartDiskEjectOff(int drive) {
+  const unsigned char cache = glueCartCacheOff();
+  cartDiskEject(drive);
+  glueCartCacheBack(cache);
+}
+
+static int cartDiskChangedOff(void) {
+  static unsigned skipped;
+  unsigned char cache;
+  int changed;
+  if (glueMegaSte && (HW_MSTE_CTRL & HW_MSTE_CACHE) &&
+      ++skipped < kCachedPollTicks) {
+    return 0; /* the counters keep the change for the next poll */
+  }
+  skipped = 0;
+  cache = glueCartCacheOff();
+  changed = cartDiskChanged();
+  glueCartCacheBack(cache);
+  return changed;
+}
+
 const struct DiskBackend diskCartBackend = {
-    "cartridge",   cartDiskDrives, cartDiskInfo,   cartDiskRead,
-    cartDiskWrite, cartDiskEject,  cartDiskChanged};
+    "cartridge",      cartDiskDrivesOff, cartDiskInfoOff,   cartDiskReadOff,
+    cartDiskWriteOff, cartDiskEjectOff,  cartDiskChangedOff};
