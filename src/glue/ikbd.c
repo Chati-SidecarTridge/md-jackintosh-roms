@@ -13,9 +13,15 @@
  * ROM shifted out (Inquiry, Instant, Model) and answers with a queued key,
  * the model number, or a "no key" ($7B) after a quarter second, which also
  * keeps KybdTask from clearing KeyMap (plus/os/device_mgr.s:894-1115).
+ * With a layout other than US (EPIC-12, layout.h), a key types the
+ * character it shows on the Mac's US System: its strokes set Shift and
+ * Option as each needs, around the physical ones. The mouse's speed
+ * (EPIC-12) scales its counts before the Mac's own tracking.
  */
 
 #include "hw.h"
+#include "layout.h"
+#include "lib.h"
 #include "macrom.h"
 #include "menu.h"
 #include "trace.h"
@@ -47,9 +53,14 @@ enum {
   kLeftButton = 0x02, /* in a relative mouse header */
   kRightButton = 0x01,
   kMacCommand = 0x37, /* the Mac Plus keyboard's Command key */
-  kDoubleTicks = 4,   /* each half of the right button's double-click: the
-                         ROM debounces 3 ticks, checks every other one */
-  kDoublePhases = 4,  /* down, up, down, up */
+  kMacShift = 0x38,
+  kMacOption = 0x3A,
+  kScanLeftShift = 0x2A,
+  kScanRightShift = 0x36,
+  kScanAlt = 0x38,
+  kDoubleTicks = 4,  /* each half of the right button's double-click: the
+                        ROM debounces 3 ticks, checks every other one */
+  kDoublePhases = 4, /* down, up, down, up */
   /* The IKBD's reset command and its reply (TOS sends the same) */
   kIkbdReset = 0x80,
   kIkbdResetArg = 0x01,
@@ -71,7 +82,7 @@ enum {
   kModelPlus = 0x0B, /* KbdType Spectre reported */
   kNullAfterTicks = 15,
   kLvl1Keyboard = 2,
-  kQueueSize = 32,
+  kQueueSize = 64, /* a translated key takes up to 10 transitions */
   kQueueMask = kQueueSize - 1,
   kKeypadFlag = 0x80, /* in the key table: send $79 first */
   kKeypadBase = 0x40,
@@ -87,7 +98,8 @@ enum {
   kMouseV = 0x0830,
   kMouseH = 0x0832,
   kCrsrNew = 0x08CE,
-  kCrsrCouple = 0x08CF
+  kCrsrCouple = 0x08CF,
+  kTestRelative = 0x04 /* glueTestInput.buttons: v, h are counts */
 };
 
 #define ACIA_CONTROL HW_REG8(0x00FFFC00UL)
@@ -256,7 +268,8 @@ static unsigned glueKbdNullTicks;
 
 #if defined(_TEST) && (_TEST > 0)
 /* Test builds: the harness writes a cursor position and buttons here
-   through Hatari's debugger, then bumps seq (EPIC-04 STORY-04). */
+   through Hatari's debugger, then bumps seq (EPIC-04 STORY-04); with
+   buttons bit 2, v and h are a mouse packet's counts instead (EPIC-12). */
 struct GlueTestInput {
   unsigned short seq;
   short v;
@@ -293,26 +306,129 @@ static void glueSetButton(int down) {
   }
 }
 
+/* The mouse's speed (glueOptions.mouseSpeed, 1-10): eighths of a count
+   per count, 8 at 5 (as the ST moves); what a packet leaves of a count is
+   kept for the next, so slow movements are not lost. */
+enum { kMouseGainOne = 8 };
+static const unsigned char kMouseGain[GLUE_MOUSE_SPEED_MAX] = {
+    2, 3, 4, 6, 8, 10, 12, 16, 20, 24};
+static int glueMouseRestH;
+static int glueMouseRestV;
+
+static int glueMouseScale(int delta, int *rest) {
+  const int eighths =
+      (int)mulS16((short)delta, (short)kMouseGain[glueOptions.mouseSpeed - 1]) +
+      *rest;
+  const int counts = eighths / kMouseGainOne;
+  *rest = eighths - (counts * kMouseGainOne);
+  return counts;
+}
+
 static void glueMouseMove(int deltaH, int deltaV) {
+  deltaH = glueMouseScale(deltaH, &glueMouseRestH);
+  deltaV = glueMouseScale(deltaV, &glueMouseRestV);
   LOWMEM_WORD(kMTempH) = (short)(LOWMEM_WORD(kMTempH) + deltaH);
   LOWMEM_WORD(kMTempV) = (short)(LOWMEM_WORD(kMTempV) + deltaV);
   LOWMEM_BYTE(kCrsrNew) = LOWMEM_BYTE(kCrsrCouple);
 }
 
+static void glueMacKey(unsigned char code, int release) {
+  glueKeyPush((unsigned char)(((code << 1) | 1) | (release ? kKeyBreak : 0)));
+}
+
+/* Shift and Alt as held on the ST, and Shift and Option as the Mac has
+   them; the translated key held down (its Mac key), 0 for none. */
+static int glueLeftShift;
+static int glueRightShift;
+static int glueAlt;
+static int glueMacShift;
+static int glueMacOption;
+static unsigned char glueHeldScan;
+static unsigned char glueHeldKey;
+
+static void glueSetModifiers(int shift, int option) {
+  if (glueMacShift != shift) {
+    glueMacShift = shift;
+    glueMacKey(kMacShift, !shift);
+  }
+  if (glueMacOption != option) {
+    glueMacOption = option;
+    glueMacKey(kMacOption, !option);
+  }
+}
+
+/* The translated key up, and the Mac's modifiers back to the ST's. */
+static void glueHeldRelease(void) {
+  if (glueHeldScan != 0) {
+    glueMacKey(glueHeldKey, 1);
+    glueHeldScan = 0;
+  }
+  glueSetModifiers(glueLeftShift || glueRightShift, glueAlt);
+}
+
+static void glueStroke(unsigned char stroke) {
+  glueSetModifiers((stroke & GLUE_STROKE_SHIFT) != 0,
+                   (stroke & GLUE_STROKE_OPTION) != 0);
+  glueMacKey(stroke & GLUE_STROKE_KEY, 0);
+}
+
+/* A key in the chosen layout: a dead key's stroke first, then the last
+   stroke stays down until the ST key is released (so that it repeats). */
+static void glueLayoutKey(unsigned code, int release,
+                          const unsigned char *strokes) {
+  if (release) {
+    if (code == glueHeldScan) {
+      glueHeldRelease();
+    }
+    return;
+  }
+  glueHeldRelease();
+  if (strokes[1] != GLUE_STROKE_NONE) {
+    glueStroke(strokes[0]);
+    glueMacKey(strokes[0] & GLUE_STROKE_KEY, 1);
+    ++strokes;
+  }
+  glueStroke(strokes[0]);
+  glueHeldScan = (unsigned char)code;
+  glueHeldKey = strokes[0] & GLUE_STROKE_KEY;
+}
+
 static void glueKey(unsigned char scancode) {
-  const unsigned char mac = kKeyTable[scancode & kKeyCodeMask];
-  const unsigned char release = (scancode & kKeyBreak) ? kKeyBreak : 0;
-  unsigned char code;
+  const unsigned code = scancode & kKeyCodeMask;
+  const unsigned char mac = kKeyTable[code];
+  const int release = (scancode & kKeyBreak) != 0;
+  const unsigned char *strokes;
+  if (code == kScanLeftShift || code == kScanRightShift || code == kScanAlt) {
+    if (code == kScanLeftShift) {
+      glueLeftShift = !release;
+    } else if (code == kScanRightShift) {
+      glueRightShift = !release;
+    } else {
+      glueAlt = !release;
+    }
+    glueHeldRelease(); /* sets the Mac's Shift and Option to the ST's */
+    return;
+  }
+  strokes = glueLayoutStrokes(
+      glueOptions.keyboard, code,
+      ((glueLeftShift || glueRightShift) ? GLUE_LAYER_SHIFT : 0) |
+          (glueAlt ? GLUE_LAYER_ALT : 0));
+  if (strokes != 0) {
+    glueLayoutKey(code, release, strokes);
+    return;
+  }
   if (mac == kNoKey) {
     return;
   }
+  if (!release) {
+    glueHeldRelease(); /* another key: the Mac's modifiers as held */
+  }
   if (mac & kKeypadFlag) {
     glueKeyPush(kReplyKeypad);
-    code = (unsigned char)((mac & ~kKeypadFlag) - kKeypadBase);
+    glueMacKey((unsigned char)((mac & ~kKeypadFlag) - kKeypadBase), release);
   } else {
-    code = mac;
+    glueMacKey(mac, release);
   }
-  glueKeyPush((unsigned char)(((code << 1) | 1) | release));
 }
 
 /* The right mouse button (EPIC-12, glueOptions.rightButton): the left
@@ -446,6 +562,10 @@ void glueIkbdInit(void) {
   MFP_IMRB |= kMfpIerbGpip4;
   MFP_IERB |= kMfpIerbGpip4;
   glueKeyHead = glueKeyTail = 0;
+  glueLeftShift = glueRightShift = glueAlt = 0;
+  glueMacShift = glueMacOption = 0;
+  glueHeldScan = 0;
+  glueMouseRestH = glueMouseRestV = 0;
   gluePacketNeeded = 0;
   glueKbdWaiting = 0;
   glueLeftDown = glueRightDown = glueRightHeld = 0;
@@ -468,17 +588,25 @@ void glueKbdTick(void) {
 #if defined(_TEST) && (_TEST > 0)
   if (glueTestInput.seq != glueTestSeen) {
     glueTestSeen = glueTestInput.seq;
-    LOWMEM_WORD(kMTempV) = LOWMEM_WORD(kRawMouseV) = LOWMEM_WORD(kMouseV) =
-        glueTestInput.v;
-    LOWMEM_WORD(kMTempH) = LOWMEM_WORD(kRawMouseH) = LOWMEM_WORD(kMouseH) =
-        glueTestInput.h;
-    LOWMEM_BYTE(kCrsrNew) = LOWMEM_BYTE(kCrsrCouple);
+    if (glueTestInput.buttons & kTestRelative) {
+      glueMouseMove(glueTestInput.h, glueTestInput.v);
+    } else {
+      LOWMEM_WORD(kMTempV) = LOWMEM_WORD(kRawMouseV) = LOWMEM_WORD(kMouseV) =
+          glueTestInput.v;
+      LOWMEM_WORD(kMTempH) = LOWMEM_WORD(kRawMouseH) = LOWMEM_WORD(kMouseH) =
+          glueTestInput.h;
+      LOWMEM_BYTE(kCrsrNew) = LOWMEM_BYTE(kCrsrCouple);
+    }
     glueLeftDown = glueTestInput.buttons & 1;
     glueButtons();
     glueRight((glueTestInput.buttons & 2) != 0); /* bit 1: the right one */
     TRACE("input %u at %d,%d buttons %u", (unsigned)glueTestSeen,
           (int)glueTestInput.v, (int)glueTestInput.h,
           (unsigned)glueTestInput.buttons);
+    if (glueTestInput.buttons & kTestRelative) {
+      TRACE("input moved to %d,%d", (int)LOWMEM_WORD(kMTempV),
+            (int)LOWMEM_WORD(kMTempH));
+    }
   }
 #endif
   if (!glueKbdWaiting && (glueViaShadow[kViaAcr] & kAcrShiftOut)) {

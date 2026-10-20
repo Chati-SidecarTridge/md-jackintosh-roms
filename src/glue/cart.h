@@ -112,6 +112,8 @@
 #define CART_OPT_RAM (CART_KEY_OPTION + 1)       /* the Mac's KB, "" all */
 #define CART_OPT_RIGHT (CART_KEY_OPTION + 2)     /* off, cmd, double */
 #define CART_OPT_SCREEN (CART_KEY_OPTION + 3)    /* 640x400, 512x342 */
+#define CART_OPT_KEYBOARD (CART_KEY_OPTION + 4)  /* us, fr, de, es, uk */
+#define CART_OPT_MOUSE (CART_KEY_OPTION + 5)     /* speed 1-10, "" 5 */
 
 /* The disks (macdisk.h's MACDISK_CMD_READ/WRITE/EJECT): d3 = unit | count
    << 16, d4 = the first sector; READ fills the buffer, WRITE carries the

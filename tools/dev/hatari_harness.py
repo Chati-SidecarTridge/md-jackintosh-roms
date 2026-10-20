@@ -701,6 +701,7 @@ ST_KEYS.update(zip("1234567890", range(0x02, 0x0C)))
 ST_KEYS.update({" ": 0x39, "\n": 0x1C, ",": 0x33, ".": 0x34, "-": 0x0C, "=": 0x0D,
                 ";": 0x27, "'": 0x28, "/": 0x35, "\t": 0x0F})
 ST_SHIFT = 0x2A
+ST_ALT = 0x38
 # Shifted marks (a US layout): the key, typed with Shift.
 ST_SHIFTED = {"(": 0x0A, ")": 0x0B, ":": 0x27, '"': 0x28, "!": 0x02, "?": 0x35,
               "_": 0x0C, "+": 0x0D, "*": 0x09, "<": 0x33, ">": 0x34}
@@ -738,11 +739,24 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
             type_text(key, arg.replace("\\n", "\n"))
         elif verb == "cmd":
             chord(0x1D, ST_KEYS[arg.lower()])  # Control is the Mac's Command
+        elif verb == "st":  # st:CODE,...: ST scancodes in hex, s/a before for Shift/Alt
+            for item in arg.split(","):
+                match = re.fullmatch(r"([sa]*)([0-9A-Fa-f]{2})", item)
+                if not match:
+                    hc.die(f"--then st: {item!r} is not [s][a]HH")
+                chord(*({"s": ST_SHIFT, "a": ST_ALT}[m] for m in match.group(1)),
+                      int(match.group(2), 16))
         elif verb == "click":
             cv, ch = (int(x) for x in arg.split(","))
             mouse(cv, ch, 0)
             mouse(cv, ch, 1)
             mouse(cv, ch, 0)
+        elif verb == "move":  # move:DV,DH[=V,H]: a mouse packet's counts (EPIC-12's speed)
+            counts, _, want = arg.partition("=")
+            dv, dh = (int(x) for x in counts.split(","))
+            mouse(dv, dh, 4)  # buttons bit 2: counts, through the speed
+            if want:
+                need(f"cursor moved to {want}", rf"@@ input moved to {want}\n", 20)
         elif verb == "rclick":  # the right button (EPIC-12's option), rclick:V,H
             cv, ch = (int(x) for x in arg.split(","))
             mouse(cv, ch, 0)
@@ -1035,7 +1049,9 @@ def main():
                              "way; needs --disk")
     parser.add_argument("--then", action="append", metavar="ACTION",
                         help="after --launch, in order (repeatable): keys:TEXT (letters, "
-                             "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, click:V,H, "
+                             "digits, space and marks; \\n for Return, \\t for Tab), cmd:KEY, move:DV,DH[=V,H] (mouse counts, scaled by the speed; =V,H checks "
+                             "where the cursor went), st:CODE,... (ST "
+                             "scancodes in hex, s or a before one for Shift or Alt: EPIC-12's layouts), click:V,H, "
                              "press:V,H, release:V,H, regs, mem:ADDR,LEN, fake-restart:SECONDS, fake-down, fake-up, "
                              "wait:SECONDS, shot:NAME")
     parser.add_argument("--save-disk", metavar="FILE",
