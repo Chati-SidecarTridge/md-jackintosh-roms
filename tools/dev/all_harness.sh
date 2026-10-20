@@ -60,6 +60,10 @@ runs=(
   "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 16=5 --menu shot:five --menu e"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 18=double --then rclick:45,600 --then wait:3 --then shot:rdouble"
   "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 19=512x342 --then click:45,472 --then cmd:o --then wait:3 --then shot:plus"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 20=fr --menu q --menu shot:fd0 --menu esc --menu e --launch 155,48 --then wait:2 --then st:10,s10,03,08,0A,0B,28,07,s0C,s29,1A,12,s1A,17,a1A,60,s60,02,s02,32,s32,2C,1E,a12,12 --then wait:4 --then shot:fr"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 20=de --launch 155,48 --then wait:2 --then st:0C,1A,s1A,27,28,s28,15,2C,s03,s04,a1A,a27,a28,29,2B,s0D,s29 --then wait:4 --then shot:de"
+  "--image ste --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=10 --menu o --menu t --menu shift+t --menu shift+t --menu shot:mouse --menu esc --menu e --then click:200,300 --then move:16,16=240,340"
+  "--image st --memsize 4096 --type debug-test --disk @system608 --fake-cart --fake-set 21=1 --then click:200,300 --then move:16,-16=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=204,296 --then move:1,1=205,297"
   "--image st --monitor rgb"
   "--image ste --monitor rgb"
 )

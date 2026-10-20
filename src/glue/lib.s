@@ -36,6 +36,17 @@ _divU32U16:
     rts                         /* only d0, d1, a0, a1 used: the scratch set */
 
 /*
+ * long mulS16(short a, short b)
+ *
+ * a * b with one muls.w: GCC calls libgcc for an int multiply.
+ */
+    .globl _mulS16
+_mulS16:
+    move.w  6(%sp), %d0         /* a (promoted to int) */
+    muls.w  10(%sp), %d0        /* by b */
+    rts
+
+/*
  * int probeRead(unsigned long address)
  *
  * Reads one byte at address with a temporary bus-error handler: returns 1

@@ -16,6 +16,7 @@
 
 #include "cart.h"
 #include "kbd.h"
+#include "layout.h"
 #include "lib.h"
 #include "mac.h"
 #include "mem.h"
@@ -67,7 +68,8 @@ static int menuHasRtc;
 static int menuHasOptions;
 #define menuOptions (MENU_SCRATCH->options)
 
-struct GlueOptions glueOptions = {0, GLUE_RIGHT_OFF, 0};
+struct GlueOptions glueOptions = {0, GLUE_RIGHT_OFF, 0, GLUE_LAYOUT_US,
+                                  GLUE_MOUSE_SPEED_DEFAULT};
 
 static unsigned menuLength(const char *text) {
   unsigned length = 0;
@@ -435,6 +437,7 @@ static void menuSlots(void) {
   for (;;) {
     int code;
     int pressed;
+    int slot;
     menuTitle();
     textAt(0, kHeaderRow);
     textPuts("Configure multiple images\n\n");
@@ -450,22 +453,22 @@ static void menuSlots(void) {
     textPuts("[M] or SPACE for main menu\n");
     textPuts("Press 2..9 or 0 to choose slots 2..10,\n");
     textPuts("or SHIFT + 2..9 or 0 to unmount an image");
-    do {
+    do { /* another key does nothing (Diego, 2026-10-20) */
       pressed = kbdPoll();
-    } while (pressed < 0);
-    code = pressed & KBD_CODE_MASK;
+      code = pressed & KBD_CODE_MASK;
+    } while (pressed < 0 ||
+             !(code == KBD_M || code == KBD_SPACE || code == KBD_ESC ||
+               (code >= kScanDigitTwo && code <= kScanDigitZero)));
     if (code == KBD_M || code == KBD_SPACE || code == KBD_ESC) {
       return;
     }
-    if (code >= kScanDigitTwo && code <= kScanDigitZero) {
-      const int slot = code - kScanDigitTwo + kSlotFirstEditable;
-      if (pressed & KBD_SHIFT) {
-        (void)menuSet(slot, "");
-      } else {
-        char label[sizeof("FD0 slot 10 file: ")];
-        menuFormat(label, sizeof(label), "FD0 slot %d file: ", slot);
-        menuBrowse(slot, label, 0);
-      }
+    slot = code - kScanDigitTwo + kSlotFirstEditable;
+    if (pressed & KBD_SHIFT) {
+      (void)menuSet(slot, "");
+    } else {
+      char label[sizeof("FD0 slot 10 file: ")];
+      menuFormat(label, sizeof(label), "FD0 slot %d file: ", slot);
+      menuBrowse(slot, label, 0);
     }
   }
 }
@@ -663,6 +666,14 @@ static void menuRtcLines(void) {
   menuOffset();
 }
 
+/* Whether [R], [H], [P] or [U] is on the main menu (menuRtcLines). */
+static int menuRtcShown(int code) {
+  const int enabled =
+      !menuHasRtc || menuSame(menuSettings[CART_KEY_RTC_ENABLED], "true");
+  return (code == KBD_U && enabled) || (code == KBD_R && menuHasRtc) ||
+         ((code == KBD_H || code == KBD_P) && menuHasRtc && enabled);
+}
+
 /* [R], [H], [P], [U]: md-drives-emulator's prompts, checks and messages.
    Returns the status line to show, or 0. */
 static const char *menuRtcKey(int code) {
@@ -748,7 +759,9 @@ static void menuMain(void) {
   menuRtcLines();
   textPuts("\n\nSHIFT+A, SHIFT+B or SHIFT+I empties a drive.");
   if (menuHasOptions) {
-    textPuts("\n\n[O]ptions: countdown, Mac RAM, right mouse button, screen");
+    textPuts(
+        "\n\n[O]ptions: countdown, Mac RAM, right mouse button, screen, "
+        "keyboard, mouse");
   }
   textAt(0, kFooterRow);
   textPuts("[E]xit to the Mac    Select an option:");
@@ -757,6 +770,11 @@ static void menuMain(void) {
 /* The countdown's values, in the order [C] steps them: no 0, as Diego
    asked ("minimum value is 5. Maximum value 30"); "" is the default 20. */
 static const char *const kCountdowns[] = {"30", "20", "10", "5", 0};
+
+/* The keyboard's values, in GLUE_LAYOUT_* order ("" is US), and its names. */
+static const char *const kKeyboards[] = {"", "fr", "de", "es", "uk", 0};
+static const char *const kKeyboardNames[] = {"US", "French", "German",
+                                             "Spanish", "UK"};
 
 /* The ROM's options from md-jackintosh into glueOptions, and the
    countdown's seconds (EPIC-12). */
@@ -770,6 +788,17 @@ static int menuApplyOptions(void) {
     glueOptions.ramKilobytes = (unsigned long)value;
   }
   glueOptions.plusScreen = menuSame(menuOption(CART_OPT_SCREEN), "512x342");
+  glueOptions.keyboard = GLUE_LAYOUT_US;
+  for (int i = 1; kKeyboards[i] != 0; ++i) {
+    if (menuSame(menuOption(CART_OPT_KEYBOARD), kKeyboards[i])) {
+      glueOptions.keyboard = i;
+    }
+  }
+  glueOptions.mouseSpeed = GLUE_MOUSE_SPEED_DEFAULT;
+  if (menuNumber(menuOption(CART_OPT_MOUSE), &value) && value >= 1 &&
+      value <= GLUE_MOUSE_SPEED_MAX) {
+    glueOptions.mouseSpeed = (int)value;
+  }
   glueOptions.rightButton = GLUE_RIGHT_OFF;
   if (menuSame(menuOption(CART_OPT_RIGHT), "cmd")) {
     glueOptions.rightButton = GLUE_RIGHT_COMMAND;
@@ -799,7 +828,7 @@ static void menuOptionsPage(void) {
   static const char *const kRams[] = {"", "1024", "2048", "2560", 0};
   static const char *const kRights[] = {"", "cmd", "double", 0};
   static const char *const kScreens[] = {"", "512x342", 0};
-  enum { kScanC = 0x2E };
+  enum { kScanC = 0x2E, kScanK = 0x25, kScanT = 0x14 };
   for (;;) {
     const char *right = menuOption(CART_OPT_RIGHT);
     int pressed;
@@ -827,13 +856,20 @@ static void menuOptionsPage(void) {
     textPuts("\n[S]creen: ");
     textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), centred"
                                     : "640x400");
+    textPuts("\n[K]eyboard (EXPERIMENTAL): ");
+    textPuts(kKeyboardNames[glueOptions.keyboard]);
+    textPrintf("\nMouse [T]racking: %d (1 slowest, 10 fastest; SHIFT+T down)",
+               glueOptions.mouseSpeed);
     textAt(0, kFooterRow);
     textPuts("Each key steps its option. They apply from this boot on.\n");
     textPuts("[SPACE] or [ESC] for the main menu");
-    do {
+    do { /* another key does nothing */
       pressed = kbdPoll();
-    } while (pressed < 0);
-    code = pressed & KBD_CODE_MASK;
+      code = pressed & KBD_CODE_MASK;
+    } while (pressed < 0 ||
+             !(code == KBD_SPACE || code == KBD_ESC || code == kScanC ||
+               code == KBD_M || code == KBD_R || code == KBD_S ||
+               code == kScanK || code == kScanT));
     if (code == KBD_SPACE || code == KBD_ESC) {
       return;
     }
@@ -849,6 +885,20 @@ static void menuOptionsPage(void) {
     } else if (code == KBD_S) {
       (void)menuSet(CART_OPT_SCREEN,
                     menuNext(kScreens, menuOption(CART_OPT_SCREEN)));
+    } else if (code == kScanT) {
+      /* 1-10, wrapping: T up, SHIFT+T down. */
+      char speed[sizeof("10")];
+      int next = glueOptions.mouseSpeed + ((pressed & KBD_SHIFT) ? -1 : 1);
+      if (next < 1) {
+        next = GLUE_MOUSE_SPEED_MAX;
+      } else if (next > GLUE_MOUSE_SPEED_MAX) {
+        next = 1;
+      }
+      menuFormat(speed, sizeof(speed), "%d", next);
+      (void)menuSet(CART_OPT_MOUSE, speed);
+    } else if (code == kScanK) {
+      (void)menuSet(CART_OPT_KEYBOARD,
+                    menuNext(kKeyboards, menuOption(CART_OPT_KEYBOARD)));
     }
     (void)menuApplyOptions();
   }
@@ -899,6 +949,16 @@ void glueMenu(void) {
     if (code == KBD_E && !(pressed & (KBD_SHIFT | KBD_CONTROL))) {
       break;
     }
+    if (!(code == KBD_A || code == KBD_B || code == KBD_I || code == KBD_L ||
+          menuRtcShown(code) || (code == KBD_O && menuHasOptions))) {
+      /* Not a menu key: it only stops the countdown (Diego, 2026-10-20:
+         the menu redrawn on any key was annoying). */
+      if (counting) {
+        counting = 0;
+        menuStatus("Countdown stopped. Press [E] to continue.");
+      }
+      continue;
+    }
     counting = 0;
     if (code == KBD_A && (pressed & KBD_CONTROL)) {
       menuSlots();
@@ -922,11 +982,10 @@ void glueMenu(void) {
       }
     } else if (code == KBD_L) {
       menuBrowse(CART_KEY_FOLDER, "Folder: ", 1);
-    } else if (code == KBD_R || code == KBD_H || code == KBD_P ||
-               code == KBD_U) {
-      notice = menuRtcKey(code);
-    } else if (code == KBD_O && menuHasOptions) {
+    } else if (code == KBD_O) {
       menuOptionsPage();
+    } else {
+      notice = menuRtcKey(code);
     }
     menuMain();
     menuStatus(notice != 0 ? notice

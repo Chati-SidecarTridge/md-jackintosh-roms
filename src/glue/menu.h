@@ -15,6 +15,7 @@ void glueMenu(void);
 
 /* The options the menu read from md-jackintosh (EPIC-12), applied by the
    glue: its defaults when the Multi-device has none. */
+enum { GLUE_MOUSE_SPEED_DEFAULT = 5, GLUE_MOUSE_SPEED_MAX = 10 };
 enum {
   GLUE_RIGHT_OFF = 0,     /* the right mouse button does nothing */
   GLUE_RIGHT_COMMAND = 1, /* Command-click */
@@ -24,5 +25,7 @@ struct GlueOptions {
   unsigned long ramKilobytes; /* the Mac's RAM, 0 for all of it */
   int rightButton;            /* GLUE_RIGHT_* */
   int plusScreen;             /* the Plus's 512x342, centred */
+  int keyboard;               /* GLUE_LAYOUT_* (layout.h) */
+  int mouseSpeed;             /* 1 slowest, 5 the ST's own, 10 fastest */
 };
 extern struct GlueOptions glueOptions;

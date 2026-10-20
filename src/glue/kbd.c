@@ -6,8 +6,9 @@
  * Description: The keyboard before the Mac starts (EPIC-06's menu), polled
  * through the ACIA with interrupts masked: romemul-switcher-rom's
  * src/st/kbd.c, which drops the IKBD's mouse, clock and joystick packets,
- * plus the Shift and Control state its menu keys need. Keys are scancodes,
- * so they are the same on every keyboard layout. The IKBD is reset first,
+ * plus the Shift and Control state its menu keys need. Keys are the US
+ * keyboard's scancodes: with another layout chosen (EPIC-12), the key
+ * showing a character reads as the US key for it. The IKBD is reset first,
  * as TOS does: after an ST reset it keeps sending mouse packets, and one
  * caught mid-way reads as key codes ($2A or $36 is a Shift held down, which
  * turned the menu's A and I into ejects on the bench, 2026-10-19).
@@ -17,6 +18,8 @@
 #include "kbd.h"
 
 #include "hw.h"
+#include "layout.h"
+#include "menu.h"
 
 enum {
   kAciaMasterReset = 0x03,
@@ -164,8 +167,10 @@ int kbdPoll(void) {
          may have been one too. */
       kbdLeftShift = kbdRightShift = kbdControl = 0;
     } else if (down) {
-      return code | ((kbdLeftShift || kbdRightShift) ? KBD_SHIFT : 0) |
-             (kbdControl ? KBD_CONTROL : 0);
+      int shift = kbdLeftShift || kbdRightShift;
+      code =
+          (int)glueLayoutMenuKey(glueOptions.keyboard, (unsigned)code, &shift);
+      return code | (shift ? KBD_SHIFT : 0) | (kbdControl ? KBD_CONTROL : 0);
     }
   }
 }

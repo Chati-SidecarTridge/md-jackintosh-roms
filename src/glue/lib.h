@@ -14,5 +14,8 @@
 unsigned long divU32U16(unsigned long n, unsigned short d,
                         unsigned short *remainder);
 
+/* a * b with one muls.w: GCC calls libgcc for an int multiply. */
+long mulS16(short a, short b);
+
 /* 1 when a byte read at address completes, 0 when it is a bus error. */
 int probeRead(unsigned long address);
