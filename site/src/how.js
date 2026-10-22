@@ -7,6 +7,10 @@ export const TOPICS = [
   ['memory', 'Memory maps'],
   ['image', 'Building an image'],
   ['boot', 'The boot'],
+  ['reloc', 'System 6\'s addresses'],
+  ['time', 'Interrupts and time'],
+  ['chips', 'The Mac\'s chips in RAM'],
+  ['buserr', 'The bus-error handler'],
 ];
 
 function showInfo(target) {
@@ -123,12 +127,88 @@ function wireBoot() {
   show(0);
 }
 
+// Topic 5: a resource loads and its addresses move.
+function wireReloc() {
+  let machine = 'st';
+  let timer = null;
+  const base = { st: 'FD', ste: 'E2' };
+  const toggles = document.querySelectorAll('[data-reloc]');
+  for (const button of toggles) {
+    button.addEventListener('click', () => {
+      machine = button.dataset.reloc;
+      for (const b of toggles) b.classList.toggle('current', b === button);
+      document.getElementById('relocNew').textContent = `$${base[machine]}xxxx`;
+    });
+  }
+  for (const card of document.querySelectorAll('.reloc-card')) {
+    card.addEventListener('click', () => {
+      clearInterval(timer);
+      const count = Number(card.dataset.count);
+      const info = document.getElementById('relocInfo');
+      const bar = document.getElementById('relocBar');
+      let done = 0;
+      info.innerHTML = `<strong>${card.dataset.title}</strong> Loaded; type, ID, size and SHA-256 match the table: moving its addresses&hellip;`;
+      timer = setInterval(() => {
+        done = Math.min(count, done + Math.max(1, Math.round(count / 40)));
+        bar.style.width = `${(done / count) * 100}%`;
+        const low = (0x1000 + done * 97).toString(16).toUpperCase().slice(-4);
+        document.getElementById('relocOld').textContent = `$40${low}`;
+        document.getElementById('relocNew').textContent = `$${base[machine]}${low}`;
+        if (done === count) {
+          clearInterval(timer);
+          info.innerHTML = `<strong>${card.dataset.title}</strong> ${card.dataset.info} ${count} moved.`;
+        }
+      }, 40);
+    });
+  }
+}
+
+// Topic 6: two ticks side by side, in real time.
+function wireTicks() {
+  const start = performance.now();
+  const mac = document.getElementById('tickMac');
+  const jk = document.getElementById('tickJk');
+  const frame = (now) => {
+    const seconds = (now - start) / 1000;
+    mac.textContent = Math.floor(seconds * 60.15).toLocaleString();
+    jk.textContent = Math.floor(seconds * 60.235).toLocaleString();
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+// Topic 8: the bus-error handler, step by step.
+function wireBusError() {
+  const steps = [
+    [1, 'The write.', 'A0 is 0: the program asked for memory it did not get. MOVE.L D0,4(A0) writes to $000004. On a Mac that is RAM and nothing happens; on an Atari $0-$7 is ROM.'],
+    [1, 'Bus error.', 'The Atari raises a bus error. The 68000 stacks the address it tried ($000004), whether it was a read or a write, and the program counter, which by then is past the instruction.'],
+    [1, 'Walk back.', 'The glue\'s handler decodes the instructions just before the stacked PC, looking for one that writes memory through A0 at this address: MOVE.L D0,4(A0), 4 bytes long, ending right at the stacked PC.'],
+    [2, 'Skip and resume.', 'Writes to $0-$7 (and to the Plus\'s ROM space) are skipped: the handler resumes after the instruction, as if the write had landed. The program goes on as it would on a Mac.'],
+    [2, 'Reads too.', 'A read from the Plus\'s ROM space ($400000-$57FFFF) is re-run against our copy of the Mac ROM, one instruction under the 68000\'s trace mode, so programs that peek at the ROM at its Plus address still find it.'],
+  ];
+  let current = 0;
+  const show = (n) => {
+    current = Math.max(0, Math.min(steps.length - 1, n));
+    const [line, title, text] = steps[current];
+    for (const span of document.querySelectorAll('#beCode [data-line]')) {
+      span.classList.toggle('lit', Number(span.dataset.line) === line);
+    }
+    document.getElementById('beInfo').innerHTML = `<strong>${current + 1}/${steps.length} ${title}</strong> ${text}`;
+  };
+  document.getElementById('bePrev').addEventListener('click', () => show(current - 1));
+  document.getElementById('beNext').addEventListener('click', () => show(current + 1));
+  show(0);
+}
+
 function initHow() {
   const root = document.querySelector('[data-view="how"]');
   wireInfo(root);
   wireMemory();
   wireImage();
   wireBoot();
+  wireReloc();
+  wireTicks();
+  wireBusError();
 }
 
 if (typeof document !== 'undefined') {

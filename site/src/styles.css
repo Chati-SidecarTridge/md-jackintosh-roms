@@ -905,3 +905,40 @@ dialog#helpModal::backdrop {
 @media (max-width: 700px) {
   .boot { grid-template-columns: 1fr; }
 }
+
+.reloc { display: grid; grid-template-columns: minmax(200px, 280px) 1fr; gap: 18px; }
+.reloc-cards { display: flex; flex-direction: column; gap: 8px; }
+.reloc-card { display: flex; justify-content: space-between; background: #1f2937; color: #e5e7eb; text-align: left; font-family: ui-monospace, Menlo, monospace; }
+.reloc-card span { color: #fde047; }
+.reloc-addr { font-family: ui-monospace, Menlo, monospace; font-size: 1.8rem; margin-bottom: 10px; }
+.reloc-addr .old { color: #9ca3af; text-decoration: line-through; }
+.reloc-addr .arrow { color: #fde047; margin: 0 10px; }
+.reloc-addr .new { color: #fde047; }
+.reloc-meter { height: 10px; background: #1f2937; border-radius: 5px; overflow: hidden; margin-bottom: 10px; }
+.reloc-meter div { height: 100%; width: 0; background: #fde047; transition: width 0.04s linear; }
+
+.levels { display: grid; gap: 4px; margin: 10px 0; }
+.level-head, .level { display: grid; grid-template-columns: 70px 1fr 1fr; gap: 8px; padding: 8px 12px; border-radius: 6px; }
+.level-head { color: #9ca3af; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.level { background: #1f2937; cursor: pointer; outline: none; }
+.level span:first-child { font-weight: 700; color: #fde047; }
+.level:hover, .level.lit, .level:focus-visible { box-shadow: 0 0 0 2px #fde047 inset; }
+
+.ticks { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.ticks .hint { grid-column: 1 / -1; }
+.tick-box { background: #0b1120; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; }
+.tick-label { display: block; color: #9ca3af; font-size: 0.85rem; }
+.tick-count { font-family: ui-monospace, Menlo, monospace; font-size: 2rem; color: #fde047; }
+
+.chips { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0; }
+.chip-card { background: #1f2937; border: 1px solid #374151; border-radius: 10px; padding: 22px 10px; text-align: center; font-weight: 700; font-family: ui-monospace, Menlo, monospace; cursor: pointer; outline: none; }
+.chip-card:hover, .chip-card.lit, .chip-card:focus-visible { border-color: #fde047; color: #fde047; }
+
+.buserr { display: grid; grid-template-columns: minmax(260px, 1fr) 1fr; gap: 18px; align-items: start; }
+.code { background: #0b1120; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; margin: 0; font-size: 0.95rem; line-height: 1.8; overflow-x: auto; }
+.code span { display: block; padding: 0 6px; border-radius: 4px; }
+.code span.lit { background: #fde047; color: #111827; }
+
+@media (max-width: 700px) {
+  .reloc, .buserr, .ticks { grid-template-columns: 1fr; }
+}
