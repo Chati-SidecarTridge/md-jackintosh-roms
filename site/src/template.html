@@ -113,73 +113,80 @@ window.addEventListener('error', function (e) {
 
 <section data-view="first" hidden>
   <h2>First steps</h2>
-  <p class="lead">You have built your image, put it on the SidecarTridge TOS Emulator, and the Multi-device runs the
-    md-jackintosh microfirmware. Now give the Mac a System: first from a floppy, then on a hard disk.</p>
+  <p class="lead fs-lead">Your image is on the TOS Emulator and the Multi-device runs md-jackintosh. Now give the Mac a
+    System: start it from a floppy, then put it on a hard disk.</p>
 
-  <article class="topic guide">
-    <h3>1. Start System 6.0.8 from a floppy</h3>
-    <ol>
-      <li>Download System 6.0.8 from hampa.ch:
-        <a href="http://hampa.ch/pub/software/MacOS/MacOS/MacOS%206.0.8%20US%20800K.7z" target="_blank" rel="noopener">MacOS 6.0.8 US 800K</a>.
-        Unpack it with 7-Zip (Windows), The Unarchiver or Keka (macOS), or <code>7z</code> (Linux).</li>
-      <li>It holds four 800K floppies. <code>disk1.image.bin</code> is <strong>System Tools</strong>, the startup
-        disk. Copy the four files to the <code>/jackintosh</code> folder of the Multi-device's microSD card (the folder
-        is created the first time the Multi-device starts).</li>
-      <li>Switch the Atari on. In the Jackintosh menu, press <kbd>A</kbd> (FD0), go to <code>disk1.image.bin</code>
-        and press <kbd>Space</kbd>. Then press <kbd>E</kbd>, or wait for the countdown.</li>
-      <li>The happy Mac, then the Finder. On the Atari keyboard <kbd>Control</kbd> is the Mac's Command key:
-        <kbd>Control</kbd>+<kbd>E</kbd> ejects the floppy.</li>
-    </ol>
-    <p class="hint">These floppies are DiskCopy 4.2 files, which the Multi-device serves read-only: fine to start from,
-      but the Mac cannot save on them. A raw image named <code>&hellip;.rw</code> is writable. To change floppies during
-      a session, put more images in FD0's slots with <kbd>Control</kbd>+<kbd>A</kbd> in the menu, eject the floppy on the
-      Mac, and press the Multi-device's <strong>SELECT</strong> button.</p>
-  </article>
+  <h3 class="fs-part">Start System 6.0.8 from a floppy</h3>
+  <ol class="sv-list">
+      <li class="sv sv-textonly">
+        <div class="sv-text"><h4>Get System 6.0.8</h4><p>Download <a href="http://hampa.ch/pub/software/MacOS/MacOS/MacOS%206.0.8%20US%20800K.7z" target="_blank" rel="noopener">MacOS 6.0.8 US 800K</a> from hampa.ch and unpack it: 7-Zip on Windows, The Unarchiver or Keka on macOS, <code>7z</code> on Linux. You get four floppies.</p><p>Copy them to the <code>/jackintosh</code> folder of the Multi-device's microSD card.</p></div>
+        
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Choose the startup floppy</h4><p>Switch the Atari on. In the Jackintosh menu press <kbd>A</kbd>, pick <code>disk1.image.bin</code> (System Tools) and press <kbd>Space</kbd>.</p><p>Press <kbd>E</kbd>, or let the countdown run out.</p></div>
+        <a class="sv-screen" href="assets/fs-fd-menu.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-fd-menu.png" alt="The Jackintosh menu with System Tools in FD0" width="640" height="400" loading="lazy"><span class="ring" style="left:0.00%;top:15.25%;width:64.00%;height:5.25%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>You are on the Mac</h4><p>The happy Mac, then the Finder with System Tools on the desktop.</p><p><kbd>Control</kbd> is the Mac's Command key: <kbd>Control</kbd>+<kbd>E</kbd> ejects the floppy.</p></div>
+        <a class="sv-screen" href="assets/fs-fd-finder.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-fd-finder.png" alt="The Finder with the System Tools floppy" width="640" height="400" loading="lazy"><span class="ring" style="left:87.50%;top:5.50%;width:12.50%;height:13.50%"></span></span></a>
+      </li>
+  </ol>
 
-  <article class="topic guide">
-    <h3>2. Make a hard disk with System 6.0.8</h3>
-    <p>Start with a blank hard disk: download <a href="assets/Jackintosh-HD-20MB.dsk.zip" download>Jackintosh-HD-20MB.dsk.zip</a>
-      (an empty 20&nbsp;MB Mac volume called <em>Jackintosh HD</em>), unzip it and copy <code>Jackintosh-HD-20MB.dsk</code>
-      to <code>/jackintosh</code> on the card. Then choose one of two ways to put System&nbsp;6.0.8 on it.</p>
-
-    <h4>The quick way: copy the System Folder</h4>
-    <p class="hint">A bootable hard disk in a minute, with the System Tools floppy's own small System Folder (System,
-      Finder, the General and Monitors control panels).</p>
-    <ol>
-      <li>In the menu: <kbd>A</kbd> (FD0) = <code>disk1.image.bin</code>, System Tools, and <kbd>I</kbd> (HD0) =
-        <code>Jackintosh-HD-20MB.dsk</code>. Press <kbd>E</kbd>.</li>
-      <li>The Mac starts from the floppy, since the hard disk has no System yet, and <em>Jackintosh HD</em> shows on the
-        desktop under System Tools.</li>
-      <li>Open System Tools and drag its <strong>System Folder</strong> onto <em>Jackintosh HD</em>. The Finder copies
-        it and makes the hard disk a startup disk: no installer needed.</li>
-      <li>Restart (<em>Special</em> menu, <em>Restart</em>). In the Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd>
-        to empty FD0, then <kbd>E</kbd>: the Mac starts from the hard disk.</li>
-    </ol>
-
-    <h4>The complete way: Apple's Installer</h4>
-    <p class="hint">The full System&nbsp;6.0.8 from all four floppies: the Keyboard, Mouse and Sound control panels, Key
-      Layout, Easy Access, MultiFinder, the Scrapbook and more.</p>
-    <ol>
-      <li>In the menu: <kbd>I</kbd> (HD0) = <code>Jackintosh-HD-20MB.dsk</code>, <kbd>A</kbd> (FD0) =
-        <code>disk1.image.bin</code> (System Tools), and with <kbd>Control</kbd>+<kbd>A</kbd> put
-        <code>disk3.image.bin</code> (Utilities&nbsp;2) in slot 2 and <code>disk2.image.bin</code> (Utilities&nbsp;1) in
-        slot 3, in that order. Press <kbd>E</kbd>.</li>
-      <li>The Mac starts from System Tools. Open it, open the <strong>Installer</strong>, and click OK.</li>
-      <li>Easy Install says it has no appropriate configuration: the Jackintosh serves its hard disk the way a Mac
-        serves a floppy, and Easy Install does not know what to do with it. Click <strong>Customize</strong>, select
-        <strong>System software for any Macintosh</strong>, check that the disk shown is <em>Jackintosh HD</em> (use
-        <em>Switch Disk</em> if not), and click <strong>Install</strong>.</li>
-      <li>Each time the Installer asks for another disk, it has ejected the floppy: press the Multi-device's
-        <strong>SELECT</strong> button. It asks for Utilities&nbsp;2, then Utilities&nbsp;1, then System Tools again;
-        SELECT goes from slot 3 back to slot 1.</li>
-      <li>&ldquo;Installation on Jackintosh HD was successful&rdquo;: click <strong>Quit</strong>, then restart. In the
-        Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd> to empty FD0, then <kbd>E</kbd>: the Mac starts from the hard
-        disk.</li>
-    </ol>
-    <p class="hint">Both ways checked in Hatari, each to a start from the hard disk alone and the Finder. Afterwards,
-      copy your programs onto the hard disk from their floppies. A hard disk image is a plain file: keep a copy of it
-      before big changes.</p>
-  </article>
+  <h3 class="fs-part">Put System 6.0.8 on a hard disk</h3>
+  <div class="routes" role="tablist" aria-label="Two ways">
+    <button type="button" role="tab" class="route current" aria-selected="true" data-route="quick"><strong>Copy the System Folder</strong><span>A bootable disk in a minute, with the floppy's small System Folder.</span></button>
+    <button type="button" role="tab" class="route" aria-selected="false" data-route="complete"><strong>Run Apple's Installer</strong><span>The full System 6.0.8: Keyboard, Mouse and Sound panels, MultiFinder, Easy Access and more.</span></button>
+  </div>
+  <ol class="sv-list" data-route-panel="quick">
+      <li class="sv sv-textonly">
+        <div class="sv-text"><h4>Put the blank hard disk on the card</h4><p>Download <a href="assets/Jackintosh-HD-20MB.dsk.zip" download>Jackintosh-HD-20MB.dsk.zip</a>, an empty 20&nbsp;MB Mac volume, unzip it and copy <code>Jackintosh-HD-20MB.dsk</code> to <code>/jackintosh</code>.</p></div>
+        
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Choose both disks</h4><p>In the menu: <kbd>A</kbd> for System Tools in FD0, <kbd>I</kbd> for the hard disk in HD0. Then <kbd>E</kbd>.</p></div>
+        <a class="sv-screen" href="assets/fs-hd-menu.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-hd-menu.png" alt="The menu with System Tools in FD0 and the hard disk in HD0" width="640" height="400" loading="lazy"><span class="ring" style="left:0.00%;top:15.25%;width:64.00%;height:5.25%"></span><span class="ring" style="left:0.00%;top:27.25%;width:64.00%;height:5.25%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Both on the desktop</h4><p>The Mac starts from the floppy, since the hard disk has no System yet. <em>Jackintosh HD</em> sits under System Tools.</p></div>
+        <a class="sv-screen" href="assets/fs-hd-desk.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-hd-desk.png" alt="The Finder with System Tools and Jackintosh HD" width="640" height="400" loading="lazy"><span class="ring" style="left:87.50%;top:21.50%;width:12.50%;height:13.00%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Drag the System Folder across</h4><p>Open System Tools and drag its <strong>System Folder</strong> onto <em>Jackintosh HD</em>. The Finder copies it and makes the hard disk a startup disk.</p></div>
+        <a class="sv-screen" href="assets/fs-hd-drag.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-hd-drag.png" alt="System Tools open, its System Folder ready to drag" width="640" height="400" loading="lazy"><svg class="drag-arrow" viewBox="0 0 640 400" preserveAspectRatio="none" aria-hidden="true"><defs><marker id="dragHead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#fde047"/></marker></defs><rect x="10" y="80" width="76" height="46" rx="6" class="drag-from"/><path d="M90,96 C260,20 470,40 575,104" class="drag-path" marker-end="url(#dragHead)"/><rect x="560" y="86" width="80" height="52" rx="6" class="drag-to"/></svg></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Start from the hard disk</h4><p>Choose <em>Restart</em> in the <em>Special</em> menu. In the Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd> to empty FD0, then <kbd>E</kbd>.</p></div>
+        <a class="sv-screen" href="assets/fs-hd-boot.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-hd-boot.png" alt="The Finder started from Jackintosh HD" width="640" height="400" loading="lazy"><span class="ring" style="left:87.50%;top:5.50%;width:12.50%;height:13.50%"></span></span></a>
+      </li>
+  </ol>
+  <ol class="sv-list" data-route-panel="complete" hidden>
+      <li class="sv">
+        <div class="sv-text"><h4>Line up the floppies</h4><p>Put the blank hard disk on the card as in the quick way. In the menu choose HD0 and FD0 as there, then press <kbd>Control</kbd>+<kbd>A</kbd> and put <code>disk3.image.bin</code> (Utilities&nbsp;2) in slot 2 and <code>disk2.image.bin</code> (Utilities&nbsp;1) in slot 3.</p></div>
+        <a class="sv-screen" href="assets/fs-in-slots.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-slots.png" alt="FD0 slots: System Tools, Utilities 2, Utilities 1" width="640" height="400" loading="lazy"><span class="ring" style="left:1.56%;top:27.75%;width:53.12%;height:7.50%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Open the Installer</h4><p>Press <kbd>E</kbd>. The Mac starts from System Tools: open it, open the <strong>Installer</strong> and click OK.</p></div>
+        <a class="sv-screen" href="assets/fs-in-welcome.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-welcome.png" alt="Welcome to the Apple Installer" width="640" height="400" loading="lazy"><span class="ring" style="left:67.81%;top:78.00%;width:12.81%;height:7.00%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Skip Easy Install</h4><p>Easy Install finds no matching configuration: the Jackintosh serves its hard disk the way a Mac serves a floppy. Click <strong>Customize</strong>.</p></div>
+        <a class="sv-screen" href="assets/fs-in-easy.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-easy.png" alt="Easy Install with no matching configuration" width="640" height="400" loading="lazy"><span class="ring" style="left:68.75%;top:75.50%;width:15.00%;height:6.00%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Choose the System</h4><p>Click <strong>System software for any Macintosh</strong>, check that the disk is <em>Jackintosh HD</em> (<em>Switch Disk</em> otherwise) and click <strong>Install</strong>.</p></div>
+        <a class="sv-screen" href="assets/fs-in-custom.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-custom.png" alt="Customize with System software for any Macintosh" width="640" height="400" loading="lazy"><span class="ring" style="left:15.62%;top:26.00%;width:45.31%;height:4.50%"></span><span class="ring" style="left:68.12%;top:27.25%;width:14.38%;height:5.50%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Feed it floppies with SELECT</h4><p>When the Installer asks for a disk, it has already ejected the floppy: press the Multi-device's <strong>SELECT</strong> button. It wants Utilities&nbsp;2, Utilities&nbsp;1, then System Tools again; SELECT wraps from slot 3 to slot 1.</p></div>
+        <a class="sv-screen" href="assets/fs-in-insert.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-insert.png" alt="Please insert the disk: Utilities 2" width="640" height="400" loading="lazy"><span class="ring" style="left:31.25%;top:31.50%;width:37.50%;height:11.00%"></span><span class="ring" style="left:57.81%;top:42.50%;width:10.31%;height:5.50%"></span></span></a>
+      </li>
+      <li class="sv">
+        <div class="sv-text"><h4>Done</h4><p>Click <strong>Quit</strong> and restart. In the Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd> to empty FD0, then <kbd>E</kbd>: the full System&nbsp;6.0.8 starts from the hard disk.</p></div>
+        <a class="sv-screen" href="assets/fs-in-done.png" target="_blank" rel="noopener"><span class="sv-glass"><img src="assets/fs-in-done.png" alt="Installation on Jackintosh HD was successful" width="640" height="400" loading="lazy"><span class="ring" style="left:63.12%;top:63.00%;width:12.19%;height:7.00%"></span></span></a>
+      </li>
+  </ol>
+  <p class="hint fs-note">Every step above was run in Hatari, each way ending in a start from the hard disk alone. A
+    hard disk image is a plain file on the card: copy it somewhere safe before big changes.</p>
 </section>
 
 <section data-view="software" hidden>

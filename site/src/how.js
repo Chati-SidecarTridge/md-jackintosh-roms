@@ -251,6 +251,23 @@ function wireCart() {
   show(0);
 }
 
+// First steps: the two ways to a hard disk, as tabs.
+function wireRoutes() {
+  const tabs = document.querySelectorAll('.route[data-route]');
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      for (const t of tabs) {
+        const on = t === tab;
+        t.classList.toggle('current', on);
+        t.setAttribute('aria-selected', String(on));
+      }
+      for (const panel of document.querySelectorAll('[data-route-panel]')) {
+        panel.hidden = panel.dataset.routePanel !== tab.dataset.route;
+      }
+    });
+  }
+}
+
 function initHow() {
   const root = document.querySelector('[data-view="how"]');
   wireInfo(root);
@@ -262,6 +279,7 @@ function initHow() {
   wireBusError();
   wireVideo();
   wireCart();
+  wireRoutes();
 }
 
 if (typeof document !== 'undefined') {
