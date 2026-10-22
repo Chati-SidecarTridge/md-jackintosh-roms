@@ -22,7 +22,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | ClarisWorks 2.1 | Mac Plus v3 ROM | 6 | Yes | Yes | Word processing, typing. |
 | MacWrite Pro 1.5 | Mac Plus v3 ROM | 6 | Yes | Yes | A document, typing. |
 | Microsoft Excel 1.03 | Mac Plus v3 ROM | 6 | Yes | No | Blocked by its key-disk copy protection: it checks the original floppy through the Mac's floppy chip, which a disk image cannot pass. |
-| Microsoft Excel 4.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | No | Microsoft Setup, the only way to unpack it, stops with a bus error at launch. To look at. |
+| Microsoft Excel 4.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | No | Microsoft Setup installs it; the installed Excel stops with a bus error at launch. To look at on the bench. |
 | Microsoft PowerPoint 2.01 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | A new presentation. |
 | Microsoft Word 4.0a | Mac Plus v3 ROM | 6 | Yes | Yes | Typing, menus and Save. |
 | Microsoft Word 5.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | Asks for its Install disk at launch (Cancel), then typing works. |
@@ -80,7 +80,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | ZeroGravity (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its playfield, options and scores. |
 | Sid Meier's Pirates! (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342, booted from its own 2.6 MB disk: the welcome menu and the file dialog. |
 | Balance of Power II (1988) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342, booted from its own 2.6 MB disk: the title collage. |
-| Enchanted Scepters (1984) | Mac Plus v3 ROM | 6 | Yes | No | A bus error at launch: it reads the ROM at its Plus address ($400009). To fix. |
+| Enchanted Scepters (1984) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342, booted from its own disk: it reads the ROM's version at its Plus address, which the Jackintosh now answers; the first room and its text. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
 ## Downloaded productivity
@@ -95,7 +95,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Microsoft BASIC 2.00 | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its program, list and command windows. |
 | BiPlane 2.0 (1991) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its shareware screen and menus. The image comes marked in use: System 6 offers a repair first (OK). |
 | ][ in a Mac 2.5 (1994) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the Apple II emulator boots ProDOS from its disk image. |
-| SmoothTalker 2.1 | Mac Plus v3 ROM | 6 | Yes | No | A bus error at launch: it jumps into the Plus ROM's address space ($40000A). To fix. |
+| SmoothTalker 2.1 | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its window and menus. It puts the ROM's restart entry in the interrupt vectors and checks it stays there, which the Jackintosh now allows. |
 | Microsoft Excel 1.00 | Mac Plus v3 ROM | 6 | No | — | The archive's image holds only Excel's data disk, not the program. |
 
 ## Utilities

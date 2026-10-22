@@ -892,7 +892,7 @@ static void menuOptionsPage(void) {
       textPuts("off");
     }
     textPuts("\n[S]creen: ");
-    textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), centred"
+    textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), at the top"
                                     : "640x400");
     textPuts("\n[K]eyboard (EXPERIMENTAL): ");
     textPuts(kKeyboardNames[glueOptions.keyboard]);

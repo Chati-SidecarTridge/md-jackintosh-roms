@@ -22,6 +22,18 @@
  * offset there, and the instruction re-executed with the trace bit set;
  * the trace exception (glueBusTrace) moves the register back.
  *
+ * EPIC-17: a read at an absolute address there ((xxx).L, as programs read
+ * the ROM's version at $400008) runs once from a copy of the instruction in
+ * RAM with the address moved to our Mac ROM, traced, and the trace exception
+ * resumes after the original. An instruction fetch there (a JMP or JSR to
+ * $40xxxx; SmoothTalker restarts through ROMBase+$0A) resumes at the same
+ * offset of our Mac ROM, but for a JSR, which fetches its target before it
+ * pushes the return address; a VBL through a $70 a program pointed there
+ * (SmoothTalker) runs the glue's VBL handler. The diagnostic-ROM socket,
+ * $F80000-$F9FFFF, which a Plus without a test ROM leaves empty and an ST
+ * leaves unmapped, reads as the Plus ROM space does (Dark Castle looks there
+ * for a test ROM's signature, which our ROM's bytes never match).
+ *
  * The 68000's bus error frame: special status word (bit 4 set for a
  * read), access address, instruction register, SR, PC. The PC is a few
  * bytes past the faulting instruction, and the instruction register is not
@@ -41,9 +53,16 @@ enum {
   kPlusRomLow = 0x400000UL,  /* the Plus's ROM space, with its mirrors */
   kPlusRomHigh = 0x580000UL, /* the SCSI chip from here */
   kPlusRomMask = 0x1FFFFUL,  /* 128 KB */
+  kDiagRomLow = 0xF80000UL,  /* the diagnostic-ROM socket */
+  kDiagRomHigh = 0xFA0000UL, /* the ST's cartridge from here */
+  kSswFcProgram = 2,         /* the function code's program bit */
+  kSswFcMask = 3,
+  kJsrMask = 0xFFC0,
+  kJsr = 0x4E80,
   kSrTrace = 0x8000,
   kFrameSr = 4, /* words into the bus error frame */
   kVectorTrace = 0x24,
+  kVectorVbl = 0x70,
   kAddressMask = 0x00FFFFFFUL,
   kMaxBack = 6, /* words before the stacked PC */
   kWordBytes = 2,
@@ -107,12 +126,26 @@ unsigned long glueBusFixes;
 /* The handler the bus error vector held before the glue's (macglue.s). */
 unsigned long glueBusPrevious;
 extern void glueBusTrace(void);
+extern void glueVbl(void);
 
 /* A read being re-run against our Mac ROM: the register moved, by how much,
    and the trace vector to put back. */
 static int glueRemapRegister = -1;
 static unsigned long glueRemapDelta;
 static unsigned long glueTracePrevious;
+/* An absolute read being run from glueAbsCopy: where the original ends. */
+static unsigned long glueAbsReturn;
+static unsigned short glueAbsCopy[6];
+
+/* Whether a read at addr gets Plus behaviour: the Plus's ROM space and the
+   diagnostic-ROM socket; the distance to the same offset of our Mac ROM. */
+static int glueRomLike(unsigned long addr) {
+  return (addr >= kPlusRomLow && addr < kPlusRomHigh) ||
+         (addr >= kDiagRomLow && addr < kDiagRomHigh);
+}
+static unsigned long glueRomDelta(unsigned long addr) {
+  return MAC_ROM_BASE_ADDR + ((addr - kPlusRomLow) & kPlusRomMask) - addr;
+}
 
 #define VECTOR(addr) (*(volatile unsigned long *)(unsigned long)(addr))
 
@@ -281,7 +314,7 @@ static int glueWriteSkippable(const unsigned short *code,
   return lead + extra;
 }
 
-/* The address an effective address of mode (An), d16(An) or d8(An,Xn)
+/* The address an effective address of mode (An), (An)+, d16(An) or d8(An,Xn)
    reaches with the registers regs, its extension words at ext; 0 for any
    other mode. *areg gets the register's number (0-7). */
 static unsigned long glueEaThroughAn(unsigned mode, unsigned reg,
@@ -291,6 +324,7 @@ static unsigned long glueEaThroughAn(unsigned mode, unsigned reg,
   *areg = (int)reg;
   switch (mode) {
     case 2:
+    case kModeAnPost: /* the 68000 adds after the read (Dark Castle) */
       return base;
     case kModeAnDisp:
       return base + (long)(short)ext[0];
@@ -317,9 +351,7 @@ static unsigned long glueEaThroughAn(unsigned mode, unsigned reg,
    source, the immediate and bit operations, TST and the unary operations
    (which read first on a 68000), ADDQ/SUBQ/Scc, the <ea>,Dn and Dn,<ea>
    arithmetic of lines 8, 9, B, C, D, and the memory shifts. */
-static int glueReadThroughAn(const unsigned short *code,
-                             const unsigned long *regs, unsigned long access,
-                             int *areg) {
+static int glueReadForm(const unsigned short *code, int *srcExt) {
   const unsigned opcode = code[0];
   const unsigned mode = (opcode >> kModeShift) & kSevenBits;
   const unsigned reg = opcode & kSevenBits;
@@ -328,7 +360,6 @@ static int glueReadThroughAn(const unsigned short *code,
   int lead = kWordBytes;
   int extra;
   int tail = 0; /* MOVE's destination extension words */
-  unsigned long address;
   switch (line) {
     case 1:
     case 2:
@@ -399,12 +430,39 @@ static int glueReadThroughAn(const unsigned short *code,
   if (extra < 0) {
     return 0;
   }
-  address = glueEaThroughAn(mode, reg, code + (lead / kWordBytes), regs, areg);
+  *srcExt = lead / kWordBytes;
+  return lead + extra + tail;
+}
+
+static int glueReadThroughAn(const unsigned short *code,
+                             const unsigned long *regs, unsigned long access,
+                             int *areg) {
+  int srcExt;
+  const int length = glueReadForm(code, &srcExt);
+  const unsigned long address =
+      length ? glueEaThroughAn((code[0] >> kModeShift) & kSevenBits,
+                               code[0] & kSevenBits, code + srcExt, regs, areg)
+             : 0;
   if (address == 0 || *areg > kRegA6 - kRegA0 ||
       ((access - address) & kAddressMask) >= kLongBytes) {
     return 0;
   }
-  return lead + extra + tail;
+  return length;
+}
+
+/* The same for a read at an absolute long address ((xxx).L); *srcExt gets
+   the address's word index in the instruction. */
+static int glueReadAbsolute(const unsigned short *code, unsigned long access,
+                            int *srcExt) {
+  const int length = glueReadForm(code, srcExt);
+  unsigned long address;
+  if (length == 0 || ((code[0] >> kModeShift) & kSevenBits) != kModeOther ||
+      (code[0] & kSevenBits) != kRegAbsL) {
+    return 0;
+  }
+  address = (((unsigned long)code[*srcExt] << kWordShift) | code[*srcExt + 1]) &
+            kAddressMask;
+  return ((access - address) & kAddressMask) < kLongBytes ? length : 0;
 }
 
 /* Puts a remapped register back: from the trace exception after the
@@ -422,6 +480,13 @@ void glueBusTraceFix(unsigned short *frame, unsigned long *regs) {
   if (glueRemapRegister >= 0) {
     glueRemapUndo(frame, regs);
   }
+  if (glueAbsReturn != 0) {
+    frame[1] = (unsigned short)(glueAbsReturn >> kWordShift);
+    frame[2] = (unsigned short)glueAbsReturn;
+    frame[0] &= (unsigned short)~kSrTrace;
+    VECTOR(kVectorTrace) = glueTracePrevious;
+    glueAbsReturn = 0;
+  }
 }
 
 /* Called by glueBusError with the bus error frame and the registers
@@ -434,8 +499,25 @@ unsigned long glueBusFix(unsigned short *frame, unsigned long *regs) {
       ((unsigned long)frame[5] << kWordShift) | frame[6];
   const int read = (frame[0] & kSswRead) != 0;
   regs[kRegA7] = (unsigned long)frame + kFrameBytes;
-  if (read && access >= kPlusRomLow && access < kPlusRomHigh &&
-      glueRemapRegister < 0) {
+  if (read && (frame[0] & kSswFcMask) == kSswFcProgram &&
+      access >= kPlusRomLow && access < kPlusRomHigh &&
+      access == (VECTOR(kVectorVbl) & kAddressMask)) {
+    /* The Atari's VBL through a level-4 vector a program pointed into the
+       ROM space: never taken on a Plus (the interrupt switch). */
+    return (unsigned long)glueVbl;
+  }
+  if (read && (frame[0] & kSswFcMask) == kSswFcProgram &&
+      access >= kPlusRomLow && access < kPlusRomHigh &&
+      (frame[3] & kJsrMask) != kJsr) {
+    /* Not a JSR: it fetches its target before it pushes the return
+       address, which nothing in the frame gives. */
+    if (glueBusFixes++ < kTracedFixes) {
+      TRACE("buserr fetch %06lx from rom ir %04x", access, (unsigned)frame[3]);
+    }
+    return access + glueRomDelta(access);
+  }
+  if (read && glueRomLike(access) && glueRemapRegister < 0 &&
+      glueAbsReturn == 0) {
     for (int back = 1; back <= kMaxBack; ++back) {
       const unsigned short *start =
           (const unsigned short *)(stackedPc -
@@ -444,8 +526,7 @@ unsigned long glueBusFix(unsigned short *frame, unsigned long *regs) {
       const int length = glueReadThroughAn(start, regs, access, &areg);
       if (length > 0 &&
           (unsigned long)start + length + kWordBytes >= stackedPc) {
-        glueRemapDelta = MAC_ROM_BASE_ADDR +
-                         ((access - kPlusRomLow) & kPlusRomMask) - access;
+        glueRemapDelta = glueRomDelta(access);
         glueRemapRegister = areg;
         regs[kRegA0 + areg] += glueRemapDelta;
         glueTracePrevious = VECTOR(kVectorTrace);
@@ -456,6 +537,28 @@ unsigned long glueBusFix(unsigned short *frame, unsigned long *regs) {
                 (unsigned long)start, (unsigned)start[0]);
         }
         return (unsigned long)start;
+      }
+      int srcExt;
+      const int absLength = glueReadAbsolute(start, access, &srcExt);
+      if (absLength > 0 &&
+          (unsigned long)start + absLength + kWordBytes >= stackedPc) {
+        const unsigned long moved =
+            (((unsigned long)start[srcExt] << kWordShift) | start[srcExt + 1]) +
+            glueRomDelta(access);
+        for (int i = 0; i < absLength / kWordBytes; ++i) {
+          glueAbsCopy[i] = start[i];
+        }
+        glueAbsCopy[srcExt] = (unsigned short)(moved >> kWordShift);
+        glueAbsCopy[srcExt + 1] = (unsigned short)moved;
+        glueAbsReturn = (unsigned long)start + absLength;
+        glueTracePrevious = VECTOR(kVectorTrace);
+        VECTOR(kVectorTrace) = (unsigned long)glueBusTrace;
+        frame[kFrameSr] |= kSrTrace;
+        if (glueBusFixes++ < kTracedFixes) {
+          TRACE("buserr read %06lx absolute at %06lx op %04x", access,
+                (unsigned long)start, (unsigned)start[0]);
+        }
+        return (unsigned long)glueAbsCopy;
       }
     }
   }

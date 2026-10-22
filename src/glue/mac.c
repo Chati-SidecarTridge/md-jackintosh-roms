@@ -111,8 +111,11 @@ enum {
 /* The Mac's screen geometry (EPIC-12): the ROM's video patches read these
    words instead of 512 and 342 (src/patches/plus_v3.ini, video-*), and
    its ScrnBase comes from glueScreenBase, so the screen is 640x400 or the
-   Plus's 512x342 centred in it. They sit in the glue's RAM, below $8000,
-   for the patches' absolute short addresses. */
+   Plus's 512x342 at its top, centred across, the black border below.
+   At the top because programs of the Plus's time check that BufPtr is
+   ScrnBase, as the Plus's ROM leaves them (Dark Castle stops otherwise,
+   EPIC-17): no border rows, and no DMA sound ring, between them. They sit in
+   the glue's RAM, below $8000, for the patches' absolute short addresses. */
 unsigned long glueScreenBase;
 unsigned short glueScreenWidth;
 unsigned short glueScreenHeight;
@@ -127,7 +130,6 @@ enum {
   kCursorWidth = 32,
   kCursorHeight = 16,
   kRowBytes = 80,
-  kPlusTopRows = (kWideHeight - kPlusHeight) / 2,     /* 29 */
   kPlusLeftBytes = (kWideWidth - kPlusWidth) / 2 / 8, /* 8 */
   kScreenLongs = (kWideHeight * kRowBytes) / 4,
   kBorderBlack = -1
@@ -146,8 +148,7 @@ static void glueScreenGeometry(unsigned long screen) {
     for (int i = 0; i < kScreenLongs; ++i) {
       fill[i] = kBorderBlack;
     }
-    glueScreenBase +=
-        ((unsigned long)kPlusTopRows * kRowBytes) + kPlusLeftBytes;
+    glueScreenBase += kPlusLeftBytes;
   }
   TRACE("mac screen %ux%u at %06lx", (unsigned)glueScreenWidth,
         (unsigned)glueScreenHeight, glueScreenBase);
@@ -194,12 +195,24 @@ void glueMacBoot(unsigned long memTop, unsigned long screen) {
   LOWMEM_LONG(MAC_BUFPTR) = screen;
   glueSoundInit(0, GLUE_SOUND_OFF);
   if (screenIsSte() && glueOptions.sound != GLUE_SOUND_OFF) {
-    /* The DMA sound's ring below the screen (EPIC-15). */
-    LOWMEM_LONG(MAC_BUFPTR) = screen - GLUE_SOUND_RING_ALLOC;
-    glueSoundInit((unsigned char *)(screen - GLUE_SOUND_RING_ALLOC),
-                  glueOptions.sound);
+    if (glueOptions.plusScreen) {
+      /* The DMA sound's ring above the screen, which moves down to make
+         room, so that BufPtr stays ScrnBase (EPIC-17). */
+      screen -= GLUE_SOUND_RING_ALLOC;
+      (void)screenInit(screen);
+      glueSoundInit((unsigned char *)(screen + kScreenLongs * 4),
+                    glueOptions.sound);
+    } else {
+      /* The DMA sound's ring below the screen (EPIC-15). */
+      LOWMEM_LONG(MAC_BUFPTR) = screen - GLUE_SOUND_RING_ALLOC;
+      glueSoundInit((unsigned char *)(screen - GLUE_SOUND_RING_ALLOC),
+                    glueOptions.sound);
+    }
   }
   glueScreenGeometry(screen);
+  if (glueOptions.plusScreen) {
+    LOWMEM_LONG(MAC_BUFPTR) = glueScreenBase;
+  }
 
   TRACE("mac enter %06lx memtop %06lx screen %06lx",
         (unsigned long)MACROM_ADDR(MACROM_E_SOFTRESET), memTop, screen);

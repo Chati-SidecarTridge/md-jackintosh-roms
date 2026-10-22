@@ -65,13 +65,22 @@ _glueVbl:
    exception handlers at vectors 48-54, where the MFP's Timer C and ACIA
    sit (THINK Pascal does both: its $70 handler arms a user break on a
    level-4 interrupt at IPL 0, and a Timer C tick in its FPU handler aborts
-   the running program, EPIC-10). Coming down from IPL 2 the pending HBL is
+   the running program, EPIC-10). A $70 pointing into the Plus's ROM space
+   stays: SmoothTalker puts the ROM's restart entry in vectors 28-31, never
+   taken on a Plus, and checks that it is still there; the VBL taken through
+   it runs glueVbl (buserr.c, EPIC-17). Coming down from IPL 2 the pending HBL is
    taken before any VBL or MFP interrupt can find IPL 0, so a foreign
    vector lasts microseconds; glueTimerC repeats it every tick. */
     .globl _glueHbl
 _glueHbl:
     move.l  #_glueBusError, 8.w
+    cmpi.l  #0x400000, 0x70.w           /* $70 into the Plus's ROM space */
+    bcs.s   1f                          /* stays (EPIC-17: SmoothTalker) */
+    cmpi.l  #0x580000, 0x70.w
+    bcs.s   2f
+1:
     move.l  #_glueVbl, 0x70.w
+2:
     move.l  #_glueTimerC, VEC_MFP_TIMERC.w
     move.l  #_glueAciaIsr, VEC_MFP_ACIA.w
     ori.w   #0x0200, (%sp)
@@ -94,7 +103,13 @@ _glueHbl:
 _glueTimerC:
     move.l  #_glueBusError, 8.w
     move.l  #_glueHbl, 0x68.w
+    cmpi.l  #0x400000, 0x70.w           /* as in glueHbl */
+    bcs.s   1f
+    cmpi.l  #0x580000, 0x70.w
+    bcs.s   2f
+1:
     move.l  #_glueVbl, 0x70.w
+2:
     move.l  #_glueTimerC, VEC_MFP_TIMERC.w
     move.l  #_glueAciaIsr, VEC_MFP_ACIA.w
     move.l  %d0, -(%sp)
@@ -224,6 +239,27 @@ _glueBusSelfTest:
     bne.s   2f
     cmpa.l  #0x500000, %a1
     bne.s   2f
+    /* EPIC-17: an absolute read ((xxx).L) of the ROM's version word. */
+    move.w  0x400008, %d1               /* MOVE.W (xxx).L,Dn */
+    cmp.w   MAC_ROM_BASE_ADDR + 8, %d1
+    bne.s   2f
+    /* The diagnostic-ROM socket reads as the Plus's ROM space. */
+    movea.l #0xF80000, %a1
+    move.w  (%a1), %d1
+    cmp.w   MAC_ROM_BASE_ADDR, %d1
+    bne.s   2f
+    cmpa.l  #0xF80000, %a1
+    bne.s   2f
+    /* A JMP into the Plus's ROM space runs our Mac ROM: to its first RTS,
+       which returns to 3f. */
+    lea     MAC_ROM_BASE_ADDR, %a1
+1:
+    cmpi.w  #0x4E75, (%a1)+
+    bne.s   1b
+    suba.l  #MAC_ROM_BASE_ADDR - 0x400000 + 2, %a1
+    pea     3f(%pc)
+    jmp     (%a1)
+3:
     cmp.l   %sp, %d2
     bne.s   2f
     moveq   #1, %d0
@@ -258,6 +294,22 @@ _glueCallLvl1:
 /* ------------------------------------------------------------------------
  * Routines the ROM patches call (src/patches/plus_v3.ini)
  */
+
+/* Launch's stack limit for a program that asks for the alternate screen
+   (launch-page2-stack) or sound buffer (launch-sound2-stack), in D0: the
+   Plus's distances from its screen, ScrnBase - $8000 and - $600, since
+   ours is not at MemTop - $5900 (EPIC-17, Dark Castle). */
+    .globl _glueLaunchPage2
+_glueLaunchPage2:
+    move.l  0x824.w, %d0                /* ScrnBase */
+    subi.l  #0x8000, %d0
+    rts
+
+    .globl _glueLaunchSound2
+_glueLaunchSound2:
+    move.l  0x824.w, %d0
+    subi.l  #0x600, %d0
+    rts
 
 /* sound-bootbeep: _SysBeep's beep (plus/boot/vectors.s:491-604), D3 its
    ticks, interrupts masked or not (SR); return through A6. SysBeep saved

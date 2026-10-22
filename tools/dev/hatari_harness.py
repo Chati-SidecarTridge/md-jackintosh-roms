@@ -43,6 +43,7 @@ BANKS = {512: (512, 0), 1024: (512, 512), 2048: (2048, 0), 2560: (2048, 512),
 # The MMU's bank size codes (src/glue/memconf.inc); an empty bank reads as 0.
 MMU_CODES = {0: 0, 128: 0, 512: 1, 2048: 2}
 MAC_SCREEN_BELOW_MEMTOP = 0x8100  # src/glue/mem.h (D-19)
+GLUE_SOUND_RING_ALLOC = 2048 + 512 + 4096  # src/glue/sound.h
 # Hatari's ST: 8.021247 MHz, a mono frame of 501 lines of 224 cycles
 # (clocks_timings.c, video.h).
 MONO_VBL_HZ = 8021247 / (501 * 224)
@@ -477,7 +478,11 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
         need("Mega STE speed and cache", rf"@@ megaste ctrl {ctrl:02x}\n", 10)
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
-        need("bus error self-test", r"@@ buserr selftest ok fixes 9\n")
+        need("bus error self-test", r"@@ buserr selftest ok fixes 12\n")
+    if PLUS_SCREEN and args.image == "ste" and (fake or {}).get("sound") != "off":
+        # EPIC-17: at 512x342 the DMA sound's ring goes above the screen,
+        # which moves down by GLUE_SOUND_RING_ALLOC (src/glue/sound.h).
+        screen -= GLUE_SOUND_RING_ALLOC
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
     need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
@@ -643,7 +648,7 @@ def fake_up(command):
     time.sleep(0.5)
 
 
-# EPIC-12's 512x342 option: the Mac's screen 29 rows down and 64 pixels in,
+# EPIC-12's 512x342 option: the Mac's screen at the top and 64 pixels in,
 # 512 wide, inside the 640x400 (row offset, column offset, width), or None.
 PLUS_SCREEN = None
 
@@ -1281,9 +1286,10 @@ def main():
         # EPIC-12: the Mac's RAM.
         args.fake["ram-kb"] = int(settings[17]) if settings.get(17, "").isdigit() else 0
         args.fake["megaste"] = settings.get(22, "")  # EPIC-14
+        args.fake["sound"] = settings.get(23, "")  # EPIC-15
         if settings.get(19) == "512x342":
             global PLUS_SCREEN
-            PLUS_SCREEN = (29, 64, 512)
+            PLUS_SCREEN = (0, 64, 512)
     if args.megaste_ctrl is not None:
         parse_path = megaste_files(run_dir, glue_map, args.megaste_ctrl, parse_path)
     if args.watch or args.watch_mem:
