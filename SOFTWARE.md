@@ -56,6 +56,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Blockout | Mac Plus v3 ROM | 6 | Yes | Yes |  |
 | Crystal Quest 2.2.5 | Mac Plus v3 ROM | 6 | Yes | Yes | Its title screen, Hall of Fame and demo run: animation, scoring, the attract cycle. |
 | Dark Castle 1.2 | Mac Plus v3 ROM | 6 | Yes | No | Stops on a bus error at launch: it probes $F80030, the Plus's diagnostic-ROM space, which an Atari does not answer. To fix. |
+| Airborne! (1984) | Mac Plus v3 ROM | 6 | Yes | No | A self-booting disk: the game is its "Finder". Booting it runs its own 1985 System, which stops reading the ROM at its Plus address ($400008); from System 6.0.8 the Finder will not open a program named Finder. To retry renamed. |
 | Lode Runner (1984) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; its window, menus and levels play (demo from level 1 to 3). |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
