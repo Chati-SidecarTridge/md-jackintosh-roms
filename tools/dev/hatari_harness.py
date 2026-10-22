@@ -517,17 +517,18 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
                 steps.ok(name)
         # A --fake-tree or --fake-set may put drive 2's image elsewhere
         # (EPIC-06): then the run's actions check it.
-        swapper = None
+        # The --swap queue is served whenever there is one (also when drive 2
+        # is the startup disk, or with --fake-set: an Installer run).
+        swapper = (DiskSwapper(ramdisk, command, glue_map, trace, steps.ok, need)
+                   if "base2" in ramdisk and len(ramdisk["disks2"]) > 1 else None)
         if "base2" in ramdisk and not (args.fake_tree or args.fake_set):
             run_disk2(trace, shot, steps, need)
-            swapper = (DiskSwapper(ramdisk, command, glue_map, trace, steps.ok, need)
-                       if len(ramdisk["disks2"]) > 1 else None)
             if args.launch:
                 run_launch(trace, shot, steps, need, command, glue_map, args.launch,
                            dump_memory, args.dump, args.then or (), swapper=swapper)
         elif args.launch:
             run_launch(trace, shot, steps, need, command, glue_map, args.launch,
-                       dump_memory, args.dump, args.then or (), disk_v=45)
+                       dump_memory, args.dump, args.then or (), disk_v=45, swapper=swapper)
         if args.then and not args.launch:
             run_actions(trace, shot, steps, need, command, glue_map, args.then, dump_memory,
                         args.dump, swapper)

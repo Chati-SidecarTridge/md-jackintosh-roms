@@ -981,3 +981,5 @@ table.software th:nth-child(3) { width: 15%; }
 .guide li { margin-bottom: 6px; }
 .guide a { color: #fde047; }
 kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-bottom-width: 2px; border-radius: 4px; background: #1f2937; font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; }
+.guide h4 { color: #f8fafc; margin: 18px 0 4px; }
+.guide p { color: #cbd5f5; line-height: 1.6; }

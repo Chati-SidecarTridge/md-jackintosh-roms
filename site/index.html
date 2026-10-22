@@ -990,6 +990,8 @@ table.software th:nth-child(3) { width: 15%; }
 .guide li { margin-bottom: 6px; }
 .guide a { color: #fde047; }
 kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-bottom-width: 2px; border-radius: 4px; background: #1f2937; font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; }
+.guide h4 { color: #f8fafc; margin: 18px 0 4px; }
+.guide p { color: #cbd5f5; line-height: 1.6; }
 </style>
 <script>
 window.addEventListener('error', function (e) {
@@ -1263,23 +1265,47 @@ window.addEventListener('error', function (e) {
 
   <article class="topic guide">
     <h3>2. Make a hard disk with System 6.0.8</h3>
+    <p>Start with a blank hard disk: download <a href="assets/Jackintosh-HD-20MB.dsk.zip" download>Jackintosh-HD-20MB.dsk.zip</a>
+      (an empty 20&nbsp;MB Mac volume called <em>Jackintosh HD</em>), unzip it and copy <code>Jackintosh-HD-20MB.dsk</code>
+      to <code>/jackintosh</code> on the card. Then choose one of two ways to put System&nbsp;6.0.8 on it.</p>
+
+    <h4>The quick way: copy the System Folder</h4>
+    <p class="hint">A bootable hard disk in a minute, with the System Tools floppy's own small System Folder (System,
+      Finder, the General and Monitors control panels).</p>
     <ol>
-      <li>Download a blank hard disk, <a href="assets/Jackintosh-HD-20MB.dsk.zip" download>Jackintosh-HD-20MB.dsk.zip</a>
-        (an empty 20&nbsp;MB Mac volume called <em>Jackintosh HD</em>), unzip it and copy
-        <code>Jackintosh-HD-20MB.dsk</code> to <code>/jackintosh</code> on the card.</li>
       <li>In the menu: <kbd>A</kbd> (FD0) = <code>disk1.image.bin</code>, System Tools, and <kbd>I</kbd> (HD0) =
         <code>Jackintosh-HD-20MB.dsk</code>. Press <kbd>E</kbd>.</li>
       <li>The Mac starts from the floppy, since the hard disk has no System yet, and <em>Jackintosh HD</em> shows on the
         desktop under System Tools.</li>
       <li>Open System Tools and drag its <strong>System Folder</strong> onto <em>Jackintosh HD</em>. The Finder copies
-        it and makes the hard disk a startup disk.</li>
+        it and makes the hard disk a startup disk: no installer needed.</li>
       <li>Restart (<em>Special</em> menu, <em>Restart</em>). In the Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd>
         to empty FD0, then <kbd>E</kbd>: the Mac starts from the hard disk.</li>
-      <li>Copy your programs onto it from their floppies, the same way. The hard disk is written as you work.</li>
     </ol>
-    <p class="hint">Checked in Hatari: a floppy start with a blank hard disk, the System Folder dragged across, and a
-      start from the hard disk alone to the Finder. A hard disk image is a plain file: keep a copy of it before big
-      changes.</p>
+
+    <h4>The complete way: Apple's Installer</h4>
+    <p class="hint">The full System&nbsp;6.0.8 from all four floppies: the Keyboard, Mouse and Sound control panels, Key
+      Layout, Easy Access, MultiFinder, the Scrapbook and more.</p>
+    <ol>
+      <li>In the menu: <kbd>I</kbd> (HD0) = <code>Jackintosh-HD-20MB.dsk</code>, <kbd>A</kbd> (FD0) =
+        <code>disk1.image.bin</code> (System Tools), and with <kbd>Control</kbd>+<kbd>A</kbd> put
+        <code>disk3.image.bin</code> (Utilities&nbsp;2) in slot 2 and <code>disk2.image.bin</code> (Utilities&nbsp;1) in
+        slot 3, in that order. Press <kbd>E</kbd>.</li>
+      <li>The Mac starts from System Tools. Open it, open the <strong>Installer</strong>, and click OK.</li>
+      <li>Easy Install says it has no appropriate configuration: the Jackintosh serves its hard disk the way a Mac
+        serves a floppy, and Easy Install does not know what to do with it. Click <strong>Customize</strong>, select
+        <strong>System software for any Macintosh</strong>, check that the disk shown is <em>Jackintosh HD</em> (use
+        <em>Switch Disk</em> if not), and click <strong>Install</strong>.</li>
+      <li>Each time the Installer asks for another disk, it has ejected the floppy: press the Multi-device's
+        <strong>SELECT</strong> button. It asks for Utilities&nbsp;2, then Utilities&nbsp;1, then System Tools again;
+        SELECT goes from slot 3 back to slot 1.</li>
+      <li>&ldquo;Installation on Jackintosh HD was successful&rdquo;: click <strong>Quit</strong>, then restart. In the
+        Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd> to empty FD0, then <kbd>E</kbd>: the Mac starts from the hard
+        disk.</li>
+    </ol>
+    <p class="hint">Both ways checked in Hatari, each to a start from the hard disk alone and the Finder. Afterwards,
+      copy your programs onto the hard disk from their floppies. A hard disk image is a plain file: keep a copy of it
+      before big changes.</p>
   </article>
 </section>
 
