@@ -78,6 +78,9 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | PUZZ'L 1.0 (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its title and About screen. |
 | StuntCopter 1.0 (1986) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the helicopter, the wagon and the score panel in play. |
 | ZeroGravity (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its playfield, options and scores. |
+| Sid Meier's Pirates! (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342, booted from its own 2.6 MB disk: the welcome menu and the file dialog. |
+| Balance of Power II (1988) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342, booted from its own 2.6 MB disk: the title collage. |
+| Enchanted Scepters (1984) | Mac Plus v3 ROM | 6 | Yes | No | A bus error at launch: it reads the ROM at its Plus address ($400009). To fix. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
 ## Downloaded productivity
