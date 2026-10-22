@@ -9,7 +9,10 @@ function showView() {
     link.classList.toggle('current', link.dataset.nav === view);
   }
   document.body.dataset.view = view;
-  window.scrollTo(0, 0);
+  const topic = (window.location.hash.split('/')[2] || '');
+  const target = topic && document.getElementById(`topic-${topic}`);
+  if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  else window.scrollTo(0, 0);
 }
 
 window.addEventListener('hashchange', showView);

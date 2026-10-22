@@ -24,6 +24,7 @@ const MODULE_ORDER = [
   'jackrom.js',
   'help-content.js',
   'builder.js',
+  'how.js',
   'router.js',
   'app.js',
 ];

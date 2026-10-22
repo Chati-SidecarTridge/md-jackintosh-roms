@@ -772,3 +772,136 @@ dialog#helpModal::backdrop {
   font-weight: 700;
   text-decoration: none;
 }
+
+/* ---- How it works ---- */
+
+.topic-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 24px;
+  align-items: center;
+}
+
+.topic-nav a {
+  padding: 6px 12px;
+  border: 1px solid #374151;
+  border-radius: 999px;
+  color: #e5e7eb;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.topic-nav a:hover { border-color: #fde047; color: #fde047; }
+.topic-more { color: #9ca3af; font-size: 0.85rem; }
+
+.topic {
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 20px 22px;
+  margin-bottom: 22px;
+  scroll-margin-top: 20px;
+}
+
+.topic h3 { margin: 0 0 6px; color: #fde047; }
+
+.diagram {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 8px 0;
+}
+
+.diagram .box { fill: #111827; stroke: #64748b; stroke-width: 2; }
+.diagram .chip { fill: #1f2937; stroke: #94a3b8; stroke-width: 1.5; }
+.diagram .board { fill: #1e293b; stroke: #fde047; stroke-width: 2; }
+.diagram .screen { fill: #e5e7eb; }
+.diagram .wire { stroke: #fde047; stroke-width: 2.5; }
+.diagram .arrowhead { fill: #fde047; }
+.diagram text { fill: #e5e7eb; text-anchor: middle; font-family: inherit; }
+.diagram .label { font-size: 22px; font-weight: 700; }
+.diagram .label.dark { fill: #111827; }
+.diagram .small { font-size: 16px; }
+.diagram .tiny { font-size: 12px; fill: #9ca3af; }
+.diagram .part { cursor: pointer; outline: none; }
+.diagram .part:hover .box, .diagram .part.lit .box,
+.diagram .part:hover .chip, .diagram .part.lit .chip { stroke: #fde047; }
+.diagram .part.lit .board, .diagram .part:hover .board { fill: #334155; }
+
+.diagram .seg-glue { fill: #fde047; cursor: pointer; }
+.diagram .seg-free { fill: #334155; cursor: pointer; }
+.diagram .seg-rom { fill: #e5e7eb; cursor: pointer; }
+.diagram .seg-patch { fill: #f97316; cursor: pointer; }
+.diagram rect.lit { stroke: #f8fafc; stroke-width: 2; }
+.diagram .seg-patch.lit { fill: #fde047; }
+
+.info-panel {
+  min-height: 3.2em;
+  padding: 10px 14px;
+  border-left: 3px solid #fde047;
+  background: #0b1120;
+  border-radius: 6px;
+  color: #cbd5f5;
+  line-height: 1.5;
+}
+
+.info-panel strong { color: #fde047; }
+
+.toggle { display: inline-flex; gap: 6px; margin: 4px 0 8px; }
+.toggle button { background: #1f2937; color: #e5e7eb; }
+.toggle button.current { background: #fde047; color: #11131a; }
+
+.memmaps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 18px;
+  margin: 10px 0;
+}
+
+.memmap h4 { margin: 0 0 6px; color: #f8fafc; }
+
+.seg {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  outline: none;
+}
+
+.seg span { font-family: ui-monospace, Menlo, monospace; font-weight: 400; font-size: 0.85rem; opacity: 0.85; }
+.seg.tall { min-height: 110px; align-items: flex-start; }
+.seg.ram { background: #1e3a5f; color: #e0f2fe; }
+.seg.rom { background: #e5e7eb; color: #111827; }
+.seg.glue { background: #fde047; color: #111827; }
+.seg.io { background: #3f1d1d; color: #fecaca; }
+.seg.cart { background: #14532d; color: #dcfce7; }
+.seg:hover, .seg.lit, .seg:focus-visible { box-shadow: 0 0 0 2px #f8fafc inset; }
+
+.boot {
+  display: grid;
+  grid-template-columns: minmax(200px, 260px) 1fr;
+  gap: 18px;
+}
+
+.boot-steps { margin: 0; padding-left: 22px; }
+
+.boot-step {
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #9ca3af;
+}
+
+.boot-step.lit { background: #1f2937; color: #fde047; font-weight: 700; }
+.boot-view img { width: 100%; max-width: 640px; image-rendering: pixelated; border-radius: 6px; display: block; margin-bottom: 10px; border: 1px solid #374151; }
+.boot-controls { display: flex; gap: 8px; margin-top: 10px; }
+.boot-controls button { background: #1f2937; color: #e5e7eb; }
+
+@media (max-width: 700px) {
+  .boot { grid-template-columns: 1fr; }
+}
