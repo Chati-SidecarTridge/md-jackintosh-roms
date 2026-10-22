@@ -75,6 +75,9 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Wizardry I (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the roster and the castle windows. |
 | Rogue (Epyx, 1985) | Mac Plus v3 ROM | 6 | Yes | — | Its title page draws past the 512x342 screen into the border. To look at. |
 | Klondike 4.0 (1989) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the table and its About box. |
+| PUZZ'L 1.0 (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its title and About screen. |
+| StuntCopter 1.0 (1986) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the helicopter, the wagon and the score panel in play. |
+| ZeroGravity (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its playfield, options and scores. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
 ## Utilities
