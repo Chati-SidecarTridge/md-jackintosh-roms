@@ -52,13 +52,13 @@ function inline(text) {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
-// A cell's colour, by column (Program, Mac Plus, System, Tested, Works,
-// Notes): yes green, no red, unknown yellow; under Tested, where it ran green
-// and 'no' (not tested yet) plain.
+// A cell's colour, by column (Program, Model, System, Tested, Works, Notes):
+// under Works yes green, no red, untested yellow; under Tested yes green and
+// no (not tested yet) plain.
 function cellClass(text, column) {
   const t = text.trim().toLowerCase();
   if (column === 3) return t === 'no' ? ' class="none"' : ' class="ok"';
-  if (column !== 1 && column !== 4) return '';
+  if (column !== 4) return '';
   if (t === 'yes') return ' class="ok"';
   if (t === 'no') return ' class="no"';
   if (t === '—') return ' class="try"';
