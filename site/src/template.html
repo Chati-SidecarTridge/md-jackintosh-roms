@@ -524,19 +524,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" id="topic-runs">
       <header class="ch-head"><span class="ch-addr" data-st="6.0.8" data-ste="6.0.8">6.0.8</span><h3>What runs</h3></header>
-      <p class="lead">Every program tried taught the <a class="glue-link" href="#/how/glue">glue</a> something. Point at one.</p>
-      <p class="runs-more"><a class="btn-primary" href="#/software">See every program tested</a> on the Software page: what runs on System&nbsp;6.0.8, what was tested, and what works.</p>
-    <div class="chips">
-      <div class="chip-card" data-title="System 6.0.8 and the Finder." data-info="The target from day one: its patches call the ROM at absolute addresses, so the glue relocates them as they load (topic 5).">System 6.0.8</div>
-      <div class="chip-card" data-title="Microsoft Word 4." data-info="Typing, menus and Save. Word writes through nil pointers like many programs of its time: the bus-error handler skips those writes (topic 8).">Word 4</div>
-      <div class="chip-card" data-title="Microsoft Excel 1.03." data-info="Taught the glue two things: its disk swapped into the second drive when the Finder ejects the first (the driver&rsquo;s media change), and its floating-point code probing for a coprocessor card in the Plus&rsquo;s ROM space, which the bus-error handler now answers as a Plus would. Excel itself then stops at its key-disk copy protection, which checks the original floppy through the Mac&rsquo;s floppy chip: no disk image can pass it.">Excel 1.03</div>
-      <div class="chip-card" data-title="Aldus PageMaker 3.5." data-info="Installed from five floppies put in one after the other with the Multi-device's SELECT button.">PageMaker 3.5</div>
-      <div class="chip-card" data-title="Norton Utilities." data-info="Its Disk Doctor reads the drives through the Mac's driver interface: the glue's driver answers as the Mac's floppy driver would.">Norton Utilities</div>
-      <div class="chip-card" data-title="Tetris." data-info="Writes its music into the Mac's sound buffer itself, which taught the glue to watch the buffer, not only the system's sound calls. On the STE and Mega STE it plays.">Tetris</div>
-      <div class="chip-card" data-title="THINK Pascal and THINK C." data-info="Debuggers take the interrupt vectors the Atari uses for its own timers: the glue puts its vectors back on every tick.">THINK Pascal, C</div>
-      <div class="chip-card" data-title="Blockout." data-info="Copies bytes off the stack through a nil pointer: another form the bus-error handler learned to skip.">Blockout</div>
-    </div>
-    <div class="info-panel">Point at a program.</div>
+      <p class="runs-more"><a class="btn-primary" href="#/software">See every program tested</a></p>
     </article>
     </div>
   </div>
