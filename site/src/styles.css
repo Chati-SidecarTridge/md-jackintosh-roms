@@ -942,3 +942,18 @@ dialog#helpModal::backdrop {
 @media (max-width: 700px) {
   .reloc, .buserr, .ticks { grid-template-columns: 1fr; }
 }
+
+.keys { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.key { min-width: 64px; padding: 14px 12px; background: #e5e7eb; color: #111827; border-radius: 8px; border-bottom: 4px solid #9ca3af; font-weight: 700; text-align: center; cursor: pointer; outline: none; }
+.key.wide { min-width: 130px; }
+.key small { display: block; font-weight: 400; font-size: 0.75rem; color: #4b5563; }
+.key:hover, .key.lit, .key:focus-visible { background: #fde047; }
+
+.video .atari-screen { fill: #000; stroke: #64748b; stroke-width: 2; }
+.video .mac-screen { fill: #e5e7eb; cursor: pointer; transition: all 0.4s; }
+.video .menubar { fill: #f8fafc; stroke: #111827; transition: all 0.4s; }
+.video .menutext { fill: #111827; text-anchor: start; font-size: 13px; font-weight: 700; transition: all 0.4s; }
+
+.diagram line.wire { opacity: 0.25; transition: opacity 0.3s; }
+.diagram line.wire.active { opacity: 1; stroke-width: 4; }
+#topic-picture .diagram line.wire { opacity: 1; }

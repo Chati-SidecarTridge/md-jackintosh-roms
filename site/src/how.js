@@ -11,6 +11,10 @@ export const TOPICS = [
   ['time', 'Interrupts and time'],
   ['chips', 'The Mac\'s chips in RAM'],
   ['buserr', 'The bus-error handler'],
+  ['input', 'Keyboard and mouse'],
+  ['video', 'Video'],
+  ['cart', 'The Multi-device'],
+  ['runs', 'What runs'],
 ];
 
 function showInfo(target) {
@@ -200,6 +204,53 @@ function wireBusError() {
   show(0);
 }
 
+// Topic 10: the two screen sizes.
+function wireVideo() {
+  const buttons = document.querySelectorAll('[data-video]');
+  const mac = document.getElementById('macScreen');
+  const info = document.getElementById('videoInfo');
+  for (const button of buttons) {
+    button.addEventListener('click', () => {
+      for (const b of buttons) b.classList.toggle('current', b === button);
+      const plus = button.dataset.video === 'plus';
+      mac.setAttribute('x', plus ? 74 : 10);
+      mac.setAttribute('y', plus ? 39 : 10);
+      mac.setAttribute('width', plus ? 512 : 640);
+      mac.setAttribute('height', plus ? 342 : 400);
+      document.querySelector('.video .menubar').setAttribute('x', plus ? 74 : 10);
+      document.querySelector('.video .menubar').setAttribute('y', plus ? 39 : 10);
+      document.querySelector('.video .menubar').setAttribute('width', plus ? 512 : 640);
+      document.querySelector('.video .menutext').setAttribute('x', plus ? 104 : 40);
+      document.querySelector('.video .menutext').setAttribute('y', plus ? 54 : 25);
+      info.innerHTML = plus
+        ? '<strong>512x342 in a black frame.</strong> The Mac\'s classic screen, 64 pixels in and 29 rows down: programs that assume a Plus screen draw where they expect.'
+        : '<strong>640x400.</strong> The whole monochrome screen: the Mac ROM is told its size, and the desktop and windows use all of it.';
+    });
+  }
+}
+
+// Topic 11: a disk read over the cartridge.
+function wireCart() {
+  const steps = [
+    ['out', 'The command.', 'To read sectors the glue sends a command, one 16-bit word at a time: a header ($ABCD), the command ($0700, READ), the payload size, a random token, the unit and count, the block, a checksum. Each word w goes out as a read of $FB0000 + (w XOR $8000).'],
+    ['', 'The RP2040 listens.', 'The Multi-device sees every address on the cartridge bus. It decodes the words, checks the checksum, and reads the sectors from the image file on its microSD card.'],
+    ['back', 'The answer.', 'It writes up to 32 sectors into its window, and the token, echoed, at $FA2004, with a new seed at $FA2008: the sign that the answer is complete.'],
+    ['back', 'The copy.', 'The glue, which waited for the token, copies the sectors out of the window at $FA0100 into the Mac\'s buffer: the Mac\'s Read call returns.'],
+    ['', 'Disks that change.', 'A unit table in the window tells which images are in which drive, each with a change counter and an image identity: so the Mac learns of a new disk, and an RP restart never passes one image off as another.'],
+  ];
+  let current = 0;
+  const show = (n) => {
+    current = Math.max(0, Math.min(steps.length - 1, n));
+    const [lit, title, text] = steps[current];
+    document.getElementById('cartOut').classList.toggle('active', lit === 'out');
+    document.getElementById('cartBack').classList.toggle('active', lit === 'back');
+    document.getElementById('cartInfo').innerHTML = `<strong>${current + 1}/${steps.length} ${title}</strong> ${text}`;
+  };
+  document.getElementById('cartPrev').addEventListener('click', () => show(current - 1));
+  document.getElementById('cartNext').addEventListener('click', () => show(current + 1));
+  show(0);
+}
+
 function initHow() {
   const root = document.querySelector('[data-view="how"]');
   wireInfo(root);
@@ -209,6 +260,8 @@ function initHow() {
   wireReloc();
   wireTicks();
   wireBusError();
+  wireVideo();
+  wireCart();
 }
 
 if (typeof document !== 'undefined') {
