@@ -18,7 +18,7 @@ export const TOPICS = [
 ];
 
 function showInfo(target) {
-  const topic = target.closest('.topic');
+  const topic = target.closest('.topic, .chapter');
   const panel = topic && topic.querySelector('.info-panel');
   if (!panel) return;
   for (const el of topic.querySelectorAll('[data-info].lit')) el.classList.remove('lit');
@@ -90,7 +90,7 @@ async function drawImage(machine) {
     t.dataset.info = `${patch.length} bytes at ROM offset ${hex(patch.offset)}, applied only after the SHA-256 of the bytes it replaces matches.`;
     svg.appendChild(t);
   }
-  wireInfo(svg.closest('.topic'));
+  wireInfo(svg.closest('.topic, .chapter'));
   panel.innerHTML = `<strong>${data.patches.length} patches</strong> in a ${total / 1024} KB image for the ${machine === 'st' ? 'ST family' : 'STE family'}: point at a part, or at an orange tick.`;
 }
 
@@ -268,6 +268,104 @@ function wireRoutes() {
   }
 }
 
+// The tour's map: the 68000's address space as a Jackintosh, top to bottom.
+const MAP = {
+  st: [
+    { key: 'io', addr: '$FF8000', name: 'Atari I/O', note: 'video, MFP, keyboard, sound' },
+    { key: 'macrom', addr: '$FD0000', name: 'Mac Plus ROM', note: 'yours, 128 KB, patched' },
+    { key: 'glue', addr: '$FC0000', name: 'The glue', note: '64 KB of our code' },
+    { key: 'cart', addr: '$FA0000', name: 'Cartridge', note: 'the Multi-device' },
+    { key: 'ghosts', addr: '$400000', name: 'A Mac Plus’s ROM and chips', note: 'ROM, SCSI, SCC, IWM, VIA: nothing here on an ST', ghost: true },
+    { key: 'screen', addr: '$3F7F00', name: 'Screen', note: '640×400' },
+    { key: 'heap', addr: '', name: 'The Mac’s heap', note: 'System, Finder, programs', tall: true },
+    { key: 'shadows', addr: '', name: 'Glue variables, chips in RAM', note: 'VIA, SCC, IWM copies' },
+    { key: 'lowmem', addr: '$000000', name: 'Low memory', note: 'vectors, Mac globals' },
+  ],
+  ste: [
+    { key: 'io', addr: '$FF8000', name: 'Atari I/O', note: 'video, MFP, keyboard, DMA sound' },
+    { key: 'cart', addr: '$FA0000', name: 'Cartridge', note: 'the Multi-device' },
+    { key: 'macrom', addr: '$E20000', name: 'Mac Plus ROM', note: 'yours, 128 KB, patched' },
+    { key: 'glue', addr: '$E00000', name: 'The glue', note: '128 KB of our code' },
+    { key: 'ghosts', addr: '$400000', name: 'A Mac Plus’s ROM and chips', note: 'up to the VIA at $EFE1FE, which on an STE reads ROM bytes', ghost: true },
+    { key: 'screen', addr: '$3F7F00', name: 'Screen', note: '640×400' },
+    { key: 'heap', addr: '', name: 'The Mac’s heap', note: 'System, Finder, programs', tall: true },
+    { key: 'shadows', addr: '', name: 'Glue variables, chips in RAM', note: 'VIA, SCC, IWM copies, sound ring' },
+    { key: 'lowmem', addr: '$000000', name: 'Low memory', note: 'vectors, Mac globals' },
+  ],
+};
+const tour = { machine: 'st', active: [], screen: '$3F7F00' };
+
+function chapterFor(key) {
+  return [...document.querySelectorAll('.chapter[data-map]')].find((c) => c.dataset.map.split(' ').includes(key));
+}
+
+function drawMap() {
+  const list = document.getElementById('tourMap');
+  if (!list) return;
+  list.innerHTML = '';
+  for (const seg of MAP[tour.machine]) {
+    const li = document.createElement('li');
+    li.className = `map-seg${seg.ghost ? ' ghost' : ''}${seg.tall ? ' tall' : ''}${tour.active.includes(seg.key) ? ' on' : ''}`;
+    li.dataset.key = seg.key;
+    const addr = seg.key === 'screen' ? tour.screen : seg.addr;
+    li.innerHTML = `<button type="button"><span class="seg-name">${seg.name}</span><span class="seg-note">${seg.note}</span>${addr ? `<span class="seg-addr">${addr}</span>` : ''}</button>`;
+    li.querySelector('button').addEventListener('click', () => {
+      const chapter = chapterFor(seg.key);
+      if (chapter) chapter.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    list.appendChild(li);
+  }
+}
+
+function setMachine(machine) {
+  tour.machine = machine;
+  for (const b of document.querySelectorAll('.map-toggle [data-machine]')) b.classList.toggle('current', b.dataset.machine === machine);
+  for (const a of document.querySelectorAll('.ch-addr[data-st]')) {
+    a.textContent = a.closest('#topic-video') ? tour.screen : a.dataset[machine];
+  }
+  drawMap();
+  const imageButton = document.querySelector(`[data-imagemap="${machine}"]`);
+  if (imageButton) imageButton.click();
+  const relocButton = document.querySelector(`[data-reloc="${machine}"]`);
+  if (relocButton) relocButton.click();
+}
+
+function wireMap() {
+  if (!document.getElementById('tourMap')) return;
+  for (const b of document.querySelectorAll('.map-toggle [data-machine]')) {
+    b.addEventListener('click', () => setMachine(b.dataset.machine));
+  }
+  drawMap();
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      tour.active = entry.target.dataset.map === 'all'
+        ? MAP[tour.machine].map((s) => s.key)
+        : entry.target.dataset.map.split(' ').filter(Boolean);
+      for (const c of document.querySelectorAll('.chapter')) c.classList.toggle('current', c === entry.target);
+      for (const li of document.querySelectorAll('#tourMap .map-seg')) li.classList.toggle('on', tour.active.includes(li.dataset.key));
+    }
+  }, { rootMargin: '-35% 0px -60% 0px' });
+  for (const c of document.querySelectorAll('.chapter[data-map]')) observer.observe(c);
+}
+
+// The RAM chapter: where the screen lands for the RAM installed.
+function wireRam() {
+  const hex = (v) => '$' + v.toString(16).toUpperCase().padStart(6, '0');
+  for (const b of document.querySelectorAll('[data-ram]')) {
+    b.addEventListener('click', () => {
+      for (const o of document.querySelectorAll('[data-ram]')) o.classList.toggle('current', o === b);
+      const top = Number(b.dataset.ram);
+      tour.screen = hex(top - 0x8100);
+      document.getElementById('ramCalc').textContent = `MemTop ${hex(top)}, the screen at ${tour.screen}`;
+      for (const el of document.querySelectorAll('.screen-addr')) el.textContent = tour.screen;
+      const video = document.querySelector('#topic-video .ch-addr');
+      if (video) video.textContent = tour.screen;
+      drawMap();
+    });
+  }
+}
+
 function initHow() {
   const root = document.querySelector('[data-view="how"]');
   wireInfo(root);
@@ -280,6 +378,8 @@ function initHow() {
   wireVideo();
   wireCart();
   wireRoutes();
+  wireMap();
+  wireRam();
 }
 
 if (typeof document !== 'undefined') {

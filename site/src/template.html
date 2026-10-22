@@ -241,27 +241,21 @@ window.addEventListener('error', function (e) {
 </section>
 
 <section data-view="how" hidden>
-  <h2>How it works</h2>
-  <p class="lead">An interactive tour of the Jackintosh: how the genuine Mac Plus ROM runs on an Atari, and how the
-    Multi-device serves its disks and its clock.</p>
-  <nav class="topic-nav">
-    <a href="#/how/picture">1. The big picture</a>
-    <a href="#/how/memory">2. Memory maps</a>
-    <a href="#/how/image">3. Building an image</a>
-    <a href="#/how/boot">4. The boot</a>
-    <a href="#/how/reloc">5. System 6's addresses</a>
-    <a href="#/how/time">6. Interrupts and time</a>
-    <a href="#/how/chips">7. The Mac's chips in RAM</a>
-    <a href="#/how/buserr">8. The bus-error handler</a>
-    <a href="#/how/input">9. Keyboard and mouse</a>
-    <a href="#/how/video">10. Video</a>
-    <a href="#/how/cart">11. The Multi-device</a>
-    <a href="#/how/runs">12. What runs</a>
-  </nav>
-
-  <article class="topic" id="topic-picture">
-    <h3>1. The big picture</h3>
-    <p class="lead">Three pieces turn an Atari into a Mac Plus. Point at one.</p>
+  <header class="tour-intro">
+    <h2>How it works</h2>
+    <p class="lead">A tour of the 68000's 16&nbsp;MB address space, from power-on to the Finder. Every trick that turns an
+      Atari into a Mac Plus happens at an address: the map beside you shows where you are.</p>
+  </header>
+  <div class="tour">
+    <aside class="tour-map" aria-label="The Atari's address space as a Jackintosh">
+      <div class="toggle map-toggle"><button type="button" data-machine="st" class="current">ST</button><button type="button" data-machine="ste">STE</button></div>
+      <ol class="map" id="tourMap"></ol>
+      <p class="map-note">Top is $FFFFFF, bottom $000000. Not to scale. Dashed: where a Mac Plus has chips, and an Atari has nothing.</p>
+    </aside>
+    <div class="tour-chapters">
+    <article class="chapter" id="topic-picture" data-map="all">
+      <header class="ch-head"><span class="ch-addr" data-st="68000" data-ste="68000">68000</span><h3>Three boards, one Mac</h3></header>
+      <p class="lead">Three pieces turn an Atari into a Mac Plus. Point at one.</p>
     <svg class="diagram" viewBox="0 0 1000 420" role="img" aria-label="The Atari, the TOS Emulator, the Multi-device and the monitor">
       <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" class="arrowhead"/></marker></defs>
       <g class="part" data-title="The Atari ST or STE." data-info="Its own Motorola 68000 runs everything, at 8 MHz (16 on a Mega STE). The same CPU family as the Mac Plus: no emulation, the Mac's code runs natively. Up to 4 MB of RAM becomes the Mac's.">
@@ -291,57 +285,10 @@ window.addEventListener('error', function (e) {
       </g>
     </svg>
     <div class="info-panel">Point at the Atari, the TOS Emulator, the Multi-device, the card or the monitor.</div>
-  </article>
-
-  <article class="topic" id="topic-memory">
-    <h3>2. Memory maps</h3>
-    <p class="lead">A Mac Plus expects its chips at fixed addresses that are empty, or something else, on an Atari. The glue
-      moves the Mac's ROM, keeps its RAM, and puts the missing chips in RAM. Not to scale.</p>
-    <div class="toggle"><button type="button" data-memmap="st" class="current">Atari ST</button><button type="button" data-memmap="ste">Atari STE</button></div>
-    <div class="memmaps">
-      <div class="memmap">
-        <h4>Macintosh Plus</h4>
-        <div class="seg ram tall" data-title="$000000 RAM." data-info="Up to 4 MB. Low memory holds the Mac's globals from $100; the screen sits near the top of RAM.">RAM <span>$000000</span></div>
-        <div class="seg rom" data-title="$400000 ROM." data-info="The 128 KB ROM. System 6.0.8's patches jump to 295 absolute addresses here.">ROM <span>$400000</span></div>
-        <div class="seg io" data-title="$580000 SCSI." data-info="The 5380 SCSI chip. Not there on an Atari: the probes are patched out.">SCSI <span>$580000</span></div>
-        <div class="seg io" data-title="$9FFFF8 / $BFFFF9 SCC." data-info="The serial chip, which also reads the mouse on a Plus. On an Atari the mouse comes from the keyboard processor (IKBD) instead.">SCC <span>$9FFFF8</span></div>
-        <div class="seg io" data-title="$DFE1FF IWM." data-info="The floppy controller. The Jackintosh replaces the floppy driver with its own, over the cartridge.">IWM <span>$DFE1FF</span></div>
-        <div class="seg io" data-title="$EFE1FE VIA." data-info="The VIA: the 60 Hz tick, the one-second interrupt, the keyboard's shift register, the clock chip, the sound switch. All of it is played by the glue from a copy in RAM.">VIA <span>$EFE1FE</span></div>
-      </div>
-      <div class="memmap memmap-atari" data-machine="st">
-        <h4>Atari ST as a Jackintosh</h4>
-        <div class="seg ram tall" data-title="$000000 RAM, the Mac's." data-info="The Mac's RAM, up to 4 MB, sized like TOS does it. $0-$7 is ROM on an ST, so the Mac's writes there are skipped by the bus-error handler. The glue's own variables and the Mac's chips in RAM (VIA, SCC, IWM) live near the bottom; the screen at the top of RAM, on a 256-byte boundary.">RAM <span>$000000</span></div>
-        <div class="seg cart" data-title="$FA0000 / $FB0000 cartridge." data-info="The Multi-device: commands are sent as reads of $FB0000 plus the word, answers come back in a 64 KB window at $FA0000 (disk sectors, the time, the unit table).">Cartridge <span>$FA0000</span></div>
-        <div class="seg glue" data-title="$FC0000 the glue." data-info="64 KB: our code, starting with the Atari's reset vector, so the Atari boots into it.">Glue <span>$FC0000</span></div>
-        <div class="seg rom" data-title="$FD0000 the Mac ROM." data-info="Your Plus ROM, moved from $400000. System 6's absolute ROM addresses are relocated as it loads.">Mac ROM <span>$FD0000</span></div>
-        <div class="seg io" data-title="$FF8000 Atari I/O." data-info="The Shifter (video), the MFP (timers, interrupts), the keyboard's ACIA, the YM sound chip. The glue drives them; the Mac never sees them.">Atari I/O <span>$FF8000</span></div>
-      </div>
-      <div class="memmap memmap-atari" data-machine="ste" hidden>
-        <h4>Atari STE as a Jackintosh</h4>
-        <div class="seg ram tall" data-title="$000000 RAM, the Mac's." data-info="As on the ST, up to 4 MB, with the glue's variables and the Mac's chips in RAM near the bottom, the screen at the top, and below the screen a 2 KB ring for the DMA sound.">RAM <span>$000000</span></div>
-        <div class="seg glue" data-title="$E00000 the glue." data-info="128 KB on the STE's larger ROM space: the same code, with sound for the STE and the Mega STE's 16 MHz and cache.">Glue <span>$E00000</span></div>
-        <div class="seg rom" data-title="$E20000 the Mac ROM." data-info="Your Plus ROM, moved from $400000.">Mac ROM <span>$E20000</span></div>
-        <div class="seg cart" data-title="$FA0000 / $FB0000 cartridge." data-info="The Multi-device, as on the ST.">Cartridge <span>$FA0000</span></div>
-        <div class="seg io" data-title="$FF8000 Atari I/O." data-info="As on the ST, plus the STE's DMA sound and its LMC1992 volume control, which play the Mac's sound buffer.">Atari I/O <span>$FF8000</span></div>
-      </div>
-    </div>
-    <div class="info-panel">Point at a region of either map.</div>
-  </article>
-
-  <article class="topic" id="topic-image">
-    <h3>3. Building an image</h3>
-    <p class="lead">An image is our glue, then your Mac Plus ROM with every byte where Apple put it. The patches replace
-      code in place, each the same length as what it replaces, and each is applied only if the bytes it replaces are
-      exactly the expected ones (checked by their SHA-256, so the site never holds Apple's bytes). This map is drawn
-      from the data the builder uses.</p>
-    <div class="toggle"><button type="button" data-imagemap="st" class="current">ST image, 192 KB</button><button type="button" data-imagemap="ste">STE image, 256 KB</button></div>
-    <svg class="diagram" id="imageMap" viewBox="0 0 1000 120" role="img" aria-label="The image: glue, free space, Mac ROM with patch sites"></svg>
-    <div class="info-panel" id="imageInfo">Loading the builder's data&hellip;</div>
-  </article>
-
-  <article class="topic" id="topic-boot">
-    <h3>4. The boot</h3>
-    <p class="lead">From power-on to the Finder. Step through it, or press Play.</p>
+    </article>
+    <article class="chapter" id="topic-boot" data-map="glue">
+      <header class="ch-head"><span class="ch-addr" data-st="$FC0000" data-ste="$E00000">$FC0000</span><h3>Power-on</h3></header>
+      <p class="lead">From power-on to the Finder. Step through it, or press Play.</p>
     <div class="boot">
       <ol class="boot-steps">
         <li class="boot-step" data-title="Power on." data-info="The 68000 reads its stack pointer and first instruction from the image's first 8 bytes: the glue's, not TOS's.">Power on</li>
@@ -360,31 +307,40 @@ window.addEventListener('error', function (e) {
         <div class="boot-controls"><button type="button" id="bootPrev">&larr; Back</button><button type="button" id="bootPlay">Play</button><button type="button" id="bootNext">Next &rarr;</button></div>
       </div>
     </div>
-  </article>
-
-  <article class="topic" id="topic-reloc">
-    <h3>5. System 6's absolute addresses</h3>
-    <p class="lead">System 6.0.8 fixes bugs in the Plus ROM with its own code, and that code calls the ROM at absolute
-      addresses: $40xxxx, where a Mac Plus has its ROM. On an Atari the ROM is elsewhere. So as each System resource
-      loads, the glue checks it (type, ID, size, SHA-256) and moves every listed address to where the ROM really is.</p>
-    <div class="toggle"><button type="button" data-reloc="st" class="current">On an ST ($FD0000)</button><button type="button" data-reloc="ste">On an STE ($E20000)</button></div>
-    <div class="reloc">
-      <div class="reloc-cards">
-        <button type="button" class="reloc-card" data-count="299" data-title="'PTCH' 117, 19,012 bytes." data-info="The Plus's patch set: 295 ROM addresses, plus the diagnostic ROM probe, the system-error save area and two SCC addresses, 299 in all.">'PTCH' 117 <span>299</span></button>
-        <button type="button" class="reloc-card" data-count="3" data-title="'ptch' 3, 6,836 bytes." data-info="Two ROM addresses, and the beep's interrupt check: it beeps only at level 0, and the Mac runs at level 2 here, so the check becomes 'level 0 or 2'.">'ptch' 3 <span>3</span></button>
-        <button type="button" class="reloc-card" data-count="2" data-title="'CACH' 1, 2,946 bytes." data-info="The disk cache: two ROM addresses.">'CACH' 1 <span>2</span></button>
-      </div>
-      <div class="reloc-run">
-        <div class="reloc-addr"><span class="old" id="relocOld">$40xxxx</span> <span class="arrow">&rarr;</span> <span class="new" id="relocNew">$FDxxxx</span></div>
-        <div class="reloc-meter"><div id="relocBar"></div></div>
-        <div class="info-panel" id="relocInfo">Pick a resource to load it.</div>
-      </div>
+    </article>
+    <article class="chapter" id="topic-image" data-map="macrom">
+      <header class="ch-head"><span class="ch-addr" data-st="$FD0000" data-ste="$E20000">$FD0000</span><h3>The Mac ROM, patched in place</h3></header>
+      <p class="lead">An image is our glue, then your Mac Plus ROM with every byte where Apple put it. The patches replace
+      code in place, each the same length as what it replaces, and each is applied only if the bytes it replaces are
+      exactly the expected ones (checked by their SHA-256, so the site never holds Apple's bytes). This map is drawn
+      from the data the builder uses.</p>
+    <div class="toggle"><button type="button" data-imagemap="st" class="current">ST image, 192 KB</button><button type="button" data-imagemap="ste">STE image, 256 KB</button></div>
+    <svg class="diagram" id="imageMap" viewBox="0 0 1000 120" role="img" aria-label="The image: glue, free space, Mac ROM with patch sites"></svg>
+    <div class="info-panel" id="imageInfo">Loading the builder's data&hellip;</div>
+    </article>
+    <article class="chapter" id="topic-memory" data-map="ram lowmem shadows heap screen">
+      <header class="ch-head"><span class="ch-addr" data-st="$000000" data-ste="$000000">$000000</span><h3>The Mac's RAM</h3></header>
+      <p class="lead">Up to 4&nbsp;MB, sized the way TOS sizes it, and all of it the Mac's. The glue only takes a little for
+      itself, and lays the rest out the way a Mac Plus expects. Point at the RAM on the map: from the bottom up.</p>
+    <div class="ram-pick" role="group" aria-label="Installed RAM">
+      <span>Installed RAM:</span>
+      <button type="button" data-ram="1048576">1 MB</button><button type="button" data-ram="2097152">2 MB</button><button type="button" data-ram="2621440">2.5 MB</button><button type="button" data-ram="4194304" class="current">4 MB</button>
+      <output id="ramCalc">MemTop $400000, the screen at $3F7F00</output>
     </div>
-  </article>
-
-  <article class="topic" id="topic-time">
-    <h3>6. Interrupts and time</h3>
-    <p class="lead">The 68000 has seven interrupt levels, and a Mac and an Atari use them for different things. The glue
+    <dl class="ram-layers">
+      <div><dt>$000000</dt><dd><strong>Low memory.</strong> The 68000's vectors, then the Mac's globals from $100: where RAM
+        ends, the tick count, the screen's address. $0-$7 is ROM on an ST, so the Mac's writes there are skipped.
+        The MFP's vectors move out of the Mac's way, from $100 to $C0.</dd></div>
+      <div><dt>above</dt><dd><strong>The glue's variables and the Mac's chips.</strong> A few kilobytes: the glue's state,
+        and RAM copies of the VIA, SCC and IWM that the Mac reaches through its low-memory pointers.</dd></div>
+      <div><dt>&hellip;</dt><dd><strong>The Mac's heap.</strong> The System, the Finder and your programs.</dd></div>
+      <div><dt class="screen-addr">$3F7F00</dt><dd><strong>The screen.</strong> 640&times;400, 32,000 bytes, near the top of RAM on a 256-byte
+        boundary, as the Atari's video chip needs. On an STE the sound ring sits just below it.</dd></div>
+    </dl>
+    </article>
+    <article class="chapter" id="topic-time" data-map="io">
+      <header class="ch-head"><span class="ch-addr" data-st="$FFFA00" data-ste="$FFFA00">$FFFA00</span><h3>Interrupts and time</h3></header>
+      <p class="lead">The 68000 has seven interrupt levels, and a Mac and an Atari use them for different things. The glue
       re-routes each one. Point at a level.</p>
     <div class="levels">
       <div class="level-head"><span>Level</span><span>Mac Plus</span><span>Atari</span></div>
@@ -400,11 +356,10 @@ window.addEventListener('error', function (e) {
       <p class="hint">The MFP's Timer C: 2,457,600 Hz / 200 / 204 = 60.235 Hz, a tick that steps by exactly one (the Mac's
         window dragging waits for an exact value). Over a minute it gains about 5 ticks on a real Plus.</p>
     </div>
-  </article>
-
-  <article class="topic" id="topic-chips">
-    <h3>7. The Mac's chips, in RAM</h3>
-    <p class="lead">The Mac ROM reaches most of its chips through pointers in low memory. The glue points them at small
+    </article>
+    <article class="chapter" id="topic-chips" data-map="ghosts shadows">
+      <header class="ch-head"><span class="ch-addr" data-st="$EFE1FE" data-ste="$EFE1FE">$EFE1FE</span><h3>The Mac's chips, in RAM</h3></header>
+      <p class="lead">The Mac ROM reaches most of its chips through pointers in low memory. The glue points them at small
       copies in RAM and plays the chips' part from there: faster and simpler than catching every access.</p>
     <div class="chips">
       <div class="chip-card" data-title="The VIA." data-info="Port B (the sound switch, the mouse button, the clock chip's lines), the keyboard's shift register and the timers. The glue plays the Mac keyboard on the shift register each tick, and the clock chip through its lines.">VIA</div>
@@ -415,11 +370,29 @@ window.addEventListener('error', function (e) {
       <div class="chip-card" data-title="SERegs." data-info="44 places in the ROM write to the top of a 4 MB Mac's address space when a system error happens. An Atari has nothing there, so they are moved into the glue's RAM.">SERegs</div>
     </div>
     <div class="info-panel">Point at a chip.</div>
-  </article>
-
-  <article class="topic" id="topic-buserr">
-    <h3>8. The bus-error handler</h3>
-    <p class="lead">Mac programs write through nil pointers all the time: on a Mac that lands in RAM at address 0 and
+    </article>
+    <article class="chapter" id="topic-reloc" data-map="ghosts macrom">
+      <header class="ch-head"><span class="ch-addr" data-st="$40xxxx" data-ste="$40xxxx">$40xxxx</span><h3>System 6's absolute addresses</h3></header>
+      <p class="lead">System 6.0.8 fixes bugs in the Plus ROM with its own code, and that code calls the ROM at absolute
+      addresses: $40xxxx, where a Mac Plus has its ROM. On an Atari the ROM is elsewhere. So as each System resource
+      loads, the glue checks it (type, ID, size, SHA-256) and moves every listed address to where the ROM really is.</p>
+    <div class="toggle"><button type="button" data-reloc="st" class="current">On an ST ($FD0000)</button><button type="button" data-reloc="ste">On an STE ($E20000)</button></div>
+    <div class="reloc">
+      <div class="reloc-cards">
+        <button type="button" class="reloc-card" data-count="299" data-title="'PTCH' 117, 19,012 bytes." data-info="The Plus's patch set: 295 ROM addresses, plus the diagnostic ROM probe, the system-error save area and two SCC addresses, 299 in all.">'PTCH' 117 <span>299</span></button>
+        <button type="button" class="reloc-card" data-count="3" data-title="'ptch' 3, 6,836 bytes." data-info="Two ROM addresses, and the beep's interrupt check: it beeps only at level 0, and the Mac runs at level 2 here, so the check becomes 'level 0 or 2'.">'ptch' 3 <span>3</span></button>
+        <button type="button" class="reloc-card" data-count="2" data-title="'CACH' 1, 2,946 bytes." data-info="The disk cache: two ROM addresses.">'CACH' 1 <span>2</span></button>
+      </div>
+      <div class="reloc-run">
+        <div class="reloc-addr"><span class="old" id="relocOld">$40xxxx</span> <span class="arrow">&rarr;</span> <span class="new" id="relocNew">$FDxxxx</span></div>
+        <div class="reloc-meter"><div id="relocBar"></div></div>
+        <div class="info-panel" id="relocInfo">Pick a resource to load it.</div>
+      </div>
+    </div>
+    </article>
+    <article class="chapter" id="topic-buserr" data-map="lowmem">
+      <header class="ch-head"><span class="ch-addr" data-st="$000000" data-ste="$000000">$000000</span><h3>Nil pointers</h3></header>
+      <p class="lead">Mac programs write through nil pointers all the time: on a Mac that lands in RAM at address 0 and
       nobody notices. On an Atari, address 0 is ROM and the write is a bus error. The glue's handler finds the
       instruction and skips it. Step through an example (our own code, not Apple's).</p>
     <div class="buserr">
@@ -429,11 +402,10 @@ window.addEventListener('error', function (e) {
         <div class="boot-controls"><button type="button" id="bePrev">&larr; Back</button><button type="button" id="beNext">Next &rarr;</button></div>
       </div>
     </div>
-  </article>
-
-  <article class="topic" id="topic-input">
-    <h3>9. Keyboard and mouse</h3>
-    <p class="lead">The Atari's keyboard has its own processor, the IKBD, which sends key presses and mouse moves as bytes.
+    </article>
+    <article class="chapter" id="topic-input" data-map="io">
+      <header class="ch-head"><span class="ch-addr" data-st="$FFFC00" data-ste="$FFFC00">$FFFC00</span><h3>Keyboard and mouse</h3></header>
+      <p class="lead">The Atari's keyboard has its own processor, the IKBD, which sends key presses and mouse moves as bytes.
       The glue turns them into what a Mac Plus keyboard would send, and plays that keyboard's half of the Mac's serial
       conversation every tick. Point at a key.</p>
     <div class="keys">
@@ -446,11 +418,10 @@ window.addEventListener('error', function (e) {
       <div class="key wide" data-title="Mouse tracking." data-info="Each IKBD mouse packet moves the Mac's cursor, scaled by the tracking setting (1 to 10; 5 moves as the Atari does) before the Mac's own acceleration.">Mouse</div>
     </div>
     <div class="info-panel">Point at a key.</div>
-  </article>
-
-  <article class="topic" id="topic-video">
-    <h3>10. Video</h3>
-    <p class="lead">A Mac Plus draws 512x342 pixels; the Atari's monochrome mode shows 640x400. The Mac ROM is told the
+    </article>
+    <article class="chapter" id="topic-video" data-map="screen">
+      <header class="ch-head"><span class="ch-addr" data-st="$3F7F00" data-ste="$3F7F00">$3F7F00</span><h3>Video</h3></header>
+      <p class="lead">A Mac Plus draws 512x342 pixels; the Atari's monochrome mode shows 640x400. The Mac ROM is told the
       bigger screen, so the desktop grows. Or, if a program insists on a Plus screen, keep 512x342 framed in black.
       Drawn to scale.</p>
     <div class="toggle"><button type="button" data-video="full" class="current">640x400</button><button type="button" data-video="plus">512x342 in a frame</button></div>
@@ -461,11 +432,10 @@ window.addEventListener('error', function (e) {
       <text x="40" y="25" class="menutext">&#63743;  File  Edit  View  Special</text>
     </svg>
     <div class="info-panel" id="videoInfo">640x400 at 71 Hz on a monochrome monitor (an SM124, or any mono display).</div>
-  </article>
-
-  <article class="topic" id="topic-cart">
-    <h3>11. The Multi-device</h3>
-    <p class="lead">The cartridge port can only be read by the Atari. So to send a word, the Atari reads an address that
+    </article>
+    <article class="chapter" id="topic-cart" data-map="cart">
+      <header class="ch-head"><span class="ch-addr" data-st="$FA0000" data-ste="$FA0000">$FA0000</span><h3>The Multi-device</h3></header>
+      <p class="lead">The cartridge port can only be read by the Atari. So to send a word, the Atari reads an address that
       encodes it: $FB0000 plus the word. The Multi-device's RP2040 watches the addresses and answers by writing into a
       64 KB window the Atari reads at $FA0000. Step through a disk read.</p>
     <svg class="diagram" viewBox="0 0 1000 300" role="img" aria-label="The cartridge protocol">
@@ -480,11 +450,10 @@ window.addEventListener('error', function (e) {
     </svg>
     <div class="info-panel" id="cartInfo"></div>
     <div class="boot-controls"><button type="button" id="cartPrev">&larr; Back</button><button type="button" id="cartNext">Next &rarr;</button></div>
-  </article>
-
-  <article class="topic" id="topic-runs">
-    <h3>12. What runs</h3>
-    <p class="lead">Every program tried taught the glue something. Point at one.</p>
+    </article>
+    <article class="chapter" id="topic-runs" data-map="">
+      <header class="ch-head"><span class="ch-addr" data-st="6.0.8" data-ste="6.0.8">6.0.8</span><h3>What runs</h3></header>
+      <p class="lead">Every program tried taught the glue something. Point at one.</p>
     <div class="chips">
       <div class="chip-card" data-title="System 6.0.8 and the Finder." data-info="The target from day one: its patches call the ROM at absolute addresses, so the glue relocates them as they load (topic 5).">System 6.0.8</div>
       <div class="chip-card" data-title="Microsoft Word 4." data-info="Typing, menus and Save. Word writes through nil pointers like many programs of its time: the bus-error handler skips those writes (topic 8).">Word 4</div>
@@ -496,7 +465,9 @@ window.addEventListener('error', function (e) {
       <div class="chip-card" data-title="Blockout." data-info="Copies bytes off the stack through a nil pointer: another form the bus-error handler learned to skip.">Blockout</div>
     </div>
     <div class="info-panel">Point at a program.</div>
-  </article>
+    </article>
+    </div>
+  </div>
 </section>
 
 </div>
