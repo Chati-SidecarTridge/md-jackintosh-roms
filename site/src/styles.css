@@ -1248,3 +1248,4 @@ table.compare tbody tr:hover, table.compare tbody tr.lit, table.compare tbody tr
 .why-list li { margin-bottom: 8px; }
 .why-list strong { color: #f8fafc; }
 table.software td.none { color: #64748b; }
+.runs-more { color: #cbd5f5; margin: 6px 0 16px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
