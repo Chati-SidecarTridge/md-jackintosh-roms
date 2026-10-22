@@ -268,52 +268,62 @@ function wireRoutes() {
   }
 }
 
-// The tour's map: the 68000's address space as a Jackintosh, top to bottom.
-const MAP = {
-  st: [
-    { key: 'io', addr: '$FF8000', name: 'Atari I/O', note: 'video, MFP, keyboard, sound' },
-    { key: 'macrom', addr: '$FD0000', name: 'Mac Plus ROM', note: 'yours, 128 KB, patched' },
-    { key: 'glue', addr: '$FC0000', name: 'The glue', note: '64 KB of our code' },
-    { key: 'cart', addr: '$FA0000', name: 'Cartridge', note: 'the Multi-device' },
-    { key: 'ghosts', addr: '$400000', name: 'A Mac Plus’s ROM and chips', note: 'ROM, SCSI, SCC, IWM, VIA: nothing here on an ST', ghost: true },
-    { key: 'screen', addr: '$3F7F00', name: 'Screen', note: '640×400' },
-    { key: 'heap', addr: '', name: 'The Mac’s heap', note: 'System, Finder, programs', tall: true },
-    { key: 'shadows', addr: '', name: 'Glue variables, chips in RAM', note: 'VIA, SCC, IWM copies' },
-    { key: 'lowmem', addr: '$000000', name: 'Low memory', note: 'vectors, Mac globals' },
-  ],
-  ste: [
-    { key: 'io', addr: '$FF8000', name: 'Atari I/O', note: 'video, MFP, keyboard, DMA sound' },
-    { key: 'cart', addr: '$FA0000', name: 'Cartridge', note: 'the Multi-device' },
-    { key: 'macrom', addr: '$E20000', name: 'Mac Plus ROM', note: 'yours, 128 KB, patched' },
-    { key: 'glue', addr: '$E00000', name: 'The glue', note: '128 KB of our code' },
-    { key: 'ghosts', addr: '$400000', name: 'A Mac Plus’s ROM and chips', note: 'up to the VIA at $EFE1FE, which on an STE reads ROM bytes', ghost: true },
-    { key: 'screen', addr: '$3F7F00', name: 'Screen', note: '640×400' },
-    { key: 'heap', addr: '', name: 'The Mac’s heap', note: 'System, Finder, programs', tall: true },
-    { key: 'shadows', addr: '', name: 'Glue variables, chips in RAM', note: 'VIA, SCC, IWM copies, sound ring' },
-    { key: 'lowmem', addr: '$000000', name: 'Low memory', note: 'vectors, Mac globals' },
-  ],
-};
-const tour = { machine: 'st', active: [], screen: '$3F7F00' };
+// The tour's selector: the chapters in reading order, each with its
+// address; exactly one is lit, the chapter being read.
+const tour = { machine: 'st', screen: '$3F7F00', pinned: null };
 
-function chapterFor(key) {
-  return [...document.querySelectorAll('.chapter[data-map]')].find((c) => c.dataset.map.split(' ').includes(key));
+function chapters() {
+  return [...document.querySelectorAll('.chapter')];
+}
+
+function chapterAddress(chapter) {
+  if (chapter.id === 'topic-video') return tour.screen;
+  const a = chapter.querySelector('.ch-addr');
+  return a ? a.dataset[tour.machine] : '';
 }
 
 function drawMap() {
   const list = document.getElementById('tourMap');
   if (!list) return;
   list.innerHTML = '';
-  for (const seg of MAP[tour.machine]) {
+  for (const chapter of chapters()) {
     const li = document.createElement('li');
-    li.className = `map-seg${seg.ghost ? ' ghost' : ''}${seg.tall ? ' tall' : ''}${tour.active.includes(seg.key) ? ' on' : ''}`;
-    li.dataset.key = seg.key;
-    const addr = seg.key === 'screen' ? tour.screen : seg.addr;
-    li.innerHTML = `<button type="button"><span class="seg-name">${seg.name}</span><span class="seg-note">${seg.note}</span>${addr ? `<span class="seg-addr">${addr}</span>` : ''}</button>`;
+    li.className = 'map-seg' + (chapter.dataset.ghost ? ' ghost' : '');
+    li.dataset.chapter = chapter.id;
+    li.innerHTML = `<button type="button"><span class="seg-name">${chapter.querySelector('h3').textContent}</span><span class="seg-addr">${chapterAddress(chapter)}</span></button>`;
     li.querySelector('button').addEventListener('click', () => {
-      const chapter = chapterFor(seg.key);
-      if (chapter) chapter.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      history.replaceState(null, '', `#/how/${chapter.id.replace('topic-', '')}`);
+      tour.pinned = chapter;
+      markCurrent();
+      chapter.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
     list.appendChild(li);
+  }
+  markCurrent();
+}
+
+// The chapter being read: the last one whose top has passed the upper third
+// of the window; the last chapter at the bottom of the page.
+function currentChapter() {
+  const all = chapters();
+  if (!all.length) return null;
+  if (tour.pinned) return tour.pinned; // chosen in the selector or by a link
+  if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) return all[all.length - 1];
+  const line = window.innerHeight / 3;
+  let current = all[0];
+  for (const c of all) {
+    if (c.getBoundingClientRect().top <= line) current = c;
+  }
+  return current;
+}
+
+function markCurrent() {
+  const view = document.querySelector('[data-view="how"]');
+  if (!view || view.hidden) return;
+  const current = currentChapter();
+  for (const c of chapters()) c.classList.toggle('current', c === current);
+  for (const li of document.querySelectorAll('#tourMap .map-seg')) {
+    li.classList.toggle('on', current !== null && li.dataset.chapter === current.id);
   }
 }
 
@@ -336,17 +346,29 @@ function wireMap() {
     b.addEventListener('click', () => setMachine(b.dataset.machine));
   }
   drawMap();
-  const observer = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      tour.active = entry.target.dataset.map === 'all'
-        ? MAP[tour.machine].map((s) => s.key)
-        : entry.target.dataset.map.split(' ').filter(Boolean);
-      for (const c of document.querySelectorAll('.chapter')) c.classList.toggle('current', c === entry.target);
-      for (const li of document.querySelectorAll('#tourMap .map-seg')) li.classList.toggle('on', tour.active.includes(li.dataset.key));
-    }
-  }, { rootMargin: '-35% 0px -60% 0px' });
-  for (const c of document.querySelectorAll('.chapter[data-map]')) observer.observe(c);
+  let queued = false;
+  const onScroll = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => { queued = false; markCurrent(); });
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  // A chapter chosen stays lit until the reader scrolls by hand.
+  const unpin = () => { if (tour.pinned) { tour.pinned = null; onScroll(); } };
+  for (const type of ['wheel', 'touchstart', 'keydown', 'mousedown']) {
+    window.addEventListener(type, (e) => {
+      if (type === 'mousedown' && e.target.closest && e.target.closest('#tourMap')) return;
+      unpin();
+    }, { passive: true });
+  }
+  const pinFromHash = () => {
+    const id = (window.location.hash.split('/')[2] || '');
+    tour.pinned = id ? document.getElementById(`topic-${id}`) : null;
+    setTimeout(markCurrent, 50);
+  };
+  window.addEventListener('hashchange', pinFromHash);
+  pinFromHash();
 }
 
 // The RAM chapter: where the screen lands for the RAM installed.
