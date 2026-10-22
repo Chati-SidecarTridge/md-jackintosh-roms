@@ -11,6 +11,7 @@
 // module scope.
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -60,6 +61,12 @@ function main() {
   out = out.replace('{{CONSENT}}', () => consent.trimEnd());
   out = out.replace('{{STYLES}}', () => readFileSync(join(SRC, 'styles.css'), 'utf8').trimEnd());
   out = out.replace('{{SCRIPT}}', () => parts.join('\n').trimEnd());
+  // Each assets/ file referenced gets its content's fingerprint (?v=), so a
+  // changed image is not served from a browser's or the CDN's cache.
+  out = out.replace(/(['"(])assets\/([\w.-]+\.(?:jpg|png|svg|webp|gif))/g, (match, quote, name) => {
+    const digest = createHash('sha256').update(readFileSync(join(ROOT, 'assets', name))).digest('hex');
+    return `${match}?v=${digest.slice(0, 8)}`;
+  });
   out = out.replace(/\r\n/g, '\n');
   if (!out.endsWith('\n')) out += '\n';
   writeFileSync(join(ROOT, 'index.html'), out);
