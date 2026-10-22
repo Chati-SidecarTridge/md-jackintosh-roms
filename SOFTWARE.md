@@ -58,6 +58,12 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Dark Castle 1.2 | Mac Plus v3 ROM | 6 | Yes | No | Stops on a bus error at launch: it probes $F80030, the Plus's diagnostic-ROM space, which an Atari does not answer. To fix. |
 | Airborne! (1984) | Mac Plus v3 ROM | 6 | Yes | No | A self-booting disk: the game is its "Finder". Booting it runs its own 1985 System, which stops reading the ROM at its Plus address ($400008); from System 6.0.8 the Finder will not open a program named Finder. To retry renamed. |
 | Glider+ 3.1.2 (1991) | Mac Plus v3 ROM | 6 | Yes | — | Launches to its title room and high scores, menus work; Begin Game (menu or Command-B) does not start a game yet. To look at. |
+| Cairo ShootOut (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; the shooting gallery, hourglass, level and score, menus. |
+| Glypha 3.0 (1993) | Mac Plus v3 ROM | 6 | Yes | Yes | Its temple and high-score screen at full size; play not tried. |
+| Lemmings (demo, 1993) | Mac Plus v3 ROM | 6 | Yes | Yes | Its welcome screens, answering the mouse. The image comes marked in use: System 6 offers a repair first (OK). |
+| Mac Missiles 1.0 (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; the playfield with its cities, bases and buttons. |
+| Pararena 1.3 (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | Its 3D arena title, animated; play not tried. |
+| Prince of Persia (1992) | Mac Plus v3 ROM | 6 | No | — | A 6 MB hard disk image: for the bench. |
 | Lode Runner (1984) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; its window, menus and levels play (demo from level 1 to 3). |
 | Shuffle Puck (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; the 3D table, menus (Game, Paddle, Opponent, Demo), the puck and the paddle in play. |
 | Space Invaders (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; Play starts level 1, the invaders march. A large black shape in the lower right corner is to check against a real Plus. |
