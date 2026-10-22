@@ -80,6 +80,21 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | ZeroGravity (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its playfield, options and scores. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
+## Downloaded productivity
+
+| Program | Model | System | Tested | Works | Notes |
+|---|---|---|---|---|---|
+| MacPaint 1.5 (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its window, tools and patterns. |
+| MacWrite 4.5 (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: a new document with its ruler. |
+| MacDraft 1.2a (1984) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: a drawing with its tools and grid. |
+| Multiplan 1.11 (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: a new sheet, a cell selected. |
+| Microsoft Chart 1.0 | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: a new chart and its data series window. |
+| Microsoft BASIC 2.00 | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its program, list and command windows. |
+| BiPlane 2.0 (1991) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its shareware screen and menus. The image comes marked in use: System 6 offers a repair first (OK). |
+| ][ in a Mac 2.5 (1994) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the Apple II emulator boots ProDOS from its disk image. |
+| SmoothTalker 2.1 | Mac Plus v3 ROM | 6 | Yes | No | A bus error at launch: it jumps into the Plus ROM's address space ($40000A). To fix. |
+| Microsoft Excel 1.00 | Mac Plus v3 ROM | 6 | No | — | The archive's image holds only Excel's data disk, not the program. |
+
 ## Utilities
 
 | Program | Model | System | Tested | Works | Notes |
