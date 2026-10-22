@@ -14,7 +14,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 
 | Program | Model | System | Tested | Works | Notes |
 |---|---|---|---|---|---|
-| Acrobat Reader 1.0 | Mac Plus v3 ROM | 6 | Yes | No | Its Installer hangs after the splash, and the Reader will not start without the ATM it installs. To look at. |
+| Acrobat Reader 1.0 | Mac Plus v3 ROM | 6 | Yes | No | Its Installer hangs after the splash in a dialog whose item list never loads, and the Reader will not start without the ATM it installs. |
 | Aldus PageMaker 3.5 | Mac Plus v3 ROM | 6 | Yes | Yes | Installed from 5 floppies swapped in with the Multi-device's SELECT button. |
 | Aldus PageMaker 4.2 | Mac Plus v3 ROM | 6 | Yes | Yes | Installed with the Aldus Installer (PM 1, Utilities) from 7 floppies queued in FD0's slots and stepped with SELECT: the 5 install disks and the 2 font disks. |
 | ClarisWorks 1.0 | Mac Plus v3 ROM | 6 | Yes | Yes | Word processing, typing. Also on System 6.0.7. |
@@ -46,7 +46,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 |---|---|---|---|---|---|
 | Copy II 7.0 (floppy copier) | Mac Plus v3 ROM | 6 | Yes | No | It drives the Mac's floppy chip directly, which an Atari does not have; most launches crash. |
 | Copy II Hard Disk 7.0 | Mac Plus v3 ROM | 6 | Yes | Yes | The main window. |
-| DART 1.5.3 | Mac Plus v3 ROM | 6 | Yes | Yes | Opens after an "MFM Status error -18" alert (the Jackintosh's disk driver does not answer that call); copying not tried. |
+| DART 1.5.3 | Mac Plus v3 ROM | 6 | Yes | Yes | Opens after an "MFM Status error -18" alert. A real Plus shows it too: its floppy driver answers only the drive status call, and DART asks for a SuperDrive's. Copying not tried. |
 | Disk Copy 4.2 | Mac Plus v3 ROM | 6 | Yes | Yes | The main window. |
 
 ## Games
