@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jackintosh · SidecarTridge</title>
+<link rel="canonical" href="https://jackintosh.sidecartridge.com/">
+<meta name="description" content="Jackintosh turns an Atari ST, STE, Mega ST or Mega STE into a Macintosh Plus at power-on: the genuine Mac Plus ROM on the Atari's own 68000, with the SidecarTridge TOS Emulator and Multi-device. Build your ROM image in the browser.">
+<style>
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0b0f17;
+  color: #e5e7eb;
+  padding: 20px;
+}
+
+#app {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+}
+
+#browserWarning {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto 16px;
+}
+
+.top-banner {
+  width: 100%;
+  max-width: 1080px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid rgba(15, 18, 28, 0.12);
+  border-radius: 16px;
+  background: rgba(245, 246, 250, 0.92);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(6px);
+  margin: 0 auto 16px;
+}
+
+.brand-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: #11131a;
+  text-decoration: none;
+}
+
+.brand-link img {
+  display: block;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+}
+
+.brand-wordmark {
+  height: 24px;
+  width: auto;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #1b2435;
+  text-decoration: none;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 33, 48, 0.22);
+  background: rgba(229, 233, 244, 0.85);
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.back-link:hover {
+  border-color: rgba(27, 33, 48, 0.42);
+  background: rgba(255, 255, 255, 0.95);
+  color: #0b0f18;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(15, 18, 28, 0.18);
+}
+
+button {
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: none;
+  background: #f97316;
+  font-weight: 600;
+  color: #0b0f17;
+}
+
+button:disabled {
+  opacity: .5;
+}
+
+.steps {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.step {
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  background: #0f172a;
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.step-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  font-weight: 600;
+  color: #e5e7eb;
+}
+
+.step-header span {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.step-content {
+  max-height: 0;
+  opacity: 0;
+  padding: 0 12px;
+  color: #cbd5f5;
+  transition: max-height 0.25s ease, opacity 0.25s ease, padding 0.25s ease;
+}
+
+.step.active .step-content,
+.step.complete .step-content {
+  max-height: 1200px;
+  opacity: 1;
+  padding: 8px 12px 12px;
+}
+
+.step.complete .step-header {
+  color: #86efac;
+}
+
+pre {
+  background: #111827;
+  padding: 10px;
+  border-radius: 6px;
+  height: 420px;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+progress {
+  width: 100%;
+  height: 18px;
+  appearance: none;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+progress::-webkit-progress-bar {
+  background: transparent;
+}
+
+progress::-webkit-progress-value {
+  background: #3b82f6;
+}
+
+progress::-moz-progress-bar {
+  background: #3b82f6;
+}
+
+.progress-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.progress-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #e5e7eb;
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+
+/* Drop zone (Step 1). */
+.drop-zone {
+  border: 2px dashed #334155;
+  border-radius: 8px;
+  padding: 20px;
+  text-align: center;
+  background: #0b1220;
+  color: #cbd5f5;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.drop-zone.drag-active {
+  border-color: #f97316;
+  background: #1e293b;
+}
+
+.drop-zone .browse-link {
+  color: #fde047;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* File list (Step 1). */
+.file-list {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+  font-size: 0.9rem;
+}
+
+.file-list th, .file-list td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #1f2937;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.file-list th {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.file-list td.actions button {
+  padding: 2px 8px;
+  font-size: 0.85rem;
+  background: #1f2937;
+  color: #f9fafb;
+  margin-right: 4px;
+}
+
+.file-list td.actions button.remove {
+  background: #7f1d1d;
+  color: #fecaca;
+}
+
+.file-list td input[type="text"], .file-list td select {
+  background: #0b1220;
+  color: #e5e7eb;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.file-list td.row-error {
+  color: #fca5a5;
+  font-size: 0.85rem;
+}
+
+/* Cart options form (Step 2). */
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.options-grid fieldset {
+  border: 1px solid #1f2937;
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin: 0;
+  background: #0b1220;
+}
+
+.options-grid fieldset legend {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  padding: 0 6px;
+}
+
+.options-grid label {
+  display: block;
+  margin: 4px 0;
+  color: #cbd5f5;
+  font-size: 0.9rem;
+}
+
+.options-grid input[type="text"], .options-grid select {
+  background: #0f172a;
+  color: #e5e7eb;
+  border: 1px solid #334155;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+/* Error banner used by Step 2 validation. */
+.error-banner {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: #7f1d1d;
+  color: #fecaca;
+  font-size: 0.9rem;
+}
+
+/* Generic muted hint text. */
+.hint {
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+/* Inline ? help icon. */
+.help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid #94a3b8;
+  background: transparent;
+  color: #cbd5f5;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0;
+  margin: 0 0 0 6px;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.help-icon:hover,
+.help-icon:focus-visible {
+  border-color: #fde047;
+  color: #fde047;
+  outline: none;
+}
+
+/* Help modal dialog. <dialog> defaults need overriding because the
+   browser inserts margin / padding / border that don't match the rest
+   of the dark theme. */
+dialog#helpModal {
+  border: 1px solid #1f2937;
+  border-radius: 8px;
+  padding: 0;
+  background: #0f172a;
+  color: #e5e7eb;
+  max-width: 640px;
+  width: calc(100% - 32px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+dialog#helpModal::backdrop {
+  background: rgba(8, 11, 20, 0.7);
+  backdrop-filter: blur(2px);
+}
+
+.modal-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #1f2937;
+}
+
+.modal-header h3 {
+  margin: 0;
+  color: #e5e7eb;
+  font-size: 1.05rem;
+}
+
+.modal-close {
+  background: transparent;
+  color: #94a3b8;
+  font-size: 1.2rem;
+  padding: 0 6px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.modal-close:hover {
+  color: #fde047;
+}
+
+.modal-body {
+  padding: 12px 16px 16px;
+  color: #cbd5f5;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-body p {
+  margin: 0 0 10px;
+}
+
+.modal-body h4 {
+  margin: 14px 0 6px;
+  color: #e5e7eb;
+  font-size: 0.95rem;
+}
+
+.modal-body ul {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+
+.modal-body li {
+  margin-bottom: 4px;
+}
+
+.modal-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: 0.9rem;
+}
+
+.modal-body th,
+.modal-body td {
+  text-align: left;
+  padding: 4px 8px;
+  border-bottom: 1px solid #1f2937;
+  vertical-align: top;
+}
+
+.modal-body th {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.modal-body code {
+  background: #0b1220;
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* ----- build log ----- */
+
+.log {
+  background: #0b1120;
+  border: 1px solid #1e293b;
+  border-radius: 8px;
+  padding: 12px 14px;
+  height: 480px;
+  overflow: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #cbd5e1;
+}
+.log .lg-start {
+  color: #f8fafc;
+  font-weight: 600;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #1e293b;
+}
+.log .lg-step {
+  margin-top: 14px;
+  padding: 4px 0;
+  color: #fde047;
+  font-weight: 600;
+  border-top: 1px dashed #1e293b;
+}
+.log .lg-step:first-of-type { border-top: none; }
+.log .lg-n {
+  display: inline-block;
+  min-width: 1.8em;
+  margin-right: 8px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: #f97316;
+  color: #111827;
+  text-align: center;
+}
+.log .lg-time {
+  display: inline-block;
+  min-width: 7.5em;
+  margin-right: 10px;
+  color: #67e8f9;
+  font-weight: 400;
+  opacity: 0.85;
+}
+.log .lg-say { margin: 3px 0 3px 2ch; }
+.log .lg-item {
+  margin: 2px 0 2px 4ch;
+  padding-left: 2ch;
+  text-indent: -2ch;
+}
+.log .lg-bullet { color: #f97316; margin-right: 1ch; }
+.log .lg-info { color: #94a3b8; }
+.log .lg-ok { color: #4ade80; font-weight: 600; margin-top: 10px; }
+.log .lg-error { color: #f87171; font-weight: 600; }
+.log .lg-hex { color: #fdba74; }
+.log .lg-file { color: #86efac; }
+.log .lg-str { color: #f9a8d4; }
+.log .lg-num { color: #93c5fd; }
+.log .lg-table {
+  margin: 6px 0 8px 2ch;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.log .lg-table th {
+  color: #94a3b8;
+  font-weight: 500;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10.5px;
+  padding: 3px 12px;
+  border-bottom: 1px solid #334155;
+}
+.log .lg-table td {
+  padding: 2px 12px;
+  border-bottom: 1px solid #111c30;
+  vertical-align: top;
+}
+.log .lg-table tr:nth-child(even) td { background: #0f172a; }
+.log .lg-table .r { text-align: right; white-space: nowrap; }
+
+/* ----- credits footer ----- */
+
+.credits {
+  max-width: 1080px;
+  margin: 28px auto 0;
+  padding: 0 0 32px;
+}
+.credits-inner {
+  border-top: 1px solid #1f2937;
+  padding-top: 18px;
+}
+.credits h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: #f8fafc;
+}
+.credits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+.credits h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #fde047;
+}
+.credits ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.credits li { margin-bottom: 6px; }
+.credits a { color: #fde047; }
+.credits code { font-size: 12px; }
+.credits-license {
+  margin-top: 14px;
+  color: #64748b;
+  font-size: 12.5px;
+}
+
+/* ----- about MagiC ----- */
+
+.about {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+  margin: 14px 0 18px;
+}
+.about-card {
+  background: #0f172a;
+  border: 1px solid #1e293b;
+  border-left: 3px solid #f97316;
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: #cbd5e1;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.about-card h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #fde047;
+}
+.about-card p { margin: 0 0 8px; }
+.about-card ul { margin: 0 0 8px; padding-left: 18px; }
+.about-card li { margin-bottom: 4px; }
+.about-card strong { color: #f8fafc; }
+.about-card .hint { margin-bottom: 0; }
+.credits-links { margin-left: 8px; white-space: nowrap; }
+
+/* ---- Jackintosh: the site's own parts ---- */
+
+.site-nav {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.site-nav a {
+  color: #11131a;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 10px;
+}
+
+.site-nav a.current,
+.site-nav a:hover {
+  background: #fde047;
+}
+
+.eyes-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-position: center 18%;
+  background-size: min(1400px, 140vw) auto;
+  opacity: 0.16;
+  filter: grayscale(1) contrast(1.15);
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.hero {
+  text-align: center;
+  padding: 48px 8px 24px;
+}
+
+.hero-kicker {
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  margin: 0;
+}
+
+.hero-title {
+  font-size: clamp(3rem, 12vw, 6.5rem);
+  margin: 0.15em 0 0.1em;
+  letter-spacing: -0.03em;
+  color: #f9fafb;
+}
+
+.hero-tagline {
+  font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+  color: #fde047;
+  margin: 0 0 18px;
+  font-weight: 600;
+}
+
+.hero-lead {
+  max-width: 720px;
+  margin: 0 auto;
+  color: #cbd5f5;
+  line-height: 1.6;
+  font-size: 1.05rem;
+}
+
+.ways {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 32px auto 0;
+  max-width: 860px;
+  text-align: left;
+}
+
+.way {
+  display: block;
+  padding: 20px 22px;
+  border-radius: 14px;
+  background: rgba(17, 24, 39, 0.85);
+  border: 1px solid #374151;
+  text-decoration: none;
+  color: #e5e7eb;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.way:hover,
+.way:focus-visible {
+  border-color: #fde047;
+  transform: translateY(-2px);
+}
+
+.way-title {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #fde047;
+  margin-bottom: 6px;
+}
+
+.way-text {
+  display: block;
+  color: #cbd5f5;
+  line-height: 1.5;
+}
+
+.lead {
+  color: #cbd5f5;
+  line-height: 1.6;
+}
+
+.coming-soon {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+@media (max-width: 560px) {
+  .top-banner {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .site-nav {
+    justify-content: center;
+  }
+}
+
+.about-card a,
+.lead a {
+  color: #fde047;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+</style>
+<script>
+window.addEventListener('error', function (e) {
+  var w = document.getElementById('browserWarning');
+  if (w) {
+    w.style.display = 'block';
+    w.textContent = 'The Jackintosh site hit a startup error: ' + (e.message || 'unknown');
+  }
+});
+</script>
+<!-- Cookie banner and analytics, as on sidecartridge.com
+     (sidecartridge-website: _includes/framework/cookie-consent.html and
+     google-analytics.html). https://github.com/orestbida/cookieconsent v2.9.2,
+     MIT, inlined from src/vendor/. The privacy and contact links point at the
+     main site instead of placeholders.
+     Shared consent: cookieconsent writes cc_cookie with Domain=<cookie_domain>,
+     and its default is location.hostname, so sidecartridge.com's cookie already
+     covers every subdomain. This page sets cookie_domain to sidecartridge.com
+     too, so both read and write the same cookie; elsewhere (localhost, LAN)
+     it keeps the default. -->
+<style>
+:root{--cc-font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";--cc-font-size:16px;--cc-bg:#fff;--cc-z-index:2147483647;--cc-text:#2d4156;--cc-border-radius:.45rem;--cc-btn-primary-bg:#2d4156;--cc-btn-primary-text:var(--cc-bg);--cc-btn-primary-hover-bg:#1d2e38;--cc-btn-primary-hover-text:var(--cc-btn-primary-text);--cc-btn-secondary-bg:#eaeff2;--cc-btn-secondary-text:var(--cc-text);--cc-btn-secondary-hover-bg:#d8e0e6;--cc-btn-secondary-hover-text:var(--cc-btn-secondary-text);--cc-btn-border-radius:0.375rem;--cc-toggle-bg-off:#919ea6;--cc-toggle-bg-on:var(--cc-btn-primary-bg);--cc-toggle-bg-readonly:#d5dee2;--cc-toggle-knob-bg:#fff;--cc-toggle-knob-icon-color:#ecf2fa;--cc-block-text:var(--cc-text);--cc-cookie-category-block-bg:#f0f4f7;--cc-cookie-category-block-bg-hover:#e9eff4;--cc-section-border:#f1f3f5;--cc-cookie-table-border:#e9edf2;--cc-overlay-bg:#040608;--cc-overlay-opacity:.85;--cc-consent-modal-box-shadow:0 0.625rem 1.875rem rgba(2,2,3,.28);--cc-webkit-scrollbar-bg:#cfd5db;--cc-webkit-scrollbar-bg-hover:#9199a0}.c_darkmode{--cc-bg:#181b1d;--cc-text:#d8e5ea;--cc-btn-primary-bg:#a6c4dd;--cc-btn-primary-text:#000;--cc-btn-primary-hover-bg:#c2dff7;--cc-btn-primary-hover-text:var(--cc-btn-primary-text);--cc-btn-secondary-bg:#33383c;--cc-btn-secondary-text:var(--cc-text);--cc-btn-secondary-hover-bg:#3e454a;--cc-btn-secondary-hover-text:var(--cc-btn-secondary-text);--cc-toggle-bg-off:#667481;--cc-toggle-bg-on:var(--cc-btn-primary-bg);--cc-toggle-bg-readonly:#454c54;--cc-toggle-knob-bg:var(--cc-cookie-category-block-bg);--cc-toggle-knob-icon-color:var(--cc-bg);--cc-block-text:#b3bfc5;--cc-cookie-category-block-bg:#23272a;--cc-cookie-category-block-bg-hover:#2b3035;--cc-section-border:#292d31;--cc-cookie-table-border:#2b3035;--cc-webkit-scrollbar-bg:#667481;--cc-webkit-scrollbar-bg-hover:#9199a0}#cc--main{z-index:2147483647;z-index:var(--cc-z-index)}.cc_div *,.cc_div :after,.cc_div :before,.cc_div :hover{animation:none;background:none;border:none;border-radius:unset;box-shadow:none;-webkit-box-sizing:border-box;box-sizing:border-box;color:inherit;float:none;font-family:inherit;font-size:1em;font-style:inherit;font-variant:normal;font-weight:inherit;height:auto;letter-spacing:unset;line-height:1.2;margin:0;padding:0;text-align:left;text-decoration:none;text-transform:none;transition:none;vertical-align:baseline;visibility:unset}.cc_div{-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;color:#2d4156;color:var(--cc-text);font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial,sans-serif,Apple Color Emoji,Segoe UI Emoji,Segoe UI Symbol;font-family:var(--cc-font-family);font-size:16px;font-size:var(--cc-font-size);font-weight:400;text-rendering:optimizeLegibility}#c-ttl,#s-bl td:before,#s-ttl,.cc_div .b-tl,.cc_div .c-bn{font-weight:600}#cm,#s-bl .act .b-acc,#s-inr,.cc_div .b-tl,.cc_div .c-bl{border-radius:.45rem;border-radius:var(--cc-border-radius)}#s-bl .act .b-acc{border-top-left-radius:0;border-top-right-radius:0}.cc_div a,.cc_div button,.cc_div input{-webkit-appearance:none;-moz-appearance:none;appearance:none;overflow:hidden}.cc_div a{border-bottom:1px solid}.cc_div a:hover{border-color:transparent;text-decoration:none}.cc_div .c-bn>span{pointer-events:none}#cm-ov,#cs-ov,.c--anim #cm,.c--anim #s-cnt,.c--anim #s-inr{transition:visibility .25s linear,opacity .25s ease,transform .25s ease!important}.c--anim .c-bn{transition:background-color .25s ease!important}.c--anim #cm.bar.slide,.c--anim #cm.bar.slide+#cm-ov,.c--anim .bar.slide #s-inr,.c--anim .bar.slide+#cs-ov{transition:visibility .4s ease,opacity .4s ease,transform .4s ease!important}#cm.bar.slide,.cc_div .bar.slide #s-inr{opacity:1;transform:translateX(100%)}#cm.bar.top.slide,.cc_div .bar.left.slide #s-inr{opacity:1;transform:translateX(-100%)}#cm.slide,.cc_div .slide #s-inr{transform:translateY(1.6em)}#cm.top.slide{transform:translateY(-1.6em)}#cm.bar.slide{transform:translateY(100%)}#cm.bar.top.slide{transform:translateY(-100%)}.show--consent .c--anim #cm,.show--consent .c--anim #cm.bar,.show--settings .c--anim #s-inr,.show--settings .c--anim .bar.slide #s-inr{opacity:1;transform:scale(1);visibility:visible!important}.show--consent .c--anim #cm.box.middle,.show--consent .c--anim #cm.cloud.middle{transform:scale(1) translateY(-50%)}.show--settings .c--anim #s-cnt{visibility:visible!important}.force--consent.show--consent .c--anim #cm-ov,.show--settings .c--anim #cs-ov{opacity:.85!important;opacity:var(--cc-overlay-opacity)!important;visibility:visible!important}#cm{background:#fff;background:var(--cc-bg);bottom:1.25em;box-shadow:0 .625em 1.875em #000;box-shadow:0 .625rem 1.875rem rgba(2,2,3,.28);box-shadow:var(--cc-consent-modal-box-shadow);font-family:inherit;line-height:normal;max-width:24.2em;opacity:0;padding:1em 1.4em 1.3em;position:fixed;right:1.25em;transform:scale(.95);visibility:hidden;width:100%;z-index:1}#cc_div #cm{display:block!important}#c-ttl{font-size:1.05em;margin-bottom:.7em}.cloud #c-ttl{margin-top:-.15em}#c-txt{font-size:.9em;line-height:1.5em}.cc_div #c-bns{display:flex;justify-content:space-between;margin-top:1.4em}.cc_div .c-bn{background:#eaeff2;background:var(--cc-btn-secondary-bg);border-radius:.375rem;border-radius:var(--cc-btn-border-radius);color:#2d4156;color:var(--cc-btn-secondary-text);cursor:pointer;display:inline-block;flex:1;font-size:.82em;padding:1em 1.7em;text-align:center;-moz-user-select:none;-khtml-user-select:none;-webkit-user-select:none;-o-user-select:none;user-select:none}#c-bns button+button,#s-c-bn,#s-cnt button+button{float:right;margin-left:.5rem}#s-cnt #s-rall-bn{float:none}#cm .c_link:active,#cm .c_link:hover,#s-c-bn:active,#s-c-bn:hover,#s-cnt button+button:active,#s-cnt button+button:hover{background:#d8e0e6;background:var(--cc-btn-secondary-hover-bg);color:#2d4156;color:var(--cc-btn-secondary-hover-text)}#s-cnt{display:table;height:100%;left:0;position:fixed;top:0;visibility:hidden;width:100%;z-index:101}#s-bl{outline:none;scrollbar-width:thin}#s-bl .title{margin-top:1.4em}#s-bl .b-bn,#s-bl .title:first-child{margin-top:0}#s-bl .b-acc .p{margin-top:0;padding:1em}#s-cnt .b-bn .b-tl{background:none;display:block;font-family:inherit;font-size:.95em;padding:1.3em 6.4em 1.3em 2.7em;position:relative;transition:background-color .25s ease;width:100%}#s-cnt .b-bn .b-tl.exp{cursor:pointer}#s-cnt .act .b-bn .b-tl{border-bottom-left-radius:0;border-bottom-right-radius:0}#s-cnt .b-bn .b-tl:active,#s-cnt .b-bn .b-tl:hover{background:#e9eff4;background:var(--cc-cookie-category-block-bg-hover)}#s-bl .b-bn{position:relative}#s-bl .c-bl{border:1px solid #f1f3f5;border:1px solid var(--cc-section-border);margin-bottom:.4rem;padding:1em;transition:background-color .25s ease}#s-bl .c-bl:hover{background:#f0f4f7;background:var(--cc-cookie-category-block-bg)}#s-bl .c-bl:last-child{margin-bottom:.5em}#s-bl .c-bl:first-child{border:none;margin-bottom:2em;margin-top:0;padding:0;transition:none}#s-bl .c-bl:not(.b-ex):first-child:hover{background:transparent;background:unset}#s-bl .c-bl.b-ex{background:#f0f4f7;background:var(--cc-cookie-category-block-bg);border:none;padding:0;transition:none}#s-bl .c-bl.b-ex+.c-bl{margin-top:2em}#s-bl .c-bl.b-ex+.c-bl.b-ex{margin-top:0}#s-bl .c-bl.b-ex:first-child{margin-bottom:1em;margin-bottom:.5em}#s-bl .b-acc{display:none;margin-bottom:0;max-height:0;overflow:hidden;padding-top:0}#s-bl .act .b-acc{display:block;max-height:100%;overflow:hidden}#s-cnt .p{color:#2d4156;color:var(--cc-block-text);font-size:.9em;line-height:1.5em;margin-top:.85em}.cc_div .b-tg .c-tgl:disabled{cursor:not-allowed}#c-vln{display:table-cell;position:relative;vertical-align:middle}#cs{bottom:0;left:0;padding:0 1.7em;position:fixed;right:0;top:0;width:100%}#cs,#s-inr{height:100%}#s-inr{box-shadow:0 13px 27px -5px rgba(3,6,9,.26);margin:0 auto;max-width:45em;opacity:0;overflow:hidden;padding-bottom:4.75em;padding-top:4.75em;position:relative;transform:scale(.96);visibility:hidden}#s-bns,#s-hdr,#s-inr{background:#fff;background:var(--cc-bg)}#s-bl{display:block;height:100%;overflow-x:hidden;overflow-y:auto;overflow-y:overlay;padding:1.3em 1.6em;width:100%}#s-bns{border-top:1px solid #f1f3f5;border-top:1px solid var(--cc-section-border);bottom:0;height:4.75em;left:0;padding:1em 1.8em;position:absolute;right:0}.cc_div .cc-link{border-bottom:1px solid #2d4156;border-bottom:1px solid var(--cc-btn-primary-bg);color:#2d4156;color:var(--cc-btn-primary-bg);cursor:pointer;display:inline;font-weight:600;padding-bottom:0;text-decoration:none}.cc_div .cc-link:active,.cc_div .cc-link:hover{border-color:transparent}#c-bns button:first-child,#s-bns button:first-child{background:#2d4156;background:var(--cc-btn-primary-bg);color:#fff;color:var(--cc-btn-primary-text)}#c-bns.swap button:first-child{background:#eaeff2;background:var(--cc-btn-secondary-bg);color:#2d4156;color:var(--cc-btn-secondary-text)}#c-bns.swap button:last-child{background:#2d4156;background:var(--cc-btn-primary-bg);color:#fff;color:var(--cc-btn-primary-text)}.cc_div .b-tg .c-tgl:checked~.c-tg{background:#2d4156;background:var(--cc-toggle-bg-on)}#c-bns button:first-child:active,#c-bns button:first-child:hover,#c-bns.swap button:last-child:active,#c-bns.swap button:last-child:hover,#s-bns button:first-child:active,#s-bns button:first-child:hover{background:#1d2e38;background:var(--cc-btn-primary-hover-bg);color:#fff;color:var(--cc-btn-primary-hover-text)}#c-bns.swap button:first-child:active,#c-bns.swap button:first-child:hover{background:#d8e0e6;background:var(--cc-btn-secondary-hover-bg);color:#2d4156;color:var(--cc-btn-secondary-hover-text)}#s-hdr{border-bottom:1px solid #f1f3f5;border-bottom:1px solid var(--cc-section-border);display:table;height:4.75em;padding:0 1.8em;position:absolute;top:0;width:100%;z-index:2}#s-hdr,#s-ttl{vertical-align:middle}#s-ttl{display:table-cell;font-size:1em}#s-c-bn{font-size:1.45em;font-weight:400;height:1.7em;margin:0;overflow:hidden;padding:0;position:relative;width:1.7em}#s-c-bnc{display:table-cell;vertical-align:middle}.cc_div span.t-lb{opacity:0;overflow:hidden;pointer-events:none;position:absolute;top:0;z-index:-1}#c_policy__text{height:31.25em;margin-top:1.25em;overflow-y:auto}#c-s-in{height:100%;height:calc(100% - 2.5em);max-height:37.5em;position:relative;top:50%;transform:translateY(-50%)}@media screen and (min-width:688px){#s-bl::-webkit-scrollbar{background:transparent;border-radius:0 .25em .25em 0;height:100%;width:.8em}#s-bl::-webkit-scrollbar-thumb{background:#cfd5db;background:var(--cc-webkit-scrollbar-bg);border:.25em solid #fff;border:.25em solid var(--cc-bg);border-radius:100em}#s-bl::-webkit-scrollbar-thumb:hover{background:#9199a0;background:var(--cc-webkit-scrollbar-bg-hover)}#s-bl::-webkit-scrollbar-button{height:5px;width:10px}}.cc_div .b-tg{bottom:0;display:inline-block;margin:auto;right:0;right:1.2em;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;vertical-align:middle}.cc_div .b-tg,.cc_div .b-tg .c-tgl{cursor:pointer;position:absolute;top:0}.cc_div .b-tg .c-tgl{border:0;display:block;left:0;margin:0}.cc_div .b-tg .c-tg{background:#919ea6;background:var(--cc-toggle-bg-off);pointer-events:none;position:absolute;transition:background-color .25s ease,box-shadow .25s ease}.cc_div .b-tg,.cc_div .b-tg .c-tg,.cc_div .b-tg .c-tgl,.cc_div span.t-lb{border-radius:4em;height:1.5em;width:3.4em}.cc_div .b-tg .c-tg.c-ro{cursor:not-allowed}.cc_div .b-tg .c-tgl~.c-tg.c-ro{background:#d5dee2;background:var(--cc-toggle-bg-readonly)}.cc_div .b-tg .c-tgl~.c-tg.c-ro:after{box-shadow:none}.cc_div .b-tg .c-tg:after{background:#fff;background:var(--cc-toggle-knob-bg);border:none;border-radius:100%;box-shadow:0 1px 2px rgba(24,32,35,.36);box-sizing:content-box;content:"";display:block;height:1.25em;left:.125em;position:relative;top:.125em;transition:transform .25s ease;width:1.25em}.cc_div .b-tg .c-tgl:checked~.c-tg:after{transform:translateX(1.9em)}#s-bl table,#s-bl td,#s-bl th{border:none}#s-bl tbody tr{transition:background-color .25s ease}#s-bl tbody tr:hover{background:#e9eff4;background:var(--cc-cookie-category-block-bg-hover)}#s-bl table{border-collapse:collapse;margin:0;overflow:hidden;padding:0;text-align:left;width:100%}#s-bl caption{border-bottom:1px solid #e9edf2;border-bottom:1px solid var(--cc-cookie-table-border);font-size:.9em;font-weight:600;padding:.5rem 1rem}#s-bl td,#s-bl th{font-size:.8em;padding:.8em .625em .8em 1.2em;text-align:left;vertical-align:top}#s-bl th{font-family:inherit;font-weight:600;padding:1em 1rem}#s-bl thead tr:first-child{border-bottom:1px solid #e9edf2;border-bottom:1px solid var(--cc-cookie-table-border)}.force--consent #cs,.force--consent #s-cnt{width:100vw}#cm-ov,#cs-ov{background:#070707;background:#040608;background:var(--cc-overlay-bg);bottom:0;display:none;left:0;opacity:0;position:fixed;right:0;top:0;transition:none;visibility:hidden}.c--anim #cs-ov,.force--consent .c--anim #cm-ov,.force--consent.show--consent #cm-ov,.show--settings #cs-ov{display:block}#cs-ov{z-index:2}.force--consent .cc_div{bottom:0;left:0;position:fixed;top:0;transition:visibility .25s linear;visibility:hidden;width:100%;width:100vw}.force--consent.show--consent .c--anim .cc_div,.force--consent.show--settings .c--anim .cc_div{visibility:visible}.force--consent #cm{position:absolute}.force--consent #cm.bar{max-width:100vw;width:100vw}html.force--consent.show--consent{overflow-y:hidden!important}html.force--consent.show--consent,html.force--consent.show--consent body{height:auto!important;overflow-x:hidden!important}.cc_div .act .b-bn .exp:before,.cc_div .b-bn .exp:before{border:solid #2d4156;border:solid var(--cc-btn-secondary-text);border-width:0 2px 2px 0;content:"";display:inline-block;left:1.2em;margin-right:15px;padding:.2em;position:absolute;top:50%;transform:translateY(-50%) rotate(45deg)}.cc_div .act .b-bn .b-tl:before{transform:translateY(-20%) rotate(225deg)}.cc_div .on-i:before{border:solid #ecf2fa;border:solid var(--cc-toggle-knob-icon-color);border-width:0 2px 2px 0;display:inline-block;left:.75em;padding:.1em .1em .45em;top:.37em}#s-c-bn:after,#s-c-bn:before,.cc_div .on-i:before{content:"";margin:0 auto;position:absolute;transform:rotate(45deg)}#s-c-bn:after,#s-c-bn:before{background:#2d4156;background:var(--cc-btn-secondary-text);border-radius:1em;height:.6em;left:.82em;top:.58em;width:1.5px}#s-c-bn:after{transform:rotate(-45deg)}.cc_div .off-i,.cc_div .on-i{display:block;height:100%;position:absolute;right:0;text-align:center;transition:opacity .15s ease;width:50%}.cc_div .on-i{left:0;opacity:0}.cc_div .off-i:after,.cc_div .off-i:before{background:#ecf2fa;background:var(--cc-toggle-knob-icon-color);content:" ";display:block;height:.7em;margin:0 auto;position:absolute;right:.8em;top:.42em;transform-origin:center;width:.09375em}.cc_div .off-i:before{transform:rotate(45deg)}.cc_div .off-i:after{transform:rotate(-45deg)}.cc_div .b-tg .c-tgl:checked~.c-tg .on-i{opacity:1}.cc_div .b-tg .c-tgl:checked~.c-tg .off-i{opacity:0}#cm.box.middle,#cm.cloud.middle{bottom:auto;top:50%;transform:translateY(-37%)}#cm.box.middle.zoom,#cm.cloud.middle.zoom{transform:scale(.95) translateY(-50%)}#cm.box.center,#cm.cloud{left:1em;margin:0 auto;right:1em}#cm.cloud{max-width:50em;overflow:hidden;padding:1.2em 1.7em;text-align:center;width:unset}.cc_div .cloud #c-inr{display:table;width:100%}.cc_div .cloud #c-inr-i{display:table-cell;padding-right:2.4em;vertical-align:top;width:70%}.cc_div .cloud #c-txt{font-size:.85em}.cc_div .cloud #c-bns{display:table-cell;min-width:170px;vertical-align:middle}#cm.cloud .c-bn{margin:.5rem 0 0;width:100%}#cm.cloud .c-bn:first-child{margin:0}#cm.cloud.left{margin-right:1.25em}#cm.cloud.right{margin-left:1.25em}#cm.bar{border-radius:0;bottom:0;left:0;max-width:100%;padding:2em;position:fixed;right:0;width:100%}#cm.bar #c-inr{margin:0 auto;max-width:32em}#cm.bar #c-bns{max-width:33.75em}#cm.bar #cs{padding:0}.cc_div .bar #c-s-in{height:100%;max-height:100%;top:0;transform:none}.cc_div .bar #s-bl,.cc_div .bar #s-bns,.cc_div .bar #s-hdr{padding-left:1.4em;padding-right:1.4em}.cc_div .bar #cs{padding:0}.cc_div .bar #s-inr{border-radius:0;margin:0 0 0 auto;max-width:32em}.cc_div .bar.left #s-inr{margin-left:0;margin-right:auto}.cc_div .bar #s-bl table,.cc_div .bar #s-bl tbody,.cc_div .bar #s-bl td,.cc_div .bar #s-bl th,.cc_div .bar #s-bl thead,.cc_div .bar #s-bl tr,.cc_div .bar #s-cnt{display:block}.cc_div .bar #s-bl caption{border-bottom:1px solid #e9edf2;border-bottom:1px solid var(--cc-cookie-table-border);border-top:0;display:block}.cc_div .bar #s-bl thead tr{left:-9999px;position:absolute;top:-9999px}.cc_div .bar #s-bl tr{border-top:1px solid #e9edf2;border-top:1px solid var(--cc-cookie-table-border)}.cc_div .bar #s-bl td{border:none;padding-left:35%;position:relative}.cc_div .bar #s-bl td:before{color:#2d4156;color:var(--cc-text);content:attr(data-column);left:1rem;overflow:hidden;padding-right:.625em;position:absolute;text-overflow:ellipsis;white-space:nowrap}#cm.top{bottom:auto;top:1.25em}#cm.left{left:1.25em;right:auto}#cm.right{left:auto;right:1.25em}#cm.bar.left,#cm.bar.right{left:0;right:0}#cm.bar.top{top:0}@media (prefers-reduced-motion){#cc--main #cm,#cc--main #s-cnt,#cc--main #s-inr{transition:none!important}}@media screen and (max-width:688px){#cm,#cm.cloud,#cm.left,#cm.right{bottom:1em;display:block;left:1em;margin:0;max-width:100%;padding:1.2em!important;right:1em;width:auto}.force--consent #cm,.force--consent #cm.cloud{max-width:100vw;width:auto}#cm.top{bottom:auto;top:1em}#cm.bottom{bottom:1em;top:auto}#cm.bar.bottom{bottom:0}#cm.cloud .c-bn{font-size:.85em}#s-bns,.cc_div .bar #s-bns{padding:1em 1.3em}.cc_div .bar #s-inr{max-width:100%;width:100%}.cc_div .cloud #c-inr-i{padding-right:0}#cs{border-radius:0;padding:0}#c-s-in{height:100%;max-height:100%;top:0;transform:none}.cc_div .b-tg{right:1.1em;transform:scale(1.1)}#s-inr{border-radius:0;margin:0;padding-bottom:7.9em}#s-bns{height:7.9em}#s-bl,.cc_div .bar #s-bl{padding:1.2em}#s-hdr,.cc_div .bar #s-hdr{padding:0 1.2em}#s-bl table{width:100%}#s-inr.bns-t{padding-bottom:10.5em}.bns-t #s-bns{height:10.5em}.cc_div .bns-t .c-bn{font-size:.83em;padding:.9em 1.6em}#s-cnt .b-bn .b-tl{padding-bottom:1.2em;padding-top:1.2em}#s-bl table,#s-bl tbody,#s-bl td,#s-bl th,#s-bl thead,#s-bl tr,#s-cnt{display:block}#s-bl caption{border-bottom:0;display:block}#s-bl thead tr{left:-9999px;position:absolute;top:-9999px}#s-bl tr{border-top:1px solid #e9edf2;border-top:1px solid var(--cc-cookie-table-border)}#s-bl td{border:none;padding-left:35%;position:relative}#s-bl td:before{color:#2d4156;color:var(--cc-text);content:attr(data-column);left:1rem;overflow:hidden;padding-right:.625em;position:absolute;text-overflow:ellipsis;white-space:nowrap}#cm .c-bn,.cc_div .c-bn{margin-right:0;width:100%}#s-cnt #s-rall-bn{margin-left:0}.cc_div #c-bns{flex-direction:column}#c-bns button+button,#s-cnt button+button{float:unset;margin-left:0;margin-top:.625em}#cm.box,#cm.cloud{left:1em;right:1em;width:auto}#cm.cloud.left,#cm.cloud.right{margin:0}.cc_div .cloud #c-bns,.cc_div .cloud #c-inr,.cc_div .cloud #c-inr-i{display:block;min-width:unset;width:auto}.cc_div .cloud #c-txt{font-size:.9em}.cc_div .cloud #c-bns{margin-top:1.625em}}
+</style>
+<script>
+/*!
+ * CookieConsent v2.9.2
+ * https://www.github.com/orestbida/cookieconsent
+ * Author Orest Bida
+ * Released under the MIT License
+ */
+!function(){'use strict';var n='initCookieConsent';'undefined'!=typeof window&&'function'!=typeof window[n]&&(window[n]=function(n){var t,o,e,i,r,a,c,u,f,d,v,l,s,p,b,m,y,g,h,_,w,k,x,S,J,O,j,N,T,D,C,U,z,E,I,L={mode:'opt-in',current_lang:'en',auto_language:null,autorun:!0,page_scripts:!0,hide_from_bots:!0,cookie_name:'cc_cookie',cookie_expiration:182,cookie_domain:location.hostname,cookie_path:'/',cookie_same_site:'Lax',use_rfc_cookie:!1,autoclear_cookies:!0,revision:0,script_selector:'data-cookiecategory'},M={},R={},A=null,G=!0,H=!1,P=!1,q=!1,B=!1,F=!0,K=[],Q=!1,V=[],W=[],X=[],Y=!1,Z=[],$=[],nn=[],tn=[],on=[],en=document.documentElement,rn=function(n){'number'==typeof(t=n).cookie_expiration&&(L.cookie_expiration=t.cookie_expiration),'number'==typeof t.cookie_necessary_only_expiration&&(L.cookie_necessary_only_expiration=t.cookie_necessary_only_expiration),'boolean'==typeof t.autorun&&(L.autorun=t.autorun),'string'==typeof t.cookie_domain&&(L.cookie_domain=t.cookie_domain),'string'==typeof t.cookie_same_site&&(L.cookie_same_site=t.cookie_same_site),'string'==typeof t.cookie_path&&(L.cookie_path=t.cookie_path),'string'==typeof t.cookie_name&&(L.cookie_name=t.cookie_name),'function'==typeof t.onAccept&&(v=t.onAccept),'function'==typeof t.onFirstAction&&(s=t.onFirstAction),'function'==typeof t.onChange&&(l=t.onChange),'opt-out'===t.mode&&(L.mode='opt-out'),'number'==typeof t.revision&&(t.revision>-1&&(L.revision=t.revision),B=!0),'boolean'==typeof t.autoclear_cookies&&(L.autoclear_cookies=t.autoclear_cookies),!0===t.use_rfc_cookie&&(L.use_rfc_cookie=!0),'boolean'==typeof t.hide_from_bots&&(L.hide_from_bots=t.hide_from_bots),L.hide_from_bots&&(Y=navigator&&(navigator.userAgent&&/bot|crawl|spider|slurp|teoma/i.test(navigator.userAgent)||navigator.webdriver)),L.page_scripts=!0===t.page_scripts,'browser'===t.auto_language||!0===t.auto_language?L.auto_language='browser':'document'===t.auto_language&&(L.auto_language='document'),L.auto_language,L.current_lang=sn(t.languages,t.current_lang)},an=function(n){for(var t='accept-',o=c('c-settings'),e=c(t+'all'),i=c(t+'necessary'),r=c(t+'custom'),a=0;a<o.length;a++)o[a].setAttribute('aria-haspopup','dialog'),wn(o[a],'click',(function(n){n.preventDefault(),M.showSettings(0)}));for(a=0;a<e.length;a++)wn(e[a],'click',(function(n){u(n,'all')}));for(a=0;a<r.length;a++)wn(r[a],'click',(function(n){u(n)}));for(a=0;a<i.length;a++)wn(i[a],'click',(function(n){u(n,[])}));function c(t){return(n||document).querySelectorAll('[data-cc="'+t+'"]')}function u(n,t){n.preventDefault(),M.accept(t),M.hideSettings(),M.hide()}},cn=function(n,t){return t.hasOwnProperty(n)?n:kn(t).length>0?t.hasOwnProperty(L.current_lang)?L.current_lang:kn(t)[0]:void 0},un=function(n){if(!0===t.force_consent&&xn(en,'force--consent'),!h){h=ln('div');var o=ln('div'),e=ln('div');h.id='cm',o.id='c-inr-i',e.id='cm-ov',h.tabIndex=-1,h.setAttribute('role','dialog'),h.setAttribute('aria-modal','true'),h.setAttribute('aria-hidden','false'),h.setAttribute('aria-labelledby','c-ttl'),h.setAttribute('aria-describedby','c-txt'),g.appendChild(h),g.appendChild(e),h.style.visibility=e.style.visibility='hidden',e.style.opacity=0}var i=t.languages[n].consent_modal.title;i&&(_||((_=ln('h2')).id='c-ttl',o.appendChild(_)),_.innerHTML=i);var r=t.languages[n].consent_modal.description;B&&(r=F?r.replace('{{revision_message}}',''):r.replace('{{revision_message}}',t.languages[n].consent_modal.revision_message||'')),w||((w=ln('div')).id='c-txt',o.appendChild(w)),w.innerHTML=r;var a,c=t.languages[n].consent_modal.primary_btn,u=t.languages[n].consent_modal.secondary_btn;c&&(k||((k=ln('button')).id='c-p-bn',k.className='c-bn',k.appendChild(On(1)),'accept_all'===c.role&&(a='all'),wn(k,'click',(function(){M.hide(),M.accept(a)}))),k.firstElementChild.innerHTML=t.languages[n].consent_modal.primary_btn.text),u&&(x||((x=ln('button')).id='c-s-bn',x.className='c-bn c_link',x.appendChild(On(1)),'accept_necessary'===u.role?wn(x,'click',(function(){M.hide(),M.accept([])})):wn(x,'click',(function(){M.showSettings(0)}))),x.firstElementChild.innerHTML=t.languages[n].consent_modal.secondary_btn.text);var f=t.gui_options;J||((J=ln('div')).id='c-inr',J.appendChild(o)),S||((S=ln('div')).id='c-bns',f&&f.consent_modal&&!0===f.consent_modal.swap_buttons?(u&&S.appendChild(x),c&&S.appendChild(k),S.className='swap'):(c&&S.appendChild(k),u&&S.appendChild(x)),(c||u)&&J.appendChild(S),h.appendChild(J)),H=!0,an(J)},fn=function(n){if(O)(C=ln('div')).id='s-bl';else{(O=ln('div')).tabIndex=-1;var o=ln('div'),e=ln('div'),i=ln('div');j=ln('div'),N=ln('h2');var r=ln('div');(T=ln('button')).appendChild(On(2));var a=ln('div');D=ln('div');var c=ln('div'),u=!1;wn(O,'mouseup',(function(n){!q||u||j.contains(n.target)||M.hideSettings()})),wn(O,'mousedown',(function(n){q&&(u=j.contains(n.target))})),O.id='s-cnt',o.id='c-vln',i.id='c-s-in',e.id='cs',N.id='s-ttl',j.id='s-inr',r.id='s-hdr',D.id='s-bl',T.id='s-c-bn',c.id='cs-ov',a.id='s-c-bnc',T.className='c-bn',O.setAttribute('role','dialog'),O.setAttribute('aria-modal','true'),O.setAttribute('aria-hidden','true'),O.setAttribute('aria-labelledby','s-ttl'),O.style.visibility=c.style.visibility='hidden',c.style.opacity=0,a.appendChild(T),wn(document,'keydown',(function(n){27===n.keyCode&&q&&M.hideSettings()}),!0),wn(T,'click',(function(){M.hideSettings()}))}var v=t.languages[n].settings_modal;T.setAttribute('aria-label',v.close_btn_label||'Close'),d=v.blocks,f=v.cookie_table_headers;var l=v.cookie_table_caption,s=d.length;N.innerHTML=v.title;for(var p=0;p<s;++p){var b=d[p].title,m=d[p].description,y=d[p].toggle,h=d[p].cookie_table,_=!0===t.remove_cookie_tables,w=!!m||!_&&!!h,k=ln('div'),x=ln('div');if(m){var S=ln('div');S.className='p',S.insertAdjacentHTML('beforeend',m)}var J=ln('div');if(J.className='title',k.className='c-bl',x.className='desc',void 0!==y){var L='c-ac-'+p,A=ln(w?'button':'div'),H=ln('label'),P=ln('input'),B=ln('span'),F=ln('span'),K=ln('span'),Q=ln('span');A.className=w?'b-tl exp':'b-tl',H.className='b-tg',P.className='c-tgl',K.className='on-i',Q.className='off-i',B.className='c-tg',F.className='t-lb',w&&(A.setAttribute('aria-expanded','false'),A.setAttribute('aria-controls',L)),P.type='checkbox',B.setAttribute('aria-hidden','true');var V=y.value;P.value=V,F.textContent=b,A.insertAdjacentHTML('beforeend',b),J.appendChild(A),B.appendChild(K),B.appendChild(Q),G?y.enabled?(P.checked=!0,!C&&nn.push(!0),y.enabled&&!C&&X.push(V)):!C&&nn.push(!1):vn(R.categories,V)>-1?(P.checked=!0,!C&&nn.push(!0)):!C&&nn.push(!1),!C&&tn.push(V),y.readonly&&(P.disabled=!0,xn(B,'c-ro'),!C&&on.push(V)),xn(x,'b-acc'),xn(J,'b-bn'),xn(k,'b-ex'),x.id=L,x.setAttribute('aria-hidden','true'),H.appendChild(P),H.appendChild(B),H.appendChild(F),J.appendChild(H),w&&function(n,t,o){wn(A,'click',(function(){Jn(t,'act')?(Sn(t,'act'),o.setAttribute('aria-expanded','false'),n.setAttribute('aria-hidden','true')):(xn(t,'act'),o.setAttribute('aria-expanded','true'),n.setAttribute('aria-hidden','false'))}),!1)}(x,k,A)}else if(b){var W=ln('div');W.className='b-tl',W.setAttribute('role','heading'),W.setAttribute('aria-level','3'),W.insertAdjacentHTML('beforeend',b),J.appendChild(W)}if(b&&k.appendChild(J),m&&x.appendChild(S),!_&&void 0!==h){for(var Y=document.createDocumentFragment(),Z=0;Z<f.length;++Z){var $=ln('th'),en=f[Z];if($.setAttribute('scope','col'),en){var rn=en&&kn(en)[0];$.textContent=f[Z][rn],Y.appendChild($)}}var an=ln('tr');an.appendChild(Y);var cn=ln('thead');cn.appendChild(an);var un=ln('table');if(l){var fn=ln('caption');fn.innerHTML=l,un.appendChild(fn)}un.appendChild(cn);for(var dn=document.createDocumentFragment(),sn=0;sn<h.length;sn++){for(var pn=ln('tr'),bn=0;bn<f.length;++bn)if(en=f[bn]){rn=kn(en)[0];var mn=ln('td');mn.insertAdjacentHTML('beforeend',h[sn][rn]),mn.setAttribute('data-column',en[rn]),pn.appendChild(mn)}dn.appendChild(pn)}var yn=ln('tbody');yn.appendChild(dn),un.appendChild(yn),x.appendChild(un)}(y&&b||!y&&(b||m))&&(k.appendChild(x),C?C.appendChild(k):D.appendChild(k))}U||((U=ln('div')).id='s-bns'),E||((E=ln('button')).id='s-all-bn',E.className='c-bn',U.appendChild(E),wn(E,'click',(function(){M.accept('all'),M.hideSettings(),M.hide()}))),E.innerHTML=v.accept_all_btn;var gn=v.reject_all_btn;if(gn&&(I||((I=ln('button')).id='s-rall-bn',I.className='c-bn',wn(I,'click',(function(){M.accept([]),M.hideSettings(),M.hide()})),j.className='bns-t',U.appendChild(I)),I.innerHTML=gn),z||((z=ln('button')).id='s-sv-bn',z.className='c-bn',U.appendChild(z),wn(z,'click',(function(){M.accept(),M.hideSettings(),M.hide()}))),z.innerHTML=v.save_settings_btn,C)return j.replaceChild(C,D),void(D=C);r.appendChild(N),r.appendChild(a),j.appendChild(r),j.appendChild(D),j.appendChild(U),i.appendChild(j),e.appendChild(i),o.appendChild(e),O.appendChild(o),g.appendChild(O),g.appendChild(c)};M.updateLanguage=function(n,o){if('string'==typeof n){var e=cn(n,t.languages);return(e!==L.current_lang||!0===o)&&(L.current_lang=e,H&&un(e),fn(e),!0)}};var dn=function(n){var t=d.length,o=-1;Q=!1;var e=hn('','all'),i=[L.cookie_domain,'.'+L.cookie_domain];if('www.'===L.cookie_domain.slice(0,4)){var r=L.cookie_domain.substr(4);i.push(r),i.push('.'+r)}for(var a=0;a<t;a++){var c=d[a];if(c.hasOwnProperty('toggle')){var u=vn(K,c.toggle.value)>-1;if(!nn[++o]&&c.hasOwnProperty('cookie_table')&&(n||u)){var v=c.cookie_table,l=kn(f[0])[0],s=v.length;'on_disable'===c.toggle.reload&&u&&(Q=!0);for(var p=0;p<s;p++){var b=i,m=v[p],y=[],g=m[l],h=m.is_regex||!1,_=m.domain||null,w=m.path||!1;if(_&&(b=[_,'.'+_]),h)for(var k=0;k<e.length;k++)e[k].match(g)&&y.push(e[k]);else{var x=vn(e,g);x>-1&&y.push(e[x])}y.length>0&&(_n(y,w,b),'on_clear'===c.toggle.reload&&(Q=!0))}}}}},vn=function(n,t){return n.indexOf(t)},ln=function(n){var t=document.createElement(n);return'button'===n&&t.setAttribute('type',n),t},sn=function(n,t){return'browser'===L.auto_language?cn(pn(),n):'document'===L.auto_language?cn(document.documentElement.lang,n):'string'==typeof t?L.current_lang=cn(t,n):(L.current_lang,L.current_lang)},pn=function(){var n=navigator.language||navigator.browserLanguage;return n.length>2&&(n=n[0]+n[1]),n.toLowerCase()};M.allowedCategory=function(n){if(G&&'opt-in'!==L.mode)t=X;else var t=JSON.parse(hn(L.cookie_name,'one',!0)||'{}').categories||[];return vn(t,n)>-1},M.run=function(t){if(!document.getElementById('cc_div')){if(rn(t),Y)return;R=JSON.parse(hn(L.cookie_name,'one',!0)||'{}');var c=void 0!==(i=R.consent_uuid);if((o=R.consent_date)&&(o=new Date(o)),(e=R.last_consent_update)&&(e=new Date(e)),A=void 0!==R.data?R.data:null,B&&R.revision!==L.revision&&(F=!1),H=G=!(c&&F&&o&&e&&i),function(){(y=ln('div')).id='cc--main',y.style.position='fixed',y.innerHTML='<div id="cc_div" class="cc_div"></div>',g=y.children[0];var t=L.current_lang;H&&un(t),fn(t),(n||document.body).appendChild(y)}(),function(){var n=['[href]','button','input','details','[tabindex="0"]'];function t(t,o){try{var e=t.querySelectorAll(n.join(':not([tabindex="-1"]), '))}catch(o){return t.querySelectorAll(n.join(', '))}o[0]=e[0],o[1]=e[e.length-1]}t(j,$),H&&t(h,Z)}(),function(n,t){if('object'==typeof n){var o=n.consent_modal,e=n.settings_modal;H&&o&&i(h,['box','bar','cloud'],['top','middle','bottom'],['zoom','slide'],o.layout,o.position,o.transition),e&&i(O,['bar'],['left','right'],['zoom','slide'],e.layout,e.position,e.transition)}function i(n,t,o,e,i,r,a){if(r=r&&r.split(' ')||[],vn(t,i)>-1&&(xn(n,i),('bar'!==i||'middle'!==r[0])&&vn(o,r[0])>-1))for(var c=0;c<r.length;c++)xn(n,r[c]);vn(e,a)>-1&&xn(n,a)}}(t.gui_options),an(),L.autorun&&H&&M.show(t.delay||0),setTimeout((function(){xn(y,'c--anim')}),30),setTimeout((function(){wn(document,'keydown',(function(n){if('Tab'===n.key&&(P||q)&&r){var t=Tn();n.shiftKey?t!==r[0]&&a.contains(t)||(n.preventDefault(),jn(r[1])):t!==r[1]&&a.contains(t)||(n.preventDefault(),jn(r[0]))}}))}),100),G)'opt-out'===L.mode&&(L.mode,bn());else{var u='boolean'==typeof R.rfc_cookie;(!u||u&&R.rfc_cookie!==L.use_rfc_cookie)&&(R.rfc_cookie=L.use_rfc_cookie,gn(L.cookie_name,JSON.stringify(R))),p=yn(mn()),bn(),'function'==typeof v&&v(R)}}};var bn=function(){if(L.page_scripts){var n=R.categories||[];G&&'opt-out'===L.mode&&(n=X);var t=document.querySelectorAll('script['+L.script_selector+']'),o=function(t,e){if(e<t.length){var i=t[e],r=i.getAttribute(L.script_selector);if(vn(n,r)>-1){i.type=i.getAttribute('data-type')||'text/javascript',i.removeAttribute(L.script_selector);var a=i.getAttribute('data-src');a&&i.removeAttribute('data-src');var c=ln('script');if(c.textContent=i.innerHTML,function(n,t){for(var o=t.attributes,e=o.length,i=0;i<e;i++){var r=o[i].nodeName;n.setAttribute(r,t[r]||t.getAttribute(r))}}(c,i),a?c.src=a:a=i.src,a&&(c.readyState?c.onreadystatechange=function(){'loaded'!==c.readyState&&'complete'!==c.readyState||(c.onreadystatechange=null,o(t,++e))}:c.onload=function(){c.onload=null,o(t,++e)}),i.parentNode.replaceChild(c,i),a)return}o(t,++e)}};o(t,0)}};M.set=function(n,t){return'data'===n&&function(n,t){var o=!1;if('update'===t){var e=typeof(A=M.get('data'))==typeof n;if(e&&'object'==typeof A)for(var i in!A&&(A={}),n)A[i]!==n[i]&&(A[i]=n[i],o=!0);else!e&&A||A===n||(A=n,o=!0)}else A=n,o=!0;return o&&(R.data=A,gn(L.cookie_name,JSON.stringify(R))),o}(t.value,t.mode)},M.get=function(n,t){return JSON.parse(hn(t||L.cookie_name,'one',!0)||'{}')[n]},M.getConfig=function(n){return L[n]||t[n]};var mn=function(){return V=R.categories||[],W=tn.filter((function(n){return-1===vn(V,n)})),{accepted:V,rejected:W}},yn=function(n){var t='custom',o=on.length;return n.accepted.length===tn.length?t='all':n.accepted.length===o&&(t='necessary'),t};M.getUserPreferences=function(){var n=mn();return{accept_type:yn(n),accepted_categories:n.accepted,rejected_categories:n.rejected}},M.loadScript=function(n,t,o){var e='function'==typeof t;if(document.querySelector('script[src="'+n+'"]'))e&&t();else{var i=ln('script');if(o&&o.length>0)for(var r=0;r<o.length;++r)o[r]&&i.setAttribute(o[r].name,o[r].value);e&&(i.onload=t),i.src=n,document.head.appendChild(i)}},M.updateScripts=function(){bn()},M.show=function(n,t){!0===t&&un(L.current_lang),H&&(b=Tn(),r=Z,a=h,P=!0,h.removeAttribute('aria-hidden'),setTimeout((function(){xn(en,'show--consent')}),n>0?n:t?30:0))},M.hide=function(){H&&(P=!1,jn(c),h.setAttribute('aria-hidden','true'),Sn(en,'show--consent'),jn(b),b=null)},M.showSettings=function(n){q=!0,O.removeAttribute('aria-hidden'),P?m=Tn():b=Tn(),a=O,r=$,setTimeout((function(){xn(en,'show--settings')}),n>0?n:0)},M.hideSettings=function(){q=!1,Nn(),jn(u),O.setAttribute('aria-hidden','true'),Sn(en,'show--settings'),P?(jn(m),m=null,a=h,r=Z):(jn(b),b=null)},M.accept=function(n,t){var r=n||void 0,a=t||[],c=[];if(r)if('object'==typeof r&&'number'==typeof r.length)for(var u=0;u<r.length;u++)-1!==vn(tn,r[u])&&c.push(r[u]);else'string'==typeof r&&('all'===r?c=tn.slice():-1!==vn(tn,r)&&c.push(r));else c=function(){for(var n=document.querySelectorAll('.c-tgl')||[],t=[],o=0;o<n.length;o++)n[o].checked&&t.push(n[o].value);return t}();if(a.length>=1)for(u=0;u<a.length;u++)c=c.filter((function(n){return n!==a[u]}));for(u=0;u<tn.length;u++)!0===on.includes(tn[u])&&-1===vn(c,tn[u])&&c.push(tn[u]);!function(n){K=[];var t=O.querySelectorAll('.c-tgl')||[];if(t.length>0)for(var r=0;r<t.length;r++)-1!==vn(n,tn[r])?(t[r].checked=!0,nn[r]||(K.push(tn[r]),nn[r]=!0)):(t[r].checked=!1,nn[r]&&(K.push(tn[r]),nn[r]=!1));!G&&L.autoclear_cookies&&K.length>0&&dn(),o||(o=new Date),i||(i=([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g,(function(n){try{return(n^(window.crypto||window.msCrypto).getRandomValues(new Uint8Array(1))[0]&15>>n/4).toString(16)}catch(n){return''}}))),R={categories:n,level:n,revision:L.revision,data:A,rfc_cookie:L.use_rfc_cookie,consent_date:o.toISOString(),consent_uuid:i},(G||K.length>0)&&(F=!0,e=e?new Date:o,R.last_consent_update=e.toISOString(),p=yn(mn()),gn(L.cookie_name,JSON.stringify(R)),bn()),G&&(L.autoclear_cookies&&dn(!0),'function'==typeof s&&s(M.getUserPreferences(),R),'function'==typeof v&&v(R),G=!1,'opt-in'===L.mode)||('function'==typeof l&&K.length>0&&l(R,K),Q&&location.reload())}(c)},M.eraseCookies=function(n,t,o){var e=[],i=o?[o,'.'+o]:[L.cookie_domain,'.'+L.cookie_domain];if('object'==typeof n&&n.length>0)for(var r=0;r<n.length;r++)this.validCookie(n[r])&&e.push(n[r]);else this.validCookie(n)&&e.push(n);_n(e,t,i)};var gn=function(n,t){var o=L.cookie_expiration;'number'==typeof L.cookie_necessary_only_expiration&&'necessary'===p&&(o=L.cookie_necessary_only_expiration),t=L.use_rfc_cookie?encodeURIComponent(t):t;var e=new Date;e.setTime(e.getTime()+24*o*60*60*1e3);var i=n+'='+(t||'')+'; expires='+e.toUTCString()+'; Path='+L.cookie_path+';';i+=' SameSite='+L.cookie_same_site+';',location.hostname.indexOf('.')>-1&&L.cookie_domain&&(i+=' Domain='+L.cookie_domain+';'),'https:'===location.protocol&&(i+=' Secure;'),document.cookie=i},hn=function(n,t,o){var e;if('one'===t){if((e=(e=document.cookie.match('(^|;)\\s*'+n+'\\s*=\\s*([^;]+)'))?o?e.pop():n:'')&&n===L.cookie_name){try{e=JSON.parse(e)}catch(n){try{e=JSON.parse(decodeURIComponent(e))}catch(n){e={}}}e=JSON.stringify(e)}}else if('all'===t){var i=document.cookie.split(/;\s*/);e=[];for(var r=0;r<i.length;r++)e.push(i[r].split('=')[0])}return e},_n=function(n,t,o){for(var e=t||'/',i=0;i<n.length;i++){for(var r=0;r<o.length;r++)document.cookie=n[i]+'=; path='+e+(0==o[r].indexOf('.')?'; domain='+o[r]:'')+'; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';n[i]}};M.validCookie=function(n){return''!==hn(n,'one',!0)},M.validConsent=function(){return!G};var wn=function(n,t,o,e){n.addEventListener(t,o,!0===e&&{passive:!0})},kn=function(n){if('object'==typeof n)return Object.keys(n)},xn=function(n,t){n.classList.add(t)},Sn=function(n,t){n.classList.remove(t)},Jn=function(n,t){return n.classList.contains(t)},On=function(n){var t=ln('span');return t.tabIndex=-1,1===n?c=t:u=t,t},jn=function(n){n&&n instanceof HTMLElement&&n.focus()},Nn=function(){for(var n=j.querySelectorAll('.c-tgl'),t=0;t<n.length;t++){var o=n[t].value,e=on.includes(o);n[t].checked=e||M.allowedCategory(o)}},Tn=function(){return document.activeElement};return M})}();
+</script>
+<script>
+    window.addEventListener('load', function () {
+
+        // obtain plugin
+        var cc = initCookieConsent();
+
+        // run plugin with your configuration
+        cc.run({
+            cookie_domain: /(^|\.)sidecartridge\.com$/.test(location.hostname) ? 'sidecartridge.com' : location.hostname,
+            current_lang: 'en',
+            autoclear_cookies: true,                   // default: false
+            page_scripts: true,                        // default: false
+
+            onFirstAction: function (user_preferences, cookie) {
+                // callback triggered only once on the first accept/reject action
+            },
+
+            onAccept: function (cookie) {
+                // callback triggered on the first accept/reject action, and after each page load
+            },
+
+            onChange: function (cookie, changed_preferences) {
+                // If analytics category is disabled => disable google analytics
+                if (!cc.allowedCategory('analytics')) {
+                    typeof gtag === 'function' && gtag('consent', 'update', {
+                        'analytics_storage': 'denied'
+                    });
+                }
+            },
+
+            languages: {
+                'en': {
+                    consent_modal: {
+                        title: 'We use cookies!',
+                        description: 'Hi, this website uses essential cookies to ensure its proper operation and tracking cookies to understand how you interact with it. The latter will be set only after consent. <button type="button" data-cc="c-settings" class="cc-link">Let me choose</button>',
+                        primary_btn: {
+                            text: 'Accept all',
+                            role: 'accept_all'              // 'accept_selected' or 'accept_all'
+                        },
+                        secondary_btn: {
+                            text: 'Reject all',
+                            role: 'accept_necessary'        // 'settings' or 'accept_necessary'
+                        }
+                    },
+                    settings_modal: {
+                        title: 'Cookie preferences',
+                        save_settings_btn: 'Save settings',
+                        accept_all_btn: 'Accept all',
+                        reject_all_btn: 'Reject all',
+                        close_btn_label: 'Close',
+                        cookie_table_headers: [
+                            { col1: 'Name' },
+                            { col2: 'Domain' },
+                            { col3: 'Expiration' },
+                            { col4: 'Description' }
+                        ],
+                        blocks: [
+                            {
+                                title: 'Cookie usage 📢',
+                                description: 'I use cookies to ensure the basic functionalities of the website and to enhance your online experience. You can choose for each category to opt-in/out whenever you want. For more details relative to cookies and other sensitive data, please read the full <a href="https://sidecartridge.com/privacy-policy/" class="cc-link" target="_blank" rel="noopener">privacy policy</a>.'
+                            }, {
+                                title: 'Strictly necessary cookies',
+                                description: 'These cookies are essential for the proper functioning of my website. Without these cookies, the website would not work properly',
+                                toggle: {
+                                    value: 'necessary',
+                                    enabled: true,
+                                    readonly: true          // cookie categories with readonly=true are all treated as "necessary cookies"
+                                }
+                            }, {
+                                title: 'Performance and Analytics cookies',
+                                description: 'These cookies allow the website to remember the choices you have made in the past',
+                                toggle: {
+                                    value: 'analytics',     // your cookie category
+                                    enabled: false,
+                                    readonly: false
+                                },
+                                cookie_table: [             // list of all expected cookies
+                                    {
+                                        col1: '^_ga',       // match all cookies starting with "_ga"
+                                        col2: 'google.com',
+                                        col3: '2 years',
+                                        col4: 'description ...',
+                                        is_regex: true
+                                    },
+                                    {
+                                        col1: '_gid',
+                                        col2: 'google.com',
+                                        col3: '1 day',
+                                        col4: 'description ...',
+                                    }
+                                ]
+                            },
+                            {
+                                title: 'More information',
+                                description: 'For any queries in relation to our policy on cookies and your choices, please <a class="cc-link" href="https://sidecartridge.com/" target="_blank" rel="noopener">contact us</a>.',
+                            }
+                        ]
+                    }
+                }
+            }
+        });
+    });
+</script>
+<!-- Google Analytics, the sidecartridge.com property. cookieconsent runs
+     this only after the analytics category is accepted (page_scripts), and it
+     only loads gtag on *.sidecartridge.com, so local and LAN tests send no hits.
+     gtag's default cookie_domain 'auto' puts _ga on .sidecartridge.com, shared
+     with the main site. -->
+<script type="text/plain" data-cookiecategory="analytics">
+    (function () {
+        var GA_ID = 'G-6VT9RXTJ2N';
+        if (!/(^|\.)sidecartridge\.com$/.test(location.hostname)) return;
+        var s = document.createElement('script');
+        s.async = true;
+        s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_ID;
+        document.head.appendChild(s);
+        window.dataLayer = window.dataLayer || [];
+        window.gtag = function () { dataLayer.push(arguments); };
+        gtag('js', new Date());
+        gtag('config', GA_ID);
+    })();
+</script>
+</head>
+
+<body class="c_darkmode">
+
+<div class="eyes-bg" aria-hidden="true"></div>
+
+<nav class="top-banner">
+  <a class="brand-link" href="https://sidecartridge.com" target="_blank" rel="noopener">
+    <img class="brand-mark" src="https://sidecartridge.com/assets/images/logo/logo.png" alt="SidecarTridge logo mark">
+    <img class="brand-wordmark" src="https://sidecartridge.com/assets/images/logo/logo-text.png" alt="SidecarTridge">
+  </a>
+  <span class="site-nav">
+    <a href="#/" data-nav="home">Jackintosh</a>
+    <a href="#/build" data-nav="build">Build your image</a>
+    <a href="#/how" data-nav="how">How it works</a>
+  </span>
+</nav>
+
+<div id="browserWarning" style="display:none; padding:12px; background:#7f1d1d; border-radius:6px; margin-bottom:16px;"></div>
+
+<div id="app">
+
+<section data-view="home">
+
+  <header class="hero">
+    <p class="hero-kicker">Atari ST &middot; STE &middot; Mega ST &middot; Mega STE</p>
+    <h1 class="hero-title">Jackintosh</h1>
+    <p class="hero-tagline">Switch on your Atari. A Macintosh Plus comes up.</p>
+    <p class="hero-lead">
+      The genuine Mac Plus ROM runs natively on the Atari's own 68000: the happy Mac, System&nbsp;6, the
+      Finder and the Mac software of 1986 to 1990, from virtual floppies and hard disks on a microSD card.
+      No TOS, no GEM, no emulator program: the Atari <em>is</em> the Mac from the moment you power it on.
+    </p>
+    <div class="ways">
+      <a class="way" href="#/build">
+        <span class="way-title">Build your image &rarr;</span>
+        <span class="way-text">Drop in your own Mac Plus ROM and get the image for the SidecarTridge TOS Emulator.
+          It is all done in your browser: your ROM never leaves your computer.</span>
+      </a>
+      <a class="way" href="#/how">
+        <span class="way-title">How it works &rarr;</span>
+        <span class="way-text">The tricks that make a 1986 Macintosh ROM run on an Atari: memory maps, interrupts,
+          the Mac's missing chips, and a cartridge that serves disks.</span>
+      </a>
+    </div>
+  </header>
+
+  <section class="about">
+    <div class="about-card">
+      <h3>Why &ldquo;Jackintosh&rdquo;?</h3>
+      <p>
+        In 1985 Jack Tramiel, who had just bought Atari, launched the Atari&nbsp;ST: a 68000, a mouse, a
+        windowed desktop and a sharp monochrome screen, at a fraction of the Macintosh's price. The press
+        called it the <strong>&ldquo;Jackintosh&rdquo;</strong>.
+      </p>
+      <p>
+        Forty years later the joke comes true: with the right ROM in its sockets, the Atari ST boots as a
+        Macintosh Plus. Jack is watching.
+      </p>
+    </div>
+    <div class="about-card">
+      <h3>What you get</h3>
+      <ul>
+        <li>The <strong>genuine Mac Plus ROM</strong> (v3), patched in place: the Mac's own code, at full Atari speed.</li>
+        <li><strong>640&times;400</strong> on a monochrome monitor, or the classic 512&times;342 window.</li>
+        <li>Up to <strong>4&nbsp;MB</strong> of Mac RAM.</li>
+        <li><strong>Floppies and a hard disk</strong> from the Multi-device's microSD card, swapped from a menu at boot.</li>
+        <li>The <strong>clock from the network</strong> (NTP) and the Mac's PRAM saved on the card.</li>
+        <li>Mac sound on the <strong>STE and Mega STE</strong>; the Mega STE at <strong>16&nbsp;MHz with its cache</strong>.</li>
+        <li>Your Atari keyboard: US, French, German, Spanish and UK layouts.</li>
+      </ul>
+    </div>
+    <div class="about-card">
+      <h3>What you need</h3>
+      <ul>
+        <li>An <strong>Atari ST, STF, STFM, Mega ST, STE or Mega STE</strong> with a monochrome monitor (an SM124, or any mono display).</li>
+        <li>The <a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a> in the TOS ROM sockets: it serves the Jackintosh image as the Atari's ROM.</li>
+        <li>The <a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a> in the cartridge port, running the <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a> microfirmware: floppies, hard disk, clock and PRAM.</li>
+        <li><strong>Your own Mac Plus ROM</strong> (the v3 ROM, 128&nbsp;KB): Apple's code is never distributed here.</li>
+      </ul>
+    </div>
+  </section>
+
+</section>
+
+<section data-view="build" hidden>
+  <h2>Build your image</h2>
+  <p class="lead">Drop in your own Mac Plus ROM, choose your Atari, and download the image for the SidecarTridge TOS
+    Emulator. Everything happens in your browser.</p>
+  <div class="about-card coming-soon">Coming soon: the builder is being written.</div>
+</section>
+
+<section data-view="how" hidden>
+  <h2>How it works</h2>
+  <p class="lead">An interactive tour of the Jackintosh: how the genuine Mac Plus ROM runs on an Atari, and how the
+    Multi-device serves its disks and its clock.</p>
+  <div class="about-card coming-soon">Coming soon: the infographic is being drawn.</div>
+</section>
+
+</div>
+
+<footer class="credits">
+  <div class="credits-inner">
+    <h3>Built on the work of</h3>
+    <div class="credits-grid">
+      <section>
+        <h4>The Mac side</h4>
+        <ul>
+          <li><a href="https://github.com/jonathanschilling/mac_rom" target="_blank" rel="noopener">mac_rom</a> by Jonathan Schilling: the commented, buildable Mac Plus ROM sources every patch is read against.</li>
+          <li><a href="http://hampa.ch/pub/software/MacOS/" target="_blank" rel="noopener">hampa.ch</a> (PCE's author): the System disks used in testing.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>The Atari side</h4>
+        <ul>
+          <li><a href="https://tho-otto.m68k.eu/keyboards/" target="_blank" rel="noopener">Thorsten Otto's keyboard tables</a>: the Atari layouts.</li>
+          <li><a href="https://www.hatari-emu.org/" target="_blank" rel="noopener">Hatari</a>: every change runs here before it reaches a real Atari.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>Runs on</h4>
+        <ul>
+          <li><a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a>: serves the image as the Atari's ROM.</li>
+          <li><a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a> with <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a>: disks, clock and PRAM.</li>
+        </ul>
+      </section>
+    </div>
+    <p class="credits-license">
+      Jackintosh is GPLv3: <a href="https://github.com/sidecartridge/md-jackintosh-roms" target="_blank" rel="noopener">github.com/sidecartridge/md-jackintosh-roms</a>.
+      Macintosh and Mac are trademarks of Apple Inc.; the Mac Plus ROM is Apple's and never part of this site.
+      <span class="credits-links">
+        <a href="#" data-cc="c-settings">Cookies</a> &middot;
+        <a href="https://sidecartridge.com/privacy-policy/" target="_blank" rel="noopener">Privacy policy</a>
+      </span>
+    </p>
+  </div>
+</footer>
+
+<script type="module">
+// AUTOGENERATED by build.mjs, do not hand-edit index.html.
+
+// ----- router.js -----
+// The site's three views in one page: #/ (the landing page), #/build (build
+// your image) and #/how (how it works). A view is a <section data-view>.
+const VIEWS = ['home', 'build', 'how'];
+function viewFromHash(hash) {
+  const name = (hash || '').replace(/^#\/?/, '').split('/')[0];
+  return VIEWS.includes(name) ? name : 'home';
+}
+
+// ----- app.js -----
+
+function showView() {
+  const view = viewFromHash(window.location.hash);
+  for (const section of document.querySelectorAll('[data-view]')) {
+    section.hidden = section.dataset.view !== view;
+  }
+  for (const link of document.querySelectorAll('[data-nav]')) {
+    link.classList.toggle('current', link.dataset.nav === view);
+  }
+  document.body.dataset.view = view;
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('hashchange', showView);
+showView();
+</script>
+
+</body>
+</html>

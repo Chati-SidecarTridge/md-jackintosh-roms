@@ -1,0 +1,23 @@
+name: Site
+
+# The website (site/, EPIC-11): rebuild index.html from site/src and fail when
+# the committed one differs, so a change to the sources cannot ship without
+# its build. Runs on every pull request and every push to main.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  site:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+    - name: Rebuild the site
+      working-directory: site
+      run: node build.mjs
+    - name: The committed index.html matches its sources
+      run: git diff --exit-code -- site/index.html

@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jackintosh · SidecarTridge</title>
+<link rel="canonical" href="https://jackintosh.sidecartridge.com/">
+<meta name="description" content="Jackintosh turns an Atari ST, STE, Mega ST or Mega STE into a Macintosh Plus at power-on: the genuine Mac Plus ROM on the Atari's own 68000, with the SidecarTridge TOS Emulator and Multi-device. Build your ROM image in the browser.">
+<style>
+{{STYLES}}
+</style>
+<script>
+window.addEventListener('error', function (e) {
+  var w = document.getElementById('browserWarning');
+  if (w) {
+    w.style.display = 'block';
+    w.textContent = 'The Jackintosh site hit a startup error: ' + (e.message || 'unknown');
+  }
+});
+</script>
+{{CONSENT}}
+</head>
+
+<body class="c_darkmode">
+
+<div class="eyes-bg" aria-hidden="true"></div>
+
+<nav class="top-banner">
+  <a class="brand-link" href="https://sidecartridge.com" target="_blank" rel="noopener">
+    <img class="brand-mark" src="https://sidecartridge.com/assets/images/logo/logo.png" alt="SidecarTridge logo mark">
+    <img class="brand-wordmark" src="https://sidecartridge.com/assets/images/logo/logo-text.png" alt="SidecarTridge">
+  </a>
+  <span class="site-nav">
+    <a href="#/" data-nav="home">Jackintosh</a>
+    <a href="#/build" data-nav="build">Build your image</a>
+    <a href="#/how" data-nav="how">How it works</a>
+  </span>
+</nav>
+
+<div id="browserWarning" style="display:none; padding:12px; background:#7f1d1d; border-radius:6px; margin-bottom:16px;"></div>
+
+<div id="app">
+
+<section data-view="home">
+
+  <header class="hero">
+    <p class="hero-kicker">Atari ST &middot; STE &middot; Mega ST &middot; Mega STE</p>
+    <h1 class="hero-title">Jackintosh</h1>
+    <p class="hero-tagline">Switch on your Atari. A Macintosh Plus comes up.</p>
+    <p class="hero-lead">
+      The genuine Mac Plus ROM runs natively on the Atari's own 68000: the happy Mac, System&nbsp;6, the
+      Finder and the Mac software of 1986 to 1990, from virtual floppies and hard disks on a microSD card.
+      No TOS, no GEM, no emulator program: the Atari <em>is</em> the Mac from the moment you power it on.
+    </p>
+    <div class="ways">
+      <a class="way" href="#/build">
+        <span class="way-title">Build your image &rarr;</span>
+        <span class="way-text">Drop in your own Mac Plus ROM and get the image for the SidecarTridge TOS Emulator.
+          It is all done in your browser: your ROM never leaves your computer.</span>
+      </a>
+      <a class="way" href="#/how">
+        <span class="way-title">How it works &rarr;</span>
+        <span class="way-text">The tricks that make a 1986 Macintosh ROM run on an Atari: memory maps, interrupts,
+          the Mac's missing chips, and a cartridge that serves disks.</span>
+      </a>
+    </div>
+  </header>
+
+  <section class="about">
+    <div class="about-card">
+      <h3>Why &ldquo;Jackintosh&rdquo;?</h3>
+      <p>
+        In 1985 Jack Tramiel, who had just bought Atari, launched the Atari&nbsp;ST: a 68000, a mouse, a
+        windowed desktop and a sharp monochrome screen, at a fraction of the Macintosh's price. The press
+        called it the <strong>&ldquo;Jackintosh&rdquo;</strong>.
+      </p>
+      <p>
+        Forty years later the joke comes true: with the right ROM in its sockets, the Atari ST boots as a
+        Macintosh Plus. Jack is watching.
+      </p>
+    </div>
+    <div class="about-card">
+      <h3>What you get</h3>
+      <ul>
+        <li>The <strong>genuine Mac Plus ROM</strong> (v3), patched in place: the Mac's own code, at full Atari speed.</li>
+        <li><strong>640&times;400</strong> on a monochrome monitor, or the classic 512&times;342 window.</li>
+        <li>Up to <strong>4&nbsp;MB</strong> of Mac RAM.</li>
+        <li><strong>Floppies and a hard disk</strong> from the Multi-device's microSD card, swapped from a menu at boot.</li>
+        <li>The <strong>clock from the network</strong> (NTP) and the Mac's PRAM saved on the card.</li>
+        <li>Mac sound on the <strong>STE and Mega STE</strong>; the Mega STE at <strong>16&nbsp;MHz with its cache</strong>.</li>
+        <li>Your Atari keyboard: US, French, German, Spanish and UK layouts.</li>
+      </ul>
+    </div>
+    <div class="about-card">
+      <h3>What you need</h3>
+      <ul>
+        <li>An <strong>Atari ST, STF, STFM, Mega ST, STE or Mega STE</strong> with a monochrome monitor (an SM124, or any mono display).</li>
+        <li>The <a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a> in the TOS ROM sockets: it serves the Jackintosh image as the Atari's ROM.</li>
+        <li>The <a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a> in the cartridge port, running the <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a> microfirmware: floppies, hard disk, clock and PRAM.</li>
+        <li><strong>Your own Mac Plus ROM</strong> (the v3 ROM, 128&nbsp;KB): Apple's code is never distributed here.</li>
+      </ul>
+    </div>
+  </section>
+
+</section>
+
+<section data-view="build" hidden>
+  <h2>Build your image</h2>
+  <p class="lead">Drop in your own Mac Plus ROM, choose your Atari, and download the image for the SidecarTridge TOS
+    Emulator. Everything happens in your browser.</p>
+  <div class="about-card coming-soon">Coming soon: the builder is being written.</div>
+</section>
+
+<section data-view="how" hidden>
+  <h2>How it works</h2>
+  <p class="lead">An interactive tour of the Jackintosh: how the genuine Mac Plus ROM runs on an Atari, and how the
+    Multi-device serves its disks and its clock.</p>
+  <div class="about-card coming-soon">Coming soon: the infographic is being drawn.</div>
+</section>
+
+</div>
+
+<footer class="credits">
+  <div class="credits-inner">
+    <h3>Built on the work of</h3>
+    <div class="credits-grid">
+      <section>
+        <h4>The Mac side</h4>
+        <ul>
+          <li><a href="https://github.com/jonathanschilling/mac_rom" target="_blank" rel="noopener">mac_rom</a> by Jonathan Schilling: the commented, buildable Mac Plus ROM sources every patch is read against.</li>
+          <li><a href="http://hampa.ch/pub/software/MacOS/" target="_blank" rel="noopener">hampa.ch</a> (PCE's author): the System disks used in testing.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>The Atari side</h4>
+        <ul>
+          <li><a href="https://tho-otto.m68k.eu/keyboards/" target="_blank" rel="noopener">Thorsten Otto's keyboard tables</a>: the Atari layouts.</li>
+          <li><a href="https://www.hatari-emu.org/" target="_blank" rel="noopener">Hatari</a>: every change runs here before it reaches a real Atari.</li>
+        </ul>
+      </section>
+      <section>
+        <h4>Runs on</h4>
+        <ul>
+          <li><a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a>: serves the image as the Atari's ROM.</li>
+          <li><a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a> with <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a>: disks, clock and PRAM.</li>
+        </ul>
+      </section>
+    </div>
+    <p class="credits-license">
+      Jackintosh is GPLv3: <a href="https://github.com/sidecartridge/md-jackintosh-roms" target="_blank" rel="noopener">github.com/sidecartridge/md-jackintosh-roms</a>.
+      Macintosh and Mac are trademarks of Apple Inc.; the Mac Plus ROM is Apple's and never part of this site.
+      <span class="credits-links">
+        <a href="#" data-cc="c-settings">Cookies</a> &middot;
+        <a href="https://sidecartridge.com/privacy-policy/" target="_blank" rel="noopener">Privacy policy</a>
+      </span>
+    </p>
+  </div>
+</footer>
+
+<script type="module">
+{{SCRIPT}}
+</script>
+
+</body>
+</html>

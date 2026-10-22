@@ -1,0 +1,14 @@
+{
+  "name": "jackintosh-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The Jackintosh website: build your Atari ST/STE Mac Plus ROM image in the browser, and how the Jackintosh works.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test 'tests/*.test.mjs'"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
