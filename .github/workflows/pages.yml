@@ -3,11 +3,17 @@ name: Pages
 # Publishes site/ to GitHub Pages (jackintosh.sidecartridge.com) as static
 # HTML (no Jekyll), on every push to main that changes the site, or by hand.
 # The repository's Pages source is "GitHub Actions" (EPIC-11 STORY-01).
+# The builder's data (site/data/<machine>.json: our release glue and the
+# resolved patch table, no Apple byte, D-02/D-20) is made here from this
+# commit, so the published glue always matches the published page.
 on:
   push:
     branches: [main]
     paths:
       - 'site/**'
+      - 'src/**'
+      - 'tools/jackrom.py'
+      - 'version.txt'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -28,6 +34,15 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - uses: actions/checkout@v4
+    # The release glue of both images, in the pinned toolchain image
+    # (tools/dev/toolchain.sh), then the builder's data.
+    - name: Build the release glue and export the builder's data
+      run: |
+        for machine in st ste; do
+          tools/dev/build.sh "$machine" release
+          python3 tools/jackrom.py export --machine "$machine" \
+            --glue "build/$machine-release/GLUE.BIN" -o "site/data/$machine.json"
+        done
     - uses: actions/setup-node@v4
       with:
         node-version: 22
@@ -38,6 +53,7 @@ jobs:
       run: |
         mkdir -p _site
         cp site/index.html site/CNAME site/.nojekyll _site/
+        cp -R site/data _site/
         if [ -d site/assets ]; then cp -R site/assets _site/; fi
     - uses: actions/configure-pages@v5
     - uses: actions/upload-pages-artifact@v3

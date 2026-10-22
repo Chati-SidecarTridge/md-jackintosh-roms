@@ -79,3 +79,6 @@ tools/dev/dev.cfg
 
 # The backlog and every other document under docs/ stay local (D-01).
 docs/
+
+# The website data, generated (tools/jackrom.py export) at deploy time.
+site/data/

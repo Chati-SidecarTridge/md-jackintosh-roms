@@ -27,6 +27,8 @@ else the mac_rom submodule build).
 import argparse
 import configparser
 import hashlib
+import base64
+import json
 import os
 import re
 import struct
@@ -299,6 +301,57 @@ def merge(machine, glue_path, mac_rom_path, out_path, patch_table=PATCH_TABLE):
     print(f"  checksum ${checksum:08X}, SHA-256 {hashlib.sha256(image).hexdigest()}")
 
 
+def export(machine, glue_path, out_path, patch_table=PATCH_TABLE):
+    """The website's data for one machine (EPIC-11, D-20): what the page
+    needs to merge a user's ROM in the browser exactly as merge() does, with
+    no Apple byte (D-02): our glue, the image layout, the ROM checks (sizes,
+    checksums, hashes) and each enabled patch with its replacement resolved
+    against this glue's map (NOPs, our jumps, our values)."""
+    base, glue_size, version = MACHINES[machine]
+    with open(glue_path, "rb") as handle:
+        glue = handle.read()
+    check_glue(glue, machine)
+    glue_map = os.path.join(os.path.dirname(os.path.abspath(glue_path)), "GLUE.MAP")
+    if not os.path.exists(glue_map):
+        raise JackRomError(f"{glue_map} is missing: the patches need the glue's link map")
+    symbols = glue_symbols(glue_map)
+    rom_base = base + glue_size
+    patches = []
+    for patch in sorted(load_patches(patch_table), key=lambda p: p["offset"]):
+        if not patch["enabled"]:
+            continue
+        if patch["replace"][0] not in ("nop", "jmp", "jsr", "long", "word", "bytes"):
+            raise JackRomError(f"patch {patch['name']}: unknown replacement kind")
+        patches.append({
+            "name": patch["name"],
+            "offset": patch["offset"],
+            "length": patch["length"],
+            "sha256": patch["sha256"],
+            "replace": patch_bytes(patch, symbols, rom_base).hex(),
+        })
+    data = {
+        "machine": machine,
+        "base": base,
+        "glueSize": glue_size,
+        "versionWord": version,
+        "checksumSize": CHECKSUM_SIZE,
+        "glue": base64.b64encode(glue).decode("ascii"),
+        "glueSha256": hashlib.sha256(glue).hexdigest(),
+        "rom": {
+            "size": macrom.ROM_SIZE,
+            "checksum": macrom.ROM_CHECKSUM,
+            "version": macrom.ROM_VERSION,
+            "sha256": macrom.ROM_SHA256,
+        },
+        "patches": patches,
+    }
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    with open(out_path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=1)
+        handle.write("\n")
+    print(f"export: {out_path}: {machine}, glue {len(glue)} bytes, {len(patches)} patches")
+
+
 def main(argv):
     parser = argparse.ArgumentParser(
         prog="jackrom.py", description=__doc__.split("\n\n")[0])
@@ -308,6 +361,10 @@ def main(argv):
     m.add_argument("--glue", required=True, help="GLUE.BIN from tools/dev/build.sh")
     m.add_argument("--mac-rom", help="the Mac Plus v3 ROM (default: tools/macrom.py path)")
     m.add_argument("-o", "--output", required=True, help="the image to write")
+    e = sub.add_parser("export", help="the website's data for one machine (no Apple byte)")
+    e.add_argument("--machine", required=True, choices=sorted(MACHINES))
+    e.add_argument("--glue", required=True, help="GLUE.BIN from tools/dev/build.sh (release)")
+    e.add_argument("-o", "--output", required=True, help="the JSON file to write")
     sub.add_parser("patches", help="check every patch entry, enabled or not, against the ROM")
     h = sub.add_parser("hash", help="the SHA-256 of Mac ROM bytes, for a patch entry")
     h.add_argument("--offset", required=True, type=lambda x: int(x, 0))
@@ -317,6 +374,9 @@ def main(argv):
     try:
         if args.command == "patches":
             return check_patch_table()
+        if args.command == "export":
+            export(args.machine, args.glue, args.output)
+            return 0
         if args.command == "hash":
             path = args.mac_rom or macrom.rom_path()
             with open(path, "rb") as handle:
