@@ -21,6 +21,6 @@ jobs:
       run: node build.mjs
     - name: The committed index.html matches its sources
       run: git diff --exit-code -- site/index.html
-    - name: The builder's core (no Apple byte: synthetic data only)
+    - name: "The builder's core (synthetic data only, no Apple byte)"
       working-directory: site
       run: node --test tests/*.test.mjs
