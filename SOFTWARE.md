@@ -28,7 +28,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Microsoft Word 5.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | Asks for its Install disk at launch (Cancel), then typing works. |
 | Microsoft Word 5.1a | Mac Plus v3 ROM | 6 | Yes | Yes | Installed from its 6 floppies. |
 | Voyager II 1.00 | Mac Plus v3 ROM | 6 | Yes | Yes | The sky chart, its panels and menus. |
-| WordPerfect 3.0a | Mac Plus v3 ROM | 6 | Yes | — | The Installer runs; installing not tried yet. |
+| WordPerfect 3.0a | Mac Plus v3 ROM | 6 | Yes | Yes | Installed with its Installer from its 5 floppies (1440K), queued in FD0's slots and stepped with SELECT. |
 
 ## Development
 
