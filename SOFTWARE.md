@@ -54,6 +54,8 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Program | Model | System | Tested | Works | Notes |
 |---|---|---|---|---|---|
 | Blockout | Mac Plus v3 ROM | 6 | Yes | Yes |  |
+| Crystal Quest 2.2.5 | Mac Plus v3 ROM | 6 | Yes | Yes | Its title screen, Hall of Fame and demo run: animation, scoring, the attract cycle. |
+| Dark Castle 1.2 | Mac Plus v3 ROM | 6 | Yes | No | Stops on a bus error at launch: it probes $F80030, the Plus's diagnostic-ROM space, which an Atari does not answer. To fix. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
 ## Utilities
