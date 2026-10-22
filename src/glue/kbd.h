@@ -12,6 +12,11 @@
 #define KBD_SHIFT 0x100
 #define KBD_CONTROL 0x200
 #define KBD_CODE_MASK 0xFF
+/* The physical key, before the layout (EPIC-16 INPUT-02): the scancode in
+   bits 16-23 and Shift as held, for pages that mean the key, not its
+   character. */
+#define KBD_PHYS_SHIFT 0x400
+#define KBD_PHYS_CODE(pressed) (((pressed) >> 16) & KBD_CODE_MASK)
 
 /* ST scancodes (the same key on every layout) */
 #define KBD_ESC 0x01

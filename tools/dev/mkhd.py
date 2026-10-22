@@ -36,7 +36,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import harness_common as hc  # noqa: E402
 
 try:
-    from machfs import Volume
+    from machfs import OutOfSpaceError, Volume
 except ImportError:
     hc.die("mkhd.py needs machfs: python3 -m venv build/venv && "
            "build/venv/bin/pip install machfs==1.3, then run it with build/venv/bin/python")
@@ -63,6 +63,10 @@ def main():
     parser.add_argument("--name", default="Jackintosh HD")
     parser.add_argument("items", nargs="+", metavar="DISK:ITEM")
     args = parser.parse_args()
+    try:  # D-02: a System Folder image never lands in the repository
+        hc.jackrom.check_output_path(args.output)
+    except hc.jackrom.JackRomError as err:
+        hc.die(str(err))
 
     out = Volume()
     out.name = args.name
@@ -93,6 +97,8 @@ def main():
         image = out.write(size=args.size * 1024)
     except ValueError as err:
         hc.die(f"{err}: make --size larger")
+    except OutOfSpaceError:  # raised with no message
+        hc.die(f"the items do not fit in {args.size} KB: make --size larger")
     os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
     with open(args.output, "wb") as handle:
         handle.write(image)

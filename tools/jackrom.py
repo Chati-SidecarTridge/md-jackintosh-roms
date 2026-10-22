@@ -117,8 +117,11 @@ def load_patches(path=PATCH_TABLE):
     mac_rom source and whether it is enabled. Checked here, applied by
     apply_patches()."""
     cfg = configparser.ConfigParser(interpolation=None)
-    if not cfg.read(path):
-        raise JackRomError(f"the patch table {path} is missing")
+    try:
+        if not cfg.read(path):
+            raise JackRomError(f"the patch table {path} is missing")
+    except configparser.Error as err:
+        raise JackRomError(f"the patch table {path}: {err}") from None
     patches = []
     for name in cfg.sections():
         sec = cfg[name]
@@ -168,6 +171,18 @@ def patch_bytes(patch, symbols, rom_base):
     """The replacement bytes, exactly the patch's length: nop | jmp X | jsr X
     (padded with NOPs) | long X | word X | bytes <hex>."""
     name, length, words = patch["name"], patch["length"], patch["replace"]
+    if not words:
+        raise JackRomError(f"patch {name}: replace is empty")
+    try:
+        out = replacement_bytes(name, length, words, symbols, rom_base)
+    except (struct.error, ValueError) as err:
+        raise JackRomError(f"patch {name}: cannot read replace = {' '.join(words)} ({err})") from None
+    if len(out) != length:
+        raise JackRomError(f"patch {name}: the replacement is {len(out)} bytes, not {length}")
+    return out
+
+
+def replacement_bytes(name, length, words, symbols, rom_base):
     kind, args = words[0], words[1:]
     if kind == "nop" and not args:
         out = NOP * (length // 2)
@@ -184,8 +199,6 @@ def patch_bytes(patch, symbols, rom_base):
         out = bytes.fromhex("".join(args))
     else:
         raise JackRomError(f"patch {name}: cannot read replace = {' '.join(words)}")
-    if len(out) != length:
-        raise JackRomError(f"patch {name}: the replacement is {len(out)} bytes, not {length}")
     return out
 
 

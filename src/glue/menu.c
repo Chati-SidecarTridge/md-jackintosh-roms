@@ -439,6 +439,7 @@ static void menuSlots(void) {
   for (;;) {
     int code;
     int pressed;
+    int digit;
     int slot;
     menuTitle();
     textAt(0, kHeaderRow);
@@ -455,17 +456,21 @@ static void menuSlots(void) {
     textPuts("[M] or SPACE for main menu\n");
     textPuts("Press 2..9 or 0 to choose slots 2..10,\n");
     textPuts("or SHIFT + 2..9 or 0 to unmount an image");
+    /* The digits by the physical key and Shift as held, not through the
+       layout: on an AZERTY keyboard the digits are the shifted layer, and
+       the 5 key's "(" is US Shift+9 (EPIC-16 INPUT-02). */
     do { /* another key does nothing (Diego, 2026-10-20) */
       pressed = kbdPoll();
       code = pressed & KBD_CODE_MASK;
+      digit = KBD_PHYS_CODE(pressed);
     } while (pressed < 0 ||
              !(code == KBD_M || code == KBD_SPACE || code == KBD_ESC ||
-               (code >= kScanDigitTwo && code <= kScanDigitZero)));
+               (digit >= kScanDigitTwo && digit <= kScanDigitZero)));
     if (code == KBD_M || code == KBD_SPACE || code == KBD_ESC) {
       return;
     }
-    slot = code - kScanDigitTwo + kSlotFirstEditable;
-    if (pressed & KBD_SHIFT) {
+    slot = digit - kScanDigitTwo + kSlotFirstEditable;
+    if (pressed & KBD_PHYS_SHIFT) {
       (void)menuSet(slot, "");
     } else {
       char label[sizeof("FD0 slot 10 file: ")];
@@ -895,9 +900,11 @@ static void menuOptionsPage(void) {
                glueOptions.mouseSpeed);
     if (screenIsSte()) {
       textPuts("\n[A]udio (EXPERIMENTAL): ");
-      textPuts(glueOptions.sound == GLUE_SOUND_SMOOTH
-                   ? "smooth (more CPU)"
-                   : (glueOptions.sound == GLUE_SOUND_FAST ? "fast" : "off"));
+      if (glueOptions.sound == GLUE_SOUND_SMOOTH) {
+        textPuts("smooth (more CPU)");
+      } else {
+        textPuts(glueOptions.sound == GLUE_SOUND_FAST ? "fast" : "off");
+      }
     }
     if (glueMegaSte) {
       textPuts("\nMega STE [P]rocessor: ");
@@ -970,6 +977,7 @@ void glueMenu(void) {
   kbdInit();
   seconds = menuApplyOptions();
   TRACE("menu");
+  TRACE("menu countdown %d", seconds);
   menuMain();
   if (counting) {
     char line[sizeof("Boot will continue in 20 seconds...")];

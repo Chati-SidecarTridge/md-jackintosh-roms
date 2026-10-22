@@ -92,9 +92,13 @@ static int glueDriveCount;
 static const struct DiskBackend *glueBackend = &diskNoBackend;
 /* Disks to announce once the event queue exists (glueDiskTick). */
 static unsigned char glueInsertPending[DISK_DRIVES];
+/* A medium changed whose volume is not located yet (a read failed). */
+static unsigned char glueLocatePending[DISK_DRIVES];
 /* Whether the startup disk's announcement was dropped since the install. */
 static int glueBootDriveSkipped;
-static int glueTransfersTraced;
+/* Reads and writes counted apart, so that a session's writes (a Save) are
+   traced after the boot's reads (EPIC-16 HARN-02). */
+static int glueTransfersTraced[2];
 static int glueOfflineTraced;
 
 /* The volume inside the medium: the whole medium, or the first Apple_HFS
@@ -138,32 +142,49 @@ static int glueIsAppleHfs(const unsigned char *type) {
   return 1;
 }
 
-static void glueVolumeLocate(int drive) {
+/* Where the drive's volume is: the first Apple_HFS partition of a partition
+   map, or the whole medium. Kept as it was, and 0 returned, when a read
+   fails: the tick's locate can find the cartridge busy (a task-level
+   transfer waiting for the RP), and resetting a mounted partition's start
+   to 0 put its reads and writes on the wrong blocks (EPIC-16 DISK-08). */
+static int glueVolumeLocate(int drive) {
   struct DiskInfo info;
   unsigned long entries = 1;
+  unsigned long start = 0;
+  unsigned long blocks;
+  long result = MAC_NOERR;
   glueBackend->info(drive, &info);
-  glueVolumeStart[drive] = 0;
-  glueVolumeBlocks[drive] = info.blocks;
-  if (!info.present ||
-      glueBackend->read(drive, 0, 1, glueBlockBuffer) != MAC_NOERR ||
-      glueWord(glueBlockBuffer) != kDdmSignature) {
-    return;
+  blocks = info.blocks;
+  if (info.present) {
+    result = glueBackend->read(drive, 0, 1, glueBlockBuffer);
   }
-  for (unsigned long i = 1; i <= entries && i <= kPmMaxEntries; ++i) {
-    if (glueBackend->read(drive, i, 1, glueBlockBuffer) != MAC_NOERR ||
-        glueWord(glueBlockBuffer) != kPmSignature) {
-      break;
+  if (info.present && result == MAC_NOERR &&
+      glueWord(glueBlockBuffer) == kDdmSignature) {
+    int found = 0;
+    for (unsigned long i = 1; i <= entries && i <= kPmMaxEntries && !found;
+         ++i) {
+      result = glueBackend->read(drive, i, 1, glueBlockBuffer);
+      if (result != MAC_NOERR || glueWord(glueBlockBuffer) != kPmSignature) {
+        break;
+      }
+      entries = glueLong(glueBlockBuffer + kPmMapBlocks);
+      if (glueIsAppleHfs(glueBlockBuffer + kPmType)) {
+        start = glueLong(glueBlockBuffer + kPmStart);
+        blocks = glueLong(glueBlockBuffer + kPmBlocks);
+        found = 1;
+        TRACE("disk partition %lu blocks %lu", start, blocks);
+      }
     }
-    entries = glueLong(glueBlockBuffer + kPmMapBlocks);
-    if (glueIsAppleHfs(glueBlockBuffer + kPmType)) {
-      glueVolumeStart[drive] = glueLong(glueBlockBuffer + kPmStart);
-      glueVolumeBlocks[drive] = glueLong(glueBlockBuffer + kPmBlocks);
-      TRACE("disk partition %lu blocks %lu", glueVolumeStart[drive],
-            glueVolumeBlocks[drive]);
-      return;
+    if (!found && result == MAC_NOERR) {
+      TRACE("disk partition map without Apple_HFS");
     }
   }
-  TRACE("disk partition map without Apple_HFS");
+  if (result != MAC_NOERR) {
+    return 0;
+  }
+  glueVolumeStart[drive] = start;
+  glueVolumeBlocks[drive] = blocks;
+  return 1;
 }
 
 static void glueDriveRefresh(int drive) {
@@ -222,7 +243,7 @@ void glueInstallDisk(void) {
                      MAC_TMADDR) = (unsigned long)glueRts;
   glueInsTime((unsigned char *)sonyVars + MAC_SONY_TIMEQEL);
 
-  glueTransfersTraced = 0;
+  glueTransfersTraced[0] = glueTransfersTraced[1] = 0;
   glueOfflineTraced = 0;
   TRACE("mac sony %ld dce %06lx", err, (unsigned long)dce);
   (void)err; /* traced only in debug builds */
@@ -238,7 +259,13 @@ void glueInstallDisk(void) {
   TRACE("disk backend %s", glueBackend->name);
   glueDriveCount = glueBackend->drives();
   for (int drive = 0; drive < glueDriveCount; ++drive) {
-    glueVolumeLocate(drive);
+    glueLocatePending[drive] = 0;
+    if (!glueVolumeLocate(drive)) { /* unreadable: the whole medium */
+      struct DiskInfo info;
+      glueBackend->info(drive, &info);
+      glueVolumeStart[drive] = 0;
+      glueVolumeBlocks[drive] = info.blocks;
+    }
     glueDriveRefresh(drive);
     glueDrives[drive].dQFSID = 0;
     glueAddDrive(((long)(drive + 1) << kDriveNumberShift) |
@@ -272,7 +299,10 @@ void glueDiskTick(void) {
   changed = glueBackend->changed();
   for (int drive = 0; drive < glueDriveCount; ++drive) {
     if (changed & (1 << drive)) {
-      glueVolumeLocate(drive);
+      glueLocatePending[drive] = 1;
+    }
+    if (glueLocatePending[drive] && glueVolumeLocate(drive)) {
+      glueLocatePending[drive] = 0;
       glueDriveRefresh(drive);
       glueInsertPending[drive] = 1;
     }
@@ -339,8 +369,8 @@ short glueDriverPrime(unsigned char *block, unsigned char *dce) {
         drive, glueVolumeStart[drive] + (position >> kBlockShift),
         bytes >> kBlockShift, buffer);
   }
-  if (glueTransfersTraced < kTracedTransfers) {
-    ++glueTransfersTraced;
+  if (glueTransfersTraced[write != 0] < kTracedTransfers) {
+    ++glueTransfersTraced[write != 0];
     if (drive == 0) {
       TRACE("disk %s %lu+%lu %d", write ? "write" : "read",
             position >> kBlockShift, bytes >> kBlockShift, result);

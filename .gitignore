@@ -71,6 +71,8 @@ __pycache__/
 *.image
 *.hfv
 *.dc42
+*.raw
+*.wav
 roms/
 disks/
 tools/dev/dev.cfg

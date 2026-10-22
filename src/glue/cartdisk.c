@@ -41,19 +41,31 @@ enum { kBlockShift = 9, kIdMagicShift = 16, kIdVersionMask = 0xFFFF };
                                ((unit) * CART_UNIT_ENTRY_BYTES) + (field)))
 #define STATUS_LONG(offset) \
   (*(volatile unsigned long *)(glueCartStatus + (offset)))
+#define UNIT_ID(unit) \
+  STATUS_LONG(CART_UNIT_ID_OFFSET + ((unit) * CART_UNIT_ID_BYTES))
 
-/* The change counters and sizes the Mac was last told about. */
+/* The change counters, sizes and image identities the Mac was last told
+   about (a size of 0: no medium the Mac knows). */
 static unsigned long cartDiskChanges[CART_UNITS];
 static unsigned long cartDiskSectors[CART_UNITS];
+static unsigned long cartDiskIds[CART_UNITS];
+/* Another image came back in the unit after an RP restart while the Mac had
+   one mounted: the drive reads as empty until the Mac ejects it, so that
+   nothing of the old volume is written into the new image (EPIC-16
+   DISK-02). */
+static unsigned char cartDiskOther[CART_UNITS];
 /* Each unit's flags and size as last read while the RP was up. */
 static unsigned long cartDiskFlags[CART_UNITS];
 static unsigned long cartDiskBlocks[CART_UNITS];
 
-/* Whether the RP's window is md-jackintosh's (not mid-restart). */
+/* Whether the RP's window is md-jackintosh's (not mid-restart) with its
+   units published: the identity comes first, card OK after the units
+   (EPIC-16 DISK-03; an older md-jackintosh leaves the card at 0, OK). */
 static int cartDiskUp(void) {
   const unsigned long identity = STATUS_LONG(CART_ID_OFFSET);
   return (identity >> kIdMagicShift) == CART_ID_MAGIC &&
-         (identity & kIdVersionMask) == CART_ID_VERSION;
+         (identity & kIdVersionMask) == CART_ID_VERSION &&
+         STATUS_LONG(CART_CARD_OFFSET) == CART_CARD_OK;
 }
 
 /* Whether the RP is up, waiting for it while it restarts. */
@@ -78,6 +90,8 @@ static int cartDiskDrives(void) {
     cartDiskSectors[unit] = UNIT_LONG(unit, CART_UNIT_SECTORS);
     cartDiskFlags[unit] = UNIT_LONG(unit, CART_UNIT_FLAGS);
     cartDiskBlocks[unit] = cartDiskSectors[unit];
+    cartDiskIds[unit] = UNIT_ID(unit);
+    cartDiskOther[unit] = 0;
   }
   return CART_UNITS;
 }
@@ -87,7 +101,8 @@ static void cartDiskInfo(int drive, struct DiskInfo *info) {
     cartDiskFlags[drive] = UNIT_LONG(drive, CART_UNIT_FLAGS);
     cartDiskBlocks[drive] = UNIT_LONG(drive, CART_UNIT_SECTORS);
   }
-  info->present = (cartDiskFlags[drive] & CART_UNIT_FLAG_INSERTED) != 0;
+  info->present = (cartDiskFlags[drive] & CART_UNIT_FLAG_INSERTED) != 0 &&
+                  !cartDiskOther[drive];
   info->fixed = drive == CART_UNIT_HD0;
   info->writeProtected = (cartDiskFlags[drive] & CART_UNIT_FLAG_READONLY) != 0;
   info->blocks = info->present ? cartDiskBlocks[drive] : 0;
@@ -178,7 +193,12 @@ static void cartDiskEject(int drive) {
                       (unsigned long)drive, 0, 0, 0);
   TRACE("disk cart eject %d %ld", drive, sent);
   if (sent == CART_OK) {
+    /* No medium the Mac knows: one put back later, after an RP restart
+       too, is announced (EPIC-16 DISK-04). */
     cartDiskChanges[drive] = UNIT_LONG(drive, CART_UNIT_CHANGES);
+    cartDiskSectors[drive] = 0;
+    cartDiskIds[drive] = CART_UNIT_ID_NONE;
+    cartDiskOther[drive] = 0;
   }
 }
 
@@ -195,14 +215,32 @@ static int cartDiskChanged(void) {
     const unsigned long sectors = UNIT_LONG(unit, CART_UNIT_SECTORS);
     const int inserted =
         (UNIT_LONG(unit, CART_UNIT_FLAGS) & CART_UNIT_FLAG_INSERTED) != 0;
+    unsigned long imageId;
     if (changes == cartDiskChanges[unit]) {
       continue;
     }
     cartDiskChanges[unit] = changes;
-    if (inserted && sectors == cartDiskSectors[unit] && changes == 1) {
-      continue; /* back after an RP restart: the same medium, still mounted */
+    imageId = UNIT_ID(unit);
+    if (inserted && cartDiskSectors[unit] != 0) {
+      /* The Mac has a medium of this unit mounted: after an RP restart the
+         unit comes back with its counter restarted. The same image stays
+         mounted; another one keeps the drive empty until the Mac ejects it.
+         Without identities (an older md-jackintosh), the same size and a
+         counter of 1 are taken for the same image. */
+      if (imageId != CART_UNIT_ID_NONE
+              ? imageId == cartDiskIds[unit]
+              : (sectors == cartDiskSectors[unit] && changes == 1)) {
+        continue;
+      }
+      if (imageId != CART_UNIT_ID_NONE) {
+        cartDiskOther[unit] = 1;
+        TRACE("disk cart unit %d other image", unit);
+        continue;
+      }
     }
     cartDiskSectors[unit] = sectors;
+    cartDiskIds[unit] = imageId;
+    cartDiskOther[unit] = 0;
     if (inserted) {
       changed |= 1 << unit;
       TRACE("disk cart unit %d inserted %lu", unit, sectors);

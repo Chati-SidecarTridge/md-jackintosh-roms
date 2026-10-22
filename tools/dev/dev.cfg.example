@@ -16,8 +16,10 @@ file =
 # runs two programs from drive 2 (EPIC-09): word40a (hampa.ch's Microsoft
 # Word 4.0a, "Word Program") and norton111 (Norton Utilities 1.1.1 800K,
 # disk1, "Norton Emergency Disk"); and swaps excel103 (Microsoft Excel 1.03,
-# "Excel Program") into drive 2 when the Finder ejects Word's disk.
+# "Excel Program") into drive 2 when the Finder ejects Word's disk; and
+# plays tetris1 (Tetris's first disk) for the sound run (EPIC-15).
 system608 =
 word40a =
 norton111 =
 excel103 =
+tetris1 =

@@ -462,12 +462,22 @@ unsigned long glueBusFix(unsigned short *frame, unsigned long *regs) {
   if (read || !glueSkippable(access)) {
     return 0;
   }
-  for (int back = 1; back <= kMaxBack; ++back) {
+  /* First an instruction that ends at the stacked PC or a word before it
+     (a one-word read-modify-write stacks its end + 2); only if none, one
+     that ends past it (MOVE <mem>,(xxx).L prefetches after its write).
+     The first candidate tried can be the next instruction, which a single
+     pass took and skipped unexecuted (EPIC-16 PATCH-02). */
+  for (int back = 1; back <= 2 * kMaxBack; ++back) {
+    const int exact = back <= kMaxBack;
     const unsigned short *start =
         (const unsigned short *)(stackedPc -
-                                 ((unsigned long)back * kWordBytes));
+                                 ((unsigned long)(exact ? back
+                                                        : back - kMaxBack) *
+                                  kWordBytes));
     const int length = glueWriteSkippable(start, regs);
-    if (length > 0 && (unsigned long)start + length + kWordBytes >= stackedPc) {
+    const unsigned long end = (unsigned long)start + (unsigned long)length;
+    if (length > 0 && end + kWordBytes >= stackedPc &&
+        (!exact || end <= stackedPc)) {
       if (glueBusFixes++ < kTracedFixes) {
         TRACE("buserr write %06lx skipped at %06lx op %04x", access,
               (unsigned long)start, (unsigned)start[0]);
