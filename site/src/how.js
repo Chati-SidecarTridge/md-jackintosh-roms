@@ -364,7 +364,8 @@ function wireMap() {
   }
   const pinFromHash = () => {
     const id = (window.location.hash.split('/')[2] || '');
-    tour.pinned = id ? document.getElementById(`topic-${id}`) : null;
+    const el = id ? document.getElementById(`topic-${id}`) : null;
+    tour.pinned = el && el.classList.contains('chapter') ? el : null; // not the glue's definition
     setTimeout(markCurrent, 50);
   };
   window.addEventListener('hashchange', pinFromHash);

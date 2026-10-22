@@ -1227,6 +1227,20 @@ kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-b
   .tour-map { position: static; max-height: none; }
   .map-seg.tall button { min-height: 0; }
 }
+
+.glue-def {
+  margin: 18px 0 8px;
+  padding: 18px 22px;
+  max-width: 76ch;
+  border: 1.5px solid #fde047;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.9);
+}
+.glue-def h3 { margin: 0 0 8px; color: #fde047; font-size: 1.2rem; }
+.glue-def p, .glue-def li { color: #e5e7eb; line-height: 1.6; }
+.glue-def ul { padding-left: 20px; margin: 8px 0; }
+.glue-def .glue-not { color: #cbd5f5; margin-bottom: 0; padding-top: 10px; border-top: 1px solid #334155; }
+.glue-link { color: inherit; text-decoration: underline dotted #fde047; text-underline-offset: 3px; }
 </style>
 <script>
 window.addEventListener('error', function (e) {
@@ -1624,7 +1638,23 @@ window.addEventListener('error', function (e) {
   <header class="tour-intro">
     <h2>How it works</h2>
     <p class="lead">A tour of the 68000's 16&nbsp;MB address space, from power-on to the Finder. Every trick that turns an
-      Atari into a Mac Plus happens at an address: the map beside you shows where you are.</p>
+      Atari into a Mac Plus happens at an address: the list beside you shows where you are.</p>
+    <aside class="glue-def" id="topic-glue">
+      <h3>What we call &ldquo;the glue&rdquo;</h3>
+      <p>The Jackintosh image is two things back to back: Apple's Mac Plus ROM, which is yours, and about 35&nbsp;KB of
+        our own 68000 code in front of it. That code is <strong>the glue</strong>, because it glues the Mac ROM to Atari
+        hardware.</p>
+      <ul>
+        <li>It starts the Atari at power-on: sizes the RAM, sets up the screen, greets the Multi-device and shows the menu.</li>
+        <li>It then hands over to the Mac ROM, and stands in for every Mac chip the Atari lacks: the timers, the clock,
+          the keyboard, the floppy drive, the sound.</li>
+        <li>The ROM calls it through small patches, each replacing a few bytes of Apple's code with a jump into the
+          glue.</li>
+      </ul>
+      <p class="glue-not">Not to be confused with the Atari ST's <em>GLUE chip</em>, the custom chip on the motherboard
+        that decodes addresses and makes the video timing. That chip keeps doing its job, untouched; our glue is
+        software in the ROM.</p>
+    </aside>
   </header>
   <div class="tour">
     <nav class="tour-map" aria-label="Chapters">
@@ -1690,7 +1720,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" id="topic-image">
       <header class="ch-head"><span class="ch-addr" data-st="$FD0000" data-ste="$E20000">$FD0000</span><h3>The Mac ROM, patched in place</h3></header>
-      <p class="lead">An image is our glue, then your Mac Plus ROM with every byte where Apple put it. The patches replace
+      <p class="lead">An image is our <a class="glue-link" href="#/how/glue">glue</a>, then your Mac Plus ROM with every byte where Apple put it. The patches replace
       code in place, each the same length as what it replaces, and each is applied only if the bytes it replaces are
       exactly the expected ones (checked by their SHA-256, so the site never holds Apple's bytes). This map is drawn
       from the data the builder uses.</p>
@@ -1700,7 +1730,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" id="topic-memory">
       <header class="ch-head"><span class="ch-addr" data-st="$000000" data-ste="$000000">$000000</span><h3>The Mac's RAM</h3></header>
-      <p class="lead">Up to 4&nbsp;MB, sized the way TOS sizes it, and all of it the Mac's. The glue only takes a little for
+      <p class="lead">Up to 4&nbsp;MB, sized the way TOS sizes it, and all of it the Mac's. The <a class="glue-link" href="#/how/glue">glue</a> only takes a little for
       itself, and lays the rest out the way a Mac Plus expects. Point at the RAM on the map: from the bottom up.</p>
     <div class="ram-pick" role="group" aria-label="Installed RAM">
       <span>Installed RAM:</span>
@@ -1720,7 +1750,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" id="topic-time">
       <header class="ch-head"><span class="ch-addr" data-st="$FFFA00" data-ste="$FFFA00">$FFFA00</span><h3>Interrupts and time</h3></header>
-      <p class="lead">The 68000 has seven interrupt levels, and a Mac and an Atari use them for different things. The glue
+      <p class="lead">The 68000 has seven interrupt levels, and a Mac and an Atari use them for different things. The <a class="glue-link" href="#/how/glue">glue</a>
       re-routes each one. Point at a level.</p>
     <div class="levels">
       <div class="level-head"><span>Level</span><span>Mac Plus</span><span>Atari</span></div>
@@ -1739,7 +1769,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" data-ghost="1" id="topic-chips">
       <header class="ch-head"><span class="ch-addr" data-st="$EFE1FE" data-ste="$EFE1FE">$EFE1FE</span><h3>The Mac's chips, in RAM</h3></header>
-      <p class="lead">The Mac ROM reaches most of its chips through pointers in low memory. The glue points them at small
+      <p class="lead">The Mac ROM reaches most of its chips through pointers in low memory. The <a class="glue-link" href="#/how/glue">glue</a> points them at small
       copies in RAM and plays the chips' part from there: faster and simpler than catching every access.</p>
     <div class="chips">
       <div class="chip-card" data-title="The VIA." data-info="Port B (the sound switch, the mouse button, the clock chip's lines), the keyboard's shift register and the timers. The glue plays the Mac keyboard on the shift register each tick, and the clock chip through its lines.">VIA</div>
@@ -1755,7 +1785,7 @@ window.addEventListener('error', function (e) {
       <header class="ch-head"><span class="ch-addr" data-st="$40xxxx" data-ste="$40xxxx">$40xxxx</span><h3>System 6's absolute addresses</h3></header>
       <p class="lead">System 6.0.8 fixes bugs in the Plus ROM with its own code, and that code calls the ROM at absolute
       addresses: $40xxxx, where a Mac Plus has its ROM. On an Atari the ROM is elsewhere. So as each System resource
-      loads, the glue checks it (type, ID, size, SHA-256) and moves every listed address to where the ROM really is.</p>
+      loads, the <a class="glue-link" href="#/how/glue">glue</a> checks it (type, ID, size, SHA-256) and moves every listed address to where the ROM really is.</p>
     <div class="toggle"><button type="button" data-reloc="st" class="current">On an ST ($FD0000)</button><button type="button" data-reloc="ste">On an STE ($E20000)</button></div>
     <div class="reloc">
       <div class="reloc-cards">
@@ -1773,7 +1803,7 @@ window.addEventListener('error', function (e) {
     <article class="chapter" id="topic-buserr">
       <header class="ch-head"><span class="ch-addr" data-st="$000000" data-ste="$000000">$000000</span><h3>Nil pointers</h3></header>
       <p class="lead">Mac programs write through nil pointers all the time: on a Mac that lands in RAM at address 0 and
-      nobody notices. On an Atari, address 0 is ROM and the write is a bus error. The glue's handler finds the
+      nobody notices. On an Atari, address 0 is ROM and the write is a bus error. The <a class="glue-link" href="#/how/glue">glue</a>'s handler finds the
       instruction and skips it. Step through an example (our own code, not Apple's).</p>
     <div class="buserr">
       <pre class="code" id="beCode"><span data-line="0">  MOVEA.L  handle,A0     ; A0 = 0 (no memory)</span><span data-line="1">  MOVE.L   D0,4(A0)      ; write to $000004</span><span data-line="2">  ADDQ.W   #1,D1</span><span data-line="3">  RTS</span></pre>
@@ -1786,7 +1816,7 @@ window.addEventListener('error', function (e) {
     <article class="chapter" id="topic-input">
       <header class="ch-head"><span class="ch-addr" data-st="$FFFC00" data-ste="$FFFC00">$FFFC00</span><h3>Keyboard and mouse</h3></header>
       <p class="lead">The Atari's keyboard has its own processor, the IKBD, which sends key presses and mouse moves as bytes.
-      The glue turns them into what a Mac Plus keyboard would send, and plays that keyboard's half of the Mac's serial
+      The <a class="glue-link" href="#/how/glue">glue</a> turns them into what a Mac Plus keyboard would send, and plays that keyboard's half of the Mac's serial
       conversation every tick. Point at a key.</p>
     <div class="keys">
       <div class="key wide" data-title="Control is Command." data-info="The Atari's Control key sits where a Mac's Command key would: Control-O opens, Control-Q quits.">Control <small>&rarr; &#8984; Command</small></div>
@@ -1819,7 +1849,7 @@ window.addEventListener('error', function (e) {
       encodes it: $FB0000 plus the word. The Multi-device's RP2040 watches the addresses and answers by writing into a
       64 KB window the Atari reads at $FA0000. Step through a disk read.</p>
     <svg class="diagram" viewBox="0 0 1000 300" role="img" aria-label="The cartridge protocol">
-      <rect x="20" y="20" width="300" height="260" rx="14" class="box"/><text x="170" y="55" class="label">Atari (the glue)</text>
+      <rect x="20" y="20" width="300" height="260" rx="14" class="box"/><text x="170" y="55" class="label">Atari (the <a class="glue-link" href="#/how/glue">glue</a>)</text>
       <rect x="680" y="20" width="300" height="260" rx="14" class="box"/><text x="830" y="55" class="label">Multi-device</text>
       <rect x="720" y="200" width="220" height="56" rx="8" class="chip"/><text x="830" y="234" class="small">microSD: the images</text>
       <rect x="60" y="200" width="220" height="56" rx="8" class="chip"/><text x="170" y="234" class="small">the Mac's buffer</text>
@@ -1833,7 +1863,7 @@ window.addEventListener('error', function (e) {
     </article>
     <article class="chapter" id="topic-runs">
       <header class="ch-head"><span class="ch-addr" data-st="6.0.8" data-ste="6.0.8">6.0.8</span><h3>What runs</h3></header>
-      <p class="lead">Every program tried taught the glue something. Point at one.</p>
+      <p class="lead">Every program tried taught the <a class="glue-link" href="#/how/glue">glue</a> something. Point at one.</p>
     <div class="chips">
       <div class="chip-card" data-title="System 6.0.8 and the Finder." data-info="The target from day one: its patches call the ROM at absolute addresses, so the glue relocates them as they load (topic 5).">System 6.0.8</div>
       <div class="chip-card" data-title="Microsoft Word 4." data-info="Typing, menus and Save. Word writes through nil pointers like many programs of its time: the bus-error handler skips those writes (topic 8).">Word 4</div>
@@ -2633,7 +2663,8 @@ function wireMap() {
   }
   const pinFromHash = () => {
     const id = (window.location.hash.split('/')[2] || '');
-    tour.pinned = id ? document.getElementById(`topic-${id}`) : null;
+    const el = id ? document.getElementById(`topic-${id}`) : null;
+    tour.pinned = el && el.classList.contains('chapter') ? el : null; // not the glue's definition
     setTimeout(markCurrent, 50);
   };
   window.addEventListener('hashchange', pinFromHash);
