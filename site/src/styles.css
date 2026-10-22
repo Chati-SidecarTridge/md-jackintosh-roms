@@ -630,9 +630,12 @@ dialog#helpModal::backdrop {
   z-index: -1;
   pointer-events: none;
   background-repeat: no-repeat;
-  background-position: center 18%;
-  background-size: min(1400px, 140vw) auto;
-  opacity: 0.16;
+  background-position: center 24%;
+  background-image: url('assets/eyes.jpg');
+  background-size: min(1600px, 160vw) auto;
+  opacity: 0.3;
+  -webkit-mask-image: radial-gradient(ellipse min(700px, 75vw) min(260px, 30vw) at 50% 24%, #000 35%, transparent 100%);
+  mask-image: radial-gradient(ellipse min(700px, 75vw) min(260px, 30vw) at 50% 24%, #000 35%, transparent 100%);
   filter: grayscale(1) contrast(1.15);
 }
 
