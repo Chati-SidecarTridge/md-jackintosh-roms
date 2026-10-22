@@ -329,8 +329,11 @@ def export(machine, glue_path, out_path, patch_table=PATCH_TABLE):
             "sha256": patch["sha256"],
             "replace": patch_bytes(patch, symbols, rom_base).hex(),
         })
+    with open(os.path.join(REPO, "version.txt"), encoding="utf-8") as handle:
+        release = handle.read().strip()
     data = {
         "machine": machine,
+        "release": release,
         "base": base,
         "glueSize": glue_size,
         "versionWord": version,

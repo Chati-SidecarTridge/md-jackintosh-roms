@@ -108,7 +108,47 @@ window.addEventListener('error', function (e) {
   <h2>Build your image</h2>
   <p class="lead">Drop in your own Mac Plus ROM, choose your Atari, and download the image for the SidecarTridge TOS
     Emulator. Everything happens in your browser.</p>
-  <div class="about-card coming-soon">Coming soon: the builder is being written.</div>
+  <ul class="steps" id="steps">
+    <li id="step1" class="step active">
+      <div class="step-header"><span>Step 1/4. Your Mac Plus ROM <button type="button" class="help-icon" data-help-key="rom" aria-label="Help: your Mac Plus ROM" title="Your Mac Plus ROM">?</button></span> <span class="step-status">Ready</span></div>
+      <div class="step-content">
+        <div id="dropZone" class="drop-zone">
+          Drag and drop your Mac Plus v3 ROM (128&nbsp;KB) here, or
+          <label for="fileInput" class="browse-link">browse</label>.
+          <input type="file" id="fileInput" style="display:none">
+        </div>
+        <div id="romHint" class="hint" style="margin-top:8px;"></div>
+      </div>
+    </li>
+    <li id="step2" class="step active">
+      <div class="step-header"><span>Step 2/4. Your Atari <button type="button" class="help-icon" data-help-key="machine" aria-label="Help: which Atari" title="Which Atari?">?</button></span> <span class="step-status">Ready</span></div>
+      <div class="step-content">
+        <div class="options-grid">
+          <fieldset style="grid-column: 1 / -1;">
+            <legend>Machine</legend>
+            <label><input type="radio" name="machine" value="st" checked> ST family: ST, STF, STFM, Mega ST (192&nbsp;KB)</label>
+            <label><input type="radio" name="machine" value="ste"> STE family: STE, Mega STE (256&nbsp;KB)</label>
+          </fieldset>
+        </div>
+      </div>
+    </li>
+    <li id="step3" class="step">
+      <div class="step-header">Step 3/4. Build <span class="step-status">Pending</span></div>
+      <div class="step-content">
+        <p>Click <strong>Build</strong>: the page checks your ROM, adds the Jackintosh glue and patches it, all in your browser.</p>
+        <button id="buildBtn" type="button" disabled>Build</button>
+      </div>
+    </li>
+    <li id="step4" class="step">
+      <div class="step-header"><span>Step 4/4. Download <button type="button" class="help-icon" data-help-key="install" aria-label="Help: install" title="Install">?</button></span> <span class="step-status">Pending</span></div>
+      <div class="step-content">
+        <div id="downloads"></div>
+        <p class="hint" style="margin-top:10px;">Copy the image to the SidecarTridge TOS Emulator and name it in <code>DEFAULT.TXT</code>. The image holds Apple's ROM: keep it for yourself.</p>
+        <button id="resetBtn" type="button" style="margin-top:12px; background:#1f2937; color:#f9fafb;">Build another</button>
+      </div>
+    </li>
+  </ul>
+  <div id="log" class="log" role="log" aria-live="polite"></div>
 </section>
 
 <section data-view="how" hidden>
@@ -156,6 +196,16 @@ window.addEventListener('error', function (e) {
     </p>
   </div>
 </footer>
+
+<dialog id="helpModal" aria-labelledby="helpModalTitle">
+  <div class="modal-panel">
+    <header class="modal-header">
+      <h3 id="helpModalTitle"></h3>
+      <button type="button" class="modal-close" aria-label="Close help">&times;</button>
+    </header>
+    <div id="helpModalBody" class="modal-body"></div>
+  </div>
+</dialog>
 
 <script type="module">
 {{SCRIPT}}

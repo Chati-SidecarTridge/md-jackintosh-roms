@@ -19,6 +19,10 @@ const SRC = join(ROOT, 'src');
 
 // Each module may use names from the modules above it.
 const MODULE_ORDER = [
+  'sha256.js',
+  'jackrom.js',
+  'help-content.js',
+  'builder.js',
   'router.js',
   'app.js',
 ];
