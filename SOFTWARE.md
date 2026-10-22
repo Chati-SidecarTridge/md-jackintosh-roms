@@ -55,7 +55,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 |---|---|---|---|---|---|
 | Blockout | Mac Plus v3 ROM | 6 | Yes | Yes |  |
 | Crystal Quest 2.2.5 | Mac Plus v3 ROM | 6 | Yes | Yes | Its title screen, Hall of Fame and demo run: animation, scoring, the attract cycle. |
-| Dark Castle 1.2 | Mac Plus v3 ROM | 6 | Yes | No | Stops on a bus error at launch: it probes $F80030, the Plus's diagnostic-ROM space, which an Atari does not answer. To fix. |
+| Dark Castle 1.2 | Mac Plus v3 ROM | 6 | Yes | No | It draws straight into the screen with the Plus's 64 bytes per line; the Atari's Shifter shows 80 per line, so its graphics come out striped. Not supported. |
 | Airborne! (1984) | Mac Plus v3 ROM | 6 | Yes | No | A self-booting disk: the game is its "Finder". Booting it runs its own 1985 System, which stops reading the ROM at its Plus address ($400008); from System 6.0.8 the Finder will not open a program named Finder. To retry renamed. |
 | Glider+ 3.1.2 (1991) | Mac Plus v3 ROM | 6 | Yes | — | Launches to its title room and high scores, menus work; Begin Game (menu or Command-B) does not start a game yet. To look at. |
 | Cairo ShootOut (1987) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; the shooting gallery, hourglass, level and score, menus. |
