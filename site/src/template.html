@@ -302,6 +302,61 @@ window.addEventListener('error', function (e) {
     </svg>
     <div class="info-panel">Point at the Atari, the TOS Emulator, the Multi-device, the card or the monitor.</div>
     </article>
+    <article class="chapter" id="topic-why">
+      <header class="ch-head"><span class="ch-addr" data-st="16&nbsp;MB" data-ste="16&nbsp;MB">16&nbsp;MB</span><h3>Same CPU, different computer</h3></header>
+      <p class="lead">The Mac Plus and the Atari ST are close cousins: same processor, same era, both with a mouse and
+      a monochrome screen. That is what makes a Jackintosh possible. Around the processor, though, almost everything
+      differs, and every difference is something the glue has to deal with. Tap a row to see what it does about it.</p>
+      <div class="table-wrap"><table class="compare"><thead><tr><th></th><th>Macintosh Plus</th><th>Atari ST and STE</th></tr></thead><tbody><tr data-title="Processor." data-info="The same CPU, so Apple's code runs natively, instruction for instruction, with no emulator in between: a Jackintosh runs as fast as a Plus, a little faster."><th scope="row">Processor</th><td>68000 at 7.83&nbsp;MHz</td><td>68000 at 8&nbsp;MHz (16 on a Mega STE)</td></tr><tr data-title="ROM." data-info="The Atari only boots from its own ROM space. So the image puts the glue first, where the reset lands, and the Mac ROM right after it. The Mac ROM keeps every byte at its offset, because System&nbsp;6 patches it by exact offsets; only same-length patches are added."><th scope="row">ROM</th><td>128&nbsp;KB at $400000</td><td>TOS: 192&nbsp;KB at $FC0000 (ST), 256&nbsp;KB at $E00000 (STE)</td></tr><tr data-title="RAM." data-info="RAM is RAM, and the Mac gets all of it. Only the very bottom clashes: the glue moves the Atari's interrupt vectors out of the Mac's globals and skips the Mac's writes to $0-$7, which are ROM on an Atari."><th scope="row">RAM</th><td>up to 4&nbsp;MB, globals from $100</td><td>up to 4&nbsp;MB, vectors up to $3FF, ROM at $0-$7</td></tr><tr data-title="Screen." data-info="The glue tells the Mac ROM it has a 640&times;400 screen and places it in RAM where the Atari's video chip can show it; the drawing code is patched for the bigger size."><th scope="row">Screen</th><td>512&times;342, built in</td><td>640&times;400 mono through the Shifter</td></tr><tr data-title="Floppy drive." data-info="An Atari drive cannot read a Mac floppy at all: the bits are written differently. So the disks are image files on the Multi-device's microSD card, read over the cartridge port, and the glue is the Mac's disk driver."><th scope="row">Floppy drive</th><td>IWM, Apple's 400K and 800K format</td><td>WD1772, the PC-like 360K and 720K format</td></tr><tr data-title="Hard disk." data-info="Served like the floppies: a hard disk image on the card, through the same driver."><th scope="row">Hard disk</th><td>SCSI</td><td>ACSI (IDE on the Mega STE)</td></tr><tr data-title="Keyboard and mouse." data-info="The glue reads the IKBD's bytes and plays the Mac keyboard's side of its conversation with the ROM, every tick; mouse moves go straight into the Mac's cursor globals."><th scope="row">Keyboard and mouse</th><td>Mac keyboard on a serial line; mouse on the SCC and VIA</td><td>IKBD, a keyboard processor that also reads the mouse</td></tr><tr data-title="Timers." data-info="An MFP timer is set to tick at 60.235&nbsp;Hz and drives the Mac's tick and seconds; the Atari's line and frame interrupts are tamed so the Mac does not drown in them."><th scope="row">Timers</th><td>VIA: a 60.15&nbsp;Hz tick and a one-second interrupt</td><td>MFP timers, and the video's line and frame interrupts</td></tr><tr data-title="Clock and PRAM." data-info="The time comes from the network through the Multi-device, and the Mac's parameter RAM, your settings, is saved in a file on its card."><th scope="row">Clock and PRAM</th><td>a battery-backed clock chip</td><td>none on the ST (the Mega ST's is a different chip)</td></tr><tr data-title="Sound." data-info="On the STE and Mega STE the glue turns the Mac's buffer into DMA sound every tick. The ST's YM chip cannot play it, so the ST stays silent."><th scope="row">Sound</th><td>a 370-byte buffer played every video line</td><td>YM2149 on the ST; DMA sound on the STE</td></tr><tr data-title="Serial ports." data-info="Not connected: the Mac is told its ports are in use, so AppleTalk and serial software give up at once instead of waiting forever."><th scope="row">Serial ports</th><td>SCC: modem, printer, AppleTalk</td><td>MFP serial port</td></tr></tbody></table></div>
+      <div class="info-panel">Tap a row.</div>
+      <h4 class="why-h">Why not just emulate?</h4>
+      <p class="why-p">An emulator is a program that pretends to be a Mac, running on TOS and translating every access to
+        the Mac's chips; it costs speed at every step. The Jackintosh does the opposite: the Atari's own 68000 runs Apple's
+        ROM at full speed, and only where that code would touch a Mac chip does the glue step in. It does so in three
+        ways, cheapest first:</p>
+      <ol class="why-list">
+        <li><strong>Patch the ROM</strong> where it touches hardware: a few bytes replaced by a jump into the glue, the same
+          length, so every other byte stays where Apple put it.</li>
+        <li><strong>Keep copies of the Mac's chips in RAM</strong>, where the ROM reaches them through pointers it reads
+          from memory: the glue points those at its copies and plays the chips' part.</li>
+        <li><strong>Catch what is left</strong>: a program that writes where an Atari has nothing gets a bus error, and the
+          glue's handler skips or re-runs that one instruction.</li>
+      </ol>
+    </article>
+    <article class="chapter" id="topic-maps">
+      <header class="ch-head"><span class="ch-addr" data-st="$FFFFFF" data-ste="$FFFFFF">$FFFFFF</span><h3>Two memory maps</h3></header>
+      <p class="lead">A Mac Plus expects its chips at fixed addresses that are empty, or something else, on an Atari. The glue
+      moves the Mac's ROM, keeps its RAM, and puts the missing chips in RAM. Not to scale.</p>
+    <div class="toggle"><button type="button" data-memmap="st" class="current">Atari ST</button><button type="button" data-memmap="ste">Atari STE</button></div>
+    <div class="memmaps">
+      <div class="memmap">
+        <h4>Macintosh Plus</h4>
+        <div class="seg ram tall" data-title="$000000 RAM." data-info="Up to 4 MB. Low memory holds the Mac's globals from $100; the screen sits near the top of RAM.">RAM <span>$000000</span></div>
+        <div class="seg rom" data-title="$400000 ROM." data-info="The 128 KB ROM. System 6.0.8's patches jump to 295 absolute addresses here.">ROM <span>$400000</span></div>
+        <div class="seg io" data-title="$580000 SCSI." data-info="The 5380 SCSI chip. Not there on an Atari: the probes are patched out.">SCSI <span>$580000</span></div>
+        <div class="seg io" data-title="$9FFFF8 / $BFFFF9 SCC." data-info="The serial chip, which also reads the mouse on a Plus. On an Atari the mouse comes from the keyboard processor (IKBD) instead.">SCC <span>$9FFFF8</span></div>
+        <div class="seg io" data-title="$DFE1FF IWM." data-info="The floppy controller. The Jackintosh replaces the floppy driver with its own, over the cartridge.">IWM <span>$DFE1FF</span></div>
+        <div class="seg io" data-title="$EFE1FE VIA." data-info="The VIA: the 60 Hz tick, the one-second interrupt, the keyboard's shift register, the clock chip, the sound switch. All of it is played by the glue from a copy in RAM.">VIA <span>$EFE1FE</span></div>
+      </div>
+      <div class="memmap memmap-atari" data-machine="st">
+        <h4>Atari ST as a Jackintosh</h4>
+        <div class="seg ram tall" data-title="$000000 RAM, the Mac's." data-info="The Mac's RAM, up to 4 MB, sized like TOS does it. $0-$7 is ROM on an ST, so the Mac's writes there are skipped by the bus-error handler. The glue's own variables and the Mac's chips in RAM (VIA, SCC, IWM) live near the bottom; the screen at the top of RAM, on a 256-byte boundary.">RAM <span>$000000</span></div>
+        <div class="seg cart" data-title="$FA0000 / $FB0000 cartridge." data-info="The Multi-device: commands are sent as reads of $FB0000 plus the word, answers come back in a 64 KB window at $FA0000 (disk sectors, the time, the unit table).">Cartridge <span>$FA0000</span></div>
+        <div class="seg glue" data-title="$FC0000 the glue." data-info="64 KB: our code, starting with the Atari's reset vector, so the Atari boots into it.">Glue <span>$FC0000</span></div>
+        <div class="seg rom" data-title="$FD0000 the Mac ROM." data-info="Your Plus ROM, moved from $400000. System 6's absolute ROM addresses are relocated as it loads.">Mac ROM <span>$FD0000</span></div>
+        <div class="seg io" data-title="$FF8000 Atari I/O." data-info="The Shifter (video), the MFP (timers, interrupts), the keyboard's ACIA, the YM sound chip. The glue drives them; the Mac never sees them.">Atari I/O <span>$FF8000</span></div>
+      </div>
+      <div class="memmap memmap-atari" data-machine="ste" hidden>
+        <h4>Atari STE as a Jackintosh</h4>
+        <div class="seg ram tall" data-title="$000000 RAM, the Mac's." data-info="As on the ST, up to 4 MB, with the glue's variables and the Mac's chips in RAM near the bottom, the screen at the top, and below the screen a 2 KB ring for the DMA sound.">RAM <span>$000000</span></div>
+        <div class="seg glue" data-title="$E00000 the glue." data-info="128 KB on the STE's larger ROM space: the same code, with sound for the STE and the Mega STE's 16 MHz and cache.">Glue <span>$E00000</span></div>
+        <div class="seg rom" data-title="$E20000 the Mac ROM." data-info="Your Plus ROM, moved from $400000.">Mac ROM <span>$E20000</span></div>
+        <div class="seg cart" data-title="$FA0000 / $FB0000 cartridge." data-info="The Multi-device, as on the ST.">Cartridge <span>$FA0000</span></div>
+        <div class="seg io" data-title="$FF8000 Atari I/O." data-info="As on the ST, plus the STE's DMA sound and its LMC1992 volume control, which play the Mac's sound buffer.">Atari I/O <span>$FF8000</span></div>
+      </div>
+    </div>
+    <div class="info-panel">Point at a region of either map.</div>
+    </article>
     <article class="chapter" id="topic-boot">
       <header class="ch-head"><span class="ch-addr" data-st="$FC0000" data-ste="$E00000">$FC0000</span><h3>Power-on</h3></header>
       <p class="lead">From power-on to the Finder. Step through it, or press Play.</p>

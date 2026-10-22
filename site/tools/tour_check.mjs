@@ -35,7 +35,7 @@ try {
     await send('Page.navigate', { url: `http://127.0.0.1:${PORT}/index.html#/how` });
     await sleep(1500);
     const { ids } = await state();
-    check(ids.length === 12, `${w}x${h}: 12 chapters (${ids.length})`);
+    check(ids.length === 14, `${w}x${h}: 14 chapters (${ids.length})`);
     // Scrolling down as a reader: one lit, in order, the chapter at the line.
     let last = -1, steps = 0, order = true, single = true, right = true;
     const maxY = await ev('document.documentElement.scrollHeight - innerHeight');

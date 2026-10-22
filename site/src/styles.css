@@ -1232,3 +1232,15 @@ kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-b
 .glue-def ul { padding-left: 20px; margin: 8px 0; }
 .glue-def .glue-not { color: #cbd5f5; margin-bottom: 0; padding-top: 10px; border-top: 1px solid #334155; }
 .glue-link { color: inherit; text-decoration: underline dotted #fde047; text-underline-offset: 3px; }
+
+table.compare { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.93rem; }
+table.compare th, table.compare td { padding: 9px 10px; border-bottom: 1px solid #1f2937; text-align: left; vertical-align: top; }
+table.compare thead th { color: #9ca3af; font-weight: 600; font-size: 0.85rem; }
+table.compare tbody th { color: #f8fafc; white-space: nowrap; }
+table.compare tbody td { color: #cbd5f5; }
+table.compare tbody tr { cursor: pointer; outline: none; }
+table.compare tbody tr:hover, table.compare tbody tr.lit, table.compare tbody tr:focus-visible { background: #1a2030; box-shadow: inset 3px 0 0 #fde047; }
+.why-h { color: #f8fafc; margin: 22px 0 6px; font-size: 1.1rem; }
+.why-p, .why-list { color: #cbd5f5; line-height: 1.65; max-width: 68ch; }
+.why-list li { margin-bottom: 8px; }
+.why-list strong { color: #f8fafc; }

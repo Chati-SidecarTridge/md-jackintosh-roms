@@ -338,6 +338,8 @@ function setMachine(machine) {
   if (imageButton) imageButton.click();
   const relocButton = document.querySelector(`[data-reloc="${machine}"]`);
   if (relocButton) relocButton.click();
+  const mapButton = document.querySelector(`[data-memmap="${machine}"]`);
+  if (mapButton) mapButton.click();
 }
 
 function wireMap() {
