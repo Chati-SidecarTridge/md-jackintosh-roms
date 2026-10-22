@@ -67,6 +67,14 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | Lode Runner (1984) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; its window, menus and levels play (demo from level 1 to 3). |
 | Shuffle Puck (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; the 3D table, menus (Game, Paddle, Opponent, Demo), the puck and the paddle in play. |
 | Space Invaders (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | From a 400K MFS floppy; Play starts level 1, the invaders march. A large black shape in the lower right corner is to check against a real Plus. |
+| SimCity 1.1 (1989) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its welcome window with the eight scenarios. |
+| Spaceward Ho! 3.0.1 (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its menus and the personalisation dialog. |
+| Flight Simulator 1.02 (1986) | Mac Plus v3 ROM | 6 | Yes | No | Refuses to run unless it is the startup disk in the internal drive. To retry booted from its own disk. |
+| Ford Simulator II (1990) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: its welcome screen and menus. |
+| The Colony (1988) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the 3D corridors and the instruments. |
+| Wizardry I (1985) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the roster and the castle windows. |
+| Rogue (Epyx, 1985) | Mac Plus v3 ROM | 6 | Yes | — | Its title page draws past the 512x342 screen into the border. To look at. |
+| Klondike 4.0 (1989) | Mac Plus v3 ROM | 6 | Yes | Yes | At 512x342: the table and its About box. |
 | Tetris (Spectrum HoloByte, 1988) | Mac Plus v3 ROM | 6 | Yes | Yes | Sound on the STE and Mega STE. |
 
 ## Utilities
