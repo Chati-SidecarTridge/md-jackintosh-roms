@@ -52,11 +52,16 @@ function inline(text) {
     .replace(/\*([^*]+)\*/g, '<em>$1</em>');
 }
 
-function cellClass(text) {
+// A cell's colour, by column (Program, Mac Plus, System, Tested, Works,
+// Notes): yes green, no red, unknown yellow; under Tested, where it ran green
+// and 'no' (not tested yet) plain.
+function cellClass(text, column) {
   const t = text.trim().toLowerCase();
-  if (t === 'yes' || t.startsWith('hatari') || t.startsWith('bench') || t === 'runs') return ' class="ok"';
+  if (column === 3) return t === 'no' ? ' class="none"' : ' class="ok"';
+  if (column !== 1 && column !== 4) return '';
+  if (t === 'yes') return ' class="ok"';
   if (t === 'no') return ' class="no"';
-  if (t === 'to try') return ' class="try"';
+  if (t === '—') return ' class="try"';
   return '';
 }
 
@@ -76,7 +81,7 @@ export function softwareHtml(markdown) {
       const body = rows.slice(2).map(cells);
       out.push('<div class="table-wrap"><table class="software"><thead><tr>'
         + head.map((h) => `<th>${inline(h)}</th>`).join('') + '</tr></thead><tbody>'
-        + body.map((r) => '<tr>' + r.map((c, k) => `<td${k ? cellClass(c) : ''}>${inline(c)}</td>`).join('') + '</tr>').join('')
+        + body.map((r) => '<tr>' + r.map((c, k) => `<td${cellClass(c, k)}>${inline(c)}</td>`).join('') + '</tr>').join('')
         + '</tbody></table></div>');
       continue;
     }
