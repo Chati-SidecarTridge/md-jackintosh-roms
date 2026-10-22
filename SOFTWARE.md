@@ -76,4 +76,3 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 |---|---|---|---|---|---|
 | 6.0.8 (US 800K, US 1440K, Z 1440K) | Mac Plus v3 ROM | 6 | Yes | Yes | The Jackintosh's System. |
 | 6.0.7 (US 800K, US 1440K, Z 800K) | Mac Plus v3 ROM | 6 | Yes | Yes | Shares 6.0.8's relocation table; a full session, and ClarisWorks on a 6.0.7 hard disk. |
-| 5.0, 5.1, 6.0, 6.0.2 to 6.0.5 | Mac Plus v3 ROM | 6 | No | No | The glue relocates only the System patches it knows: an unknown System stops with a message. |
