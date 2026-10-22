@@ -45,66 +45,60 @@ window.addEventListener('error', function (e) {
 
 <section data-view="home">
 
-  <header class="hero">
-    <p class="hero-kicker">Atari ST &middot; STE &middot; Mega ST &middot; Mega STE</p>
-    <h1 class="hero-title">Jackintosh</h1>
-    <p class="hero-tagline">Switch on your Atari. A Macintosh Plus comes up.</p>
-    <p class="hero-lead">
-      The genuine Mac Plus ROM runs natively on the Atari's own 68000: the happy Mac, System&nbsp;6, the
-      Finder and the Mac software of 1986 to 1990, from virtual floppies and hard disks on a microSD card.
-      No TOS, no GEM, no emulator program: the Atari <em>is</em> the Mac from the moment you power it on.
-    </p>
-    <div class="ways">
-      <a class="way" href="#/build">
-        <span class="way-title">Build your image &rarr;</span>
-        <span class="way-text">Drop in your own Mac Plus ROM and get the image for the SidecarTridge TOS Emulator.
-          It is all done in your browser: your ROM never leaves your computer.</span>
-      </a>
-      <a class="way" href="#/first">
-        <span class="way-title">First steps &rarr;</span>
-        <span class="way-text">Start System&nbsp;6.0.8 from a floppy image, then make a hard disk with it, using the
-          Multi-device's microSD card.</span>
-      </a>
-      <a class="way" href="#/how">
-        <span class="way-title">How it works &rarr;</span>
-        <span class="way-text">The tricks that make a 1986 Macintosh ROM run on an Atari: memory maps, interrupts,
-          the Mac's missing chips, and a cartridge that serves disks.</span>
-      </a>
+  <header class="hero2">
+    <div class="hero2-text">
+      <h1 class="hero-title">Jackintosh</h1>
+      <p class="hero-tagline">Switch on your Atari. A Macintosh Plus comes up.</p>
+      <p class="hero-lead">The genuine Mac Plus ROM runs on the Atari's own 68000: the happy Mac, System&nbsp;6, the
+        Finder and the software of 1986 to 1990, from disk images on a microSD card. No TOS, no emulator: from power-on,
+        the Atari is the Mac.</p>
+      <div class="hero-actions">
+        <a class="btn-primary" href="#/build">Build your image</a>
+        <a class="btn-quiet" href="#/first">First steps</a>
+        <a class="btn-quiet" href="#/how">How it works</a>
+      </div>
+      <p class="hero-fit">For the Atari ST, STF, STFM and Mega ST, and the STE and Mega STE, with a monochrome monitor.</p>
     </div>
+    <figure class="hero-screen" aria-label="An Atari's monochrome monitor showing the Jackintosh menu, then the Mac's Finder, then Microsoft Word">
+      <div class="sv-screen hero-monitor">
+        <span class="sv-glass hero-glass">
+          <img class="hero-frame f1" src="assets/menu.png" alt="The Jackintosh menu at power-on" width="640" height="400">
+          <img class="hero-frame f2" src="assets/finder.png" alt="The Mac's Finder" width="640" height="400">
+          <img class="hero-frame f3" src="assets/word.png" alt="Microsoft Word 4 on the Atari" width="640" height="400">
+        </span>
+      </div>
+      <figcaption>An Atari STE at power-on: the Jackintosh menu, the Finder, then Word&nbsp;4.</figcaption>
+    </figure>
   </header>
 
-  <section class="about">
-    <div class="about-card">
-      <h3>Why &ldquo;Jackintosh&rdquo;?</h3>
-      <p>
-        In 1985 Jack Tramiel, who had just bought Atari, launched the Atari&nbsp;ST: a 68000, a mouse, a
-        windowed desktop and a sharp monochrome screen, at a fraction of the Macintosh's price. The press
-        called it the <strong>&ldquo;Jackintosh&rdquo;</strong>.
-      </p>
-      <p>
-        Forty years later the joke comes true: with the right ROM in its sockets, the Atari ST boots as a
-        Macintosh Plus. Jack is watching.
-      </p>
-    </div>
-    <div class="about-card">
-      <h3>What you get</h3>
-      <ul>
-        <li>The <strong>genuine Mac Plus ROM</strong> (v3), patched in place: the Mac's own code, at full Atari speed.</li>
-        <li><strong>640&times;400</strong> on a monochrome monitor, or the classic 512&times;342 window.</li>
-        <li>Up to <strong>4&nbsp;MB</strong> of Mac RAM.</li>
-        <li><strong>Floppies and a hard disk</strong> from the Multi-device's microSD card, swapped from a menu at boot.</li>
-        <li>The <strong>clock from the network</strong> (NTP) and the Mac's PRAM saved on the card.</li>
-        <li>Mac sound on the <strong>STE and Mega STE</strong>; the Mega STE at <strong>16&nbsp;MHz with its cache</strong>.</li>
-        <li>Your Atari keyboard: US, French, German, Spanish and UK layouts.</li>
+  <section class="story">
+    <h2>Why &ldquo;Jackintosh&rdquo;</h2>
+    <p>In 1985 Jack Tramiel, who had just bought Atari, launched the ST: a 68000, a mouse, a windowed desktop and a
+      sharp monochrome screen, at a fraction of the Macintosh's price. The press called it the &ldquo;Jackintosh&rdquo;.
+      Forty years later the joke comes true: with the right ROM in its sockets, the ST boots as a Macintosh Plus. Jack
+      is watching.</p>
+  </section>
+
+  <section class="facts">
+    <div>
+      <h2>What you need</h2>
+      <ul class="needs">
+        <li><strong>An Atari</strong> of the ST or STE family and a monochrome monitor: an SM124, or any mono display.</li>
+        <li><strong>The <a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a></strong> in the TOS ROM sockets, to serve the Jackintosh image as the Atari's ROM.</li>
+        <li><strong>The <a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a></strong> in the cartridge port, running the <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a> microfirmware: floppies, hard disk, clock and PRAM.</li>
+        <li><strong>Your own Mac Plus ROM</strong>, the 128&nbsp;KB v3. Apple's code is never distributed here.</li>
       </ul>
     </div>
-    <div class="about-card">
-      <h3>What you need</h3>
-      <ul>
-        <li>An <strong>Atari ST, STF, STFM, Mega ST, STE or Mega STE</strong> with a monochrome monitor (an SM124, or any mono display).</li>
-        <li>The <a href="https://sidecartridge.com/products/sidecartridge-tos-atari-st/" target="_blank" rel="noopener">SidecarTridge TOS Emulator</a> in the TOS ROM sockets: it serves the Jackintosh image as the Atari's ROM.</li>
-        <li>The <a href="https://sidecartridge.com/products/sidecartridge-multidevice-atari-st/" target="_blank" rel="noopener">SidecarTridge Multi-device</a> in the cartridge port, running the <a href="https://github.com/sidecartridge/md-jackintosh" target="_blank" rel="noopener">md-jackintosh</a> microfirmware: floppies, hard disk, clock and PRAM.</li>
-        <li><strong>Your own Mac Plus ROM</strong> (the v3 ROM, 128&nbsp;KB): Apple's code is never distributed here.</li>
+    <div>
+      <h2>What you get</h2>
+      <ul class="gets">
+        <li>Apple's own Mac Plus ROM, patched in place, at full Atari speed.</li>
+        <li>640&times;400 on the mono monitor, or the classic 512&times;342 framed in black.</li>
+        <li>Up to 4&nbsp;MB of Mac RAM.</li>
+        <li>Floppies and a hard disk from the microSD card, chosen in a menu at power-on.</li>
+        <li>The clock from the network, and the Mac's settings kept on the card.</li>
+        <li>Sound on the STE and Mega STE; the Mega STE at 16&nbsp;MHz with its cache.</li>
+        <li>US, French, German, Spanish and UK Atari keyboards.</li>
       </ul>
     </div>
   </section>

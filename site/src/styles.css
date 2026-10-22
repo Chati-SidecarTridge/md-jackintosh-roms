@@ -1031,7 +1031,9 @@ kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-b
   display: block;
   width: 100%;
   height: auto;
-  image-rendering: pixelated;
+  /* Smaller than its 640 pixels: smooth, so the Mac's 50% dither reads as
+     grey as on a monitor instead of aliasing into big checks. */
+  image-rendering: auto;
   border-radius: 3px;
   box-shadow: 0 0 0 3px #2b2b2b;
 }
@@ -1075,4 +1077,72 @@ kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-b
 @media (prefers-reduced-motion: no-preference) {
   .drag-path { animation: drag-march 1.2s linear infinite; }
   @keyframes drag-march { to { stroke-dashoffset: -28; } }
+}
+
+/* ---- The landing page: the promise on the left, the proof on the right ---- */
+
+.hero2 {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 520px);
+  gap: 48px;
+  align-items: center;
+  padding: 56px 0 40px;
+}
+.hero2 .hero-title { text-align: left; margin: 0 0 8px; font-size: clamp(3rem, 8vw, 5.5rem); line-height: 0.95; }
+.hero2 .hero-tagline { text-align: left; margin: 0 0 18px; }
+.hero2 .hero-lead { text-align: left; margin: 0 0 26px; max-width: 54ch; }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.btn-primary {
+  display: inline-block;
+  padding: 13px 22px;
+  border-radius: 10px;
+  background: #fde047;
+  color: #11131a;
+  font-weight: 800;
+  font-size: 1.05rem;
+  text-decoration: none;
+}
+.btn-primary:hover { background: #fef08a; }
+.btn-quiet { color: #f8fafc; font-weight: 600; text-decoration: underline; text-decoration-color: #64748b; text-underline-offset: 4px; }
+.btn-quiet:hover { text-decoration-color: #fde047; }
+.btn-primary:focus-visible, .btn-quiet:focus-visible { outline: 3px solid #fde047; outline-offset: 3px; }
+.hero-fit { color: #9ca3af; margin: 22px 0 0; font-size: 0.92rem; }
+
+.hero-screen { margin: 0; }
+.hero-screen figcaption { color: #9ca3af; font-size: 0.85rem; margin-top: 12px; text-align: center; }
+.hero-glass { aspect-ratio: 640 / 400; }
+.hero-frame { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero-frame.f2 { opacity: 1; }
+.hero-frame.f1, .hero-frame.f3 { opacity: 0; }
+
+/* The one moment: power-on, the menu, the Finder, Word; then it rests on Word. */
+@media (prefers-reduced-motion: no-preference) {
+  .hero-frame.f1 { animation: hero-f1 9s steps(1, end) forwards; }
+  .hero-frame.f2 { animation: hero-f2 9s steps(1, end) forwards; }
+  .hero-frame.f3 { animation: hero-f3 9s steps(1, end) forwards; }
+  @keyframes hero-f1 { 0% { opacity: 1; } 33% { opacity: 0; } 100% { opacity: 0; } }
+  @keyframes hero-f2 { 0% { opacity: 0; } 33% { opacity: 1; } 66% { opacity: 0; } 100% { opacity: 0; } }
+  @keyframes hero-f3 { 0% { opacity: 0; } 66% { opacity: 1; } 100% { opacity: 1; } }
+}
+
+.story { max-width: 70ch; margin: 24px 0 8px; }
+.story h2, .facts h2 { font-size: 1.3rem; color: #fde047; margin: 0 0 10px; }
+.story p { color: #e5e7eb; font-size: 1.12rem; line-height: 1.7; margin: 0; }
+
+.facts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin: 40px 0 16px;
+  padding-top: 32px;
+  border-top: 1px solid #1f2937;
+}
+.facts ul { margin: 0; padding-left: 20px; color: #cbd5f5; line-height: 1.65; }
+.facts li { margin-bottom: 10px; }
+.facts strong { color: #f8fafc; }
+.facts a { color: #fde047; }
+
+@media (max-width: 860px) {
+  .hero2 { grid-template-columns: 1fr; gap: 28px; padding-top: 28px; }
+  .facts { grid-template-columns: 1fr; gap: 28px; }
 }
