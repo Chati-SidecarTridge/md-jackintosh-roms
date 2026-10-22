@@ -1,10 +1,14 @@
 name: Pages
 
 # Publishes site/ to GitHub Pages (jackintosh.sidecartridge.com) as static
-# HTML (no Jekyll). Manual until the repository's Pages source is switched
-# from "Deploy from a branch" to "GitHub Actions" (EPIC-11 STORY-01); then a
-# push to main can trigger it too.
+# HTML (no Jekyll), on every push to main that changes the site, or by hand.
+# The repository's Pages source is "GitHub Actions" (EPIC-11 STORY-01).
 on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - '.github/workflows/pages.yml'
   workflow_dispatch:
 
 permissions:
