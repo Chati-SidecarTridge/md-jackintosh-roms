@@ -1,7 +1,8 @@
-// The site's three views in one page: #/ (the landing page), #/build (build
-// your image) and #/how (how it works). A view is a <section data-view>.
+// The site's views in one page: #/ (the landing page), #/build (build your
+// image), #/how (how it works) and #/software (what runs). A view is a
+// <section data-view>.
 
-export const VIEWS = ['home', 'build', 'how'];
+export const VIEWS = ['home', 'build', 'how', 'software'];
 
 export function viewFromHash(hash) {
   const name = (hash || '').replace(/^#\/?/, '').split('/')[0];

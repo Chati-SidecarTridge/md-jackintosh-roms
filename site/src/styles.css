@@ -957,3 +957,21 @@ dialog#helpModal::backdrop {
 .diagram line.wire { opacity: 0.25; transition: opacity 0.3s; }
 .diagram line.wire.active { opacity: 1; stroke-width: 4; }
 #topic-picture .diagram line.wire { opacity: 1; }
+
+.software-page { color: #cbd5f5; line-height: 1.6; }
+.software-page h3 { color: #fde047; margin: 24px 0 8px; }
+.software-page a { color: #fde047; }
+.table-wrap { overflow-x: auto; }
+table.software { width: 100%; border-collapse: collapse; font-size: 0.92rem; background: rgba(17, 24, 39, 0.85); }
+table.software th, table.software td { padding: 7px 10px; border-bottom: 1px solid #1f2937; text-align: left; vertical-align: top; }
+table.software th { color: #9ca3af; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.06em; }
+table.software td.ok { color: #86efac; font-weight: 600; }
+table.software td.no { color: #fca5a5; }
+table.software td.try { color: #fde047; }
+table.software { table-layout: fixed; }
+table.software th:nth-child(1) { width: 32%; }
+table.software th:nth-child(2) { width: 13%; }
+table.software th:nth-child(3) { width: 15%; }
+@media (max-width: 700px) {
+  table.software { table-layout: auto; min-width: 560px; }
+}

@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'site/**'
+      - 'SOFTWARE.md'
       - 'src/**'
       - 'tools/jackrom.py'
       - 'version.txt'

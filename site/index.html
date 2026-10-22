@@ -966,6 +966,24 @@ dialog#helpModal::backdrop {
 .diagram line.wire { opacity: 0.25; transition: opacity 0.3s; }
 .diagram line.wire.active { opacity: 1; stroke-width: 4; }
 #topic-picture .diagram line.wire { opacity: 1; }
+
+.software-page { color: #cbd5f5; line-height: 1.6; }
+.software-page h3 { color: #fde047; margin: 24px 0 8px; }
+.software-page a { color: #fde047; }
+.table-wrap { overflow-x: auto; }
+table.software { width: 100%; border-collapse: collapse; font-size: 0.92rem; background: rgba(17, 24, 39, 0.85); }
+table.software th, table.software td { padding: 7px 10px; border-bottom: 1px solid #1f2937; text-align: left; vertical-align: top; }
+table.software th { color: #9ca3af; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; letter-spacing: 0.06em; }
+table.software td.ok { color: #86efac; font-weight: 600; }
+table.software td.no { color: #fca5a5; }
+table.software td.try { color: #fde047; }
+table.software { table-layout: fixed; }
+table.software th:nth-child(1) { width: 32%; }
+table.software th:nth-child(2) { width: 13%; }
+table.software th:nth-child(3) { width: 15%; }
+@media (max-width: 700px) {
+  table.software { table-layout: auto; min-width: 560px; }
+}
 </style>
 <script>
 window.addEventListener('error', function (e) {
@@ -1135,6 +1153,7 @@ window.addEventListener('error', function (e) {
     <a href="#/" data-nav="home">Jackintosh</a>
     <a href="#/build" data-nav="build">Build your image</a>
     <a href="#/how" data-nav="how">How it works</a>
+    <a href="#/software" data-nav="software">Software</a>
   </span>
 </nav>
 
@@ -1203,6 +1222,31 @@ window.addEventListener('error', function (e) {
     </div>
   </section>
 
+</section>
+
+<section data-view="software" hidden>
+  <h2>Software</h2>
+  <div class="software-page">
+<p>What runs on a Jackintosh: a Macintosh Plus with <strong>System 6.0.8</strong> (or 6.0.7), a 68000, up to 4 MB, a monochrome screen. The list follows hampa.ch's collection of classic Mac software, <a href="http://hampa.ch/pub/software/MacOS/" target="_blank" rel="noopener">http://hampa.ch/pub/software/MacOS/</a> (from PCE's author), which is also where this project's test disks come from.</p>
+<ul><li><strong>Tested</strong>: run on a Jackintosh, in the Hatari harness (<code>tools/dev/all_harness.sh</code>) or on a real Atari (the bench).</li><li><strong>System 6.0.8</strong>: whether the program can run there at all. <em>yes</em> as documented or seen; <em>no</em> when it needs System 7, a 68020 or colour, which a Mac Plus does not have either; <em>to try</em> when not known yet.</li></ul>
+<p>A program that needs System 7, a 68020 or Color QuickDraw fails on a Jackintosh as it fails on a real Mac Plus.</p>
+<h3>Applications</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>Acrobat Reader 1.0</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Aldus PageMaker 3.5</td><td class="ok">yes</td><td class="ok">bench</td><td>Installed from 5 floppies swapped in with the Multi-device's SELECT button.</td></tr><tr><td>Aldus PageMaker 4.2</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Aldus PageMaker 5.0a</td><td class="no">no</td><td class="no">no</td><td>Needs System 7 and a 68020.</td></tr><tr><td>ClarisWorks 1.0</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>ClarisWorks 2.0</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>ClarisWorks 2.1</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>ClarisWorks 4.0</td><td class="no">no</td><td class="no">no</td><td>Needs System 7.</td></tr><tr><td>MacWrite Pro 1.5</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Maple 6.01</td><td class="no">no</td><td class="no">no</td><td>Needs a 68020 or later.</td></tr><tr><td>Microsoft Excel 1.03</td><td class="ok">yes</td><td class="ok">Hatari</td><td>Run from a floppy swapped in after the Finder ejects the first.</td></tr><tr><td>Microsoft Office 2.5.1</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Microsoft Word 4.0a</td><td class="ok">yes</td><td class="ok">Hatari, bench</td><td>Typing, menus and Save.</td></tr><tr><td>Microsoft Word 5.1a</td><td class="ok">yes</td><td class="ok">bench</td><td>Installed from its 6 floppies.</td></tr><tr><td>Voyager II 1.00</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>WordPerfect 3.0a</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>WordPerfect 3.5</td><td class="try">to try</td><td class="no">no</td><td></td></tr></tbody></table></div>
+<h3>Development</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>MPW 3.2.3</td><td class="ok">yes</td><td class="ok">bench</td><td>The shell.</td></tr><tr><td>Symantec C++ 6.0</td><td class="no">no</td><td class="no">no</td><td>Needs System 7.</td></tr><tr><td>THINK C 4.0</td><td class="ok">yes</td><td class="ok">Hatari</td><td>Builds and runs a program.</td></tr><tr><td>THINK C 5.0</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>THINK C 5.0.4 Update</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>THINK C 6.0.1</td><td class="no">no</td><td class="no">no</td><td>Needs System 7.</td></tr><tr><td>THINK Pascal 4.0.2</td><td class="ok">yes</td><td class="ok">Hatari</td><td>Builds and runs a program.</td></tr></tbody></table></div>
+<h3>Disk tools</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>Copy II Mac 7.0</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>DART 1.5.3</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Disk Copy 4.2</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>Disk Copy 6.3.3</td><td class="no">no</td><td class="no">no</td><td>Needs System 7.</td></tr><tr><td>ShrinkWrap 1.3.1, 1.3.2, 1.4.2, 2.0.1, 3.5.1</td><td class="no">no</td><td class="no">no</td><td>Need System 7.</td></tr></tbody></table></div>
+<h3>Games</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>Blockout</td><td class="ok">yes</td><td class="ok">Hatari</td><td></td></tr></tbody></table></div>
+<h3>Utilities</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>Norton Utilities 1.1.1 (800K)</td><td class="ok">yes</td><td class="ok">Hatari</td><td>Disk Doctor.</td></tr><tr><td>Norton Utilities 1.1 (1440K)</td><td class="ok">yes</td><td class="no">no</td><td></td></tr><tr><td>Norton Utilities 2.0 (800K)</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>Norton Utilities 3.1, 3.1.3, 3.2</td><td class="no">no</td><td class="no">no</td><td>Need System 7.</td></tr></tbody></table></div>
+<h3>Archivers</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>MacGzip 1.1.3</td><td class="try">to try</td><td class="no">no</td><td></td></tr><tr><td>mar 0.0.4, 0.1.1</td><td class="try">to try</td><td class="no">no</td><td>hampa.ch's own archiver.</td></tr></tbody></table></div>
+<h3>Systems</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>System</th><th>Runs</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>6.0.8 (US 800K, US 1440K, Z 1440K)</td><td class="ok">yes</td><td class="ok">Hatari, bench</td><td>The target.</td></tr><tr><td>6.0.7 (US 800K, US 1440K, Z 800K)</td><td class="ok">yes</td><td class="no">no</td><td>Shares 6.0.8's relocation table.</td></tr><tr><td>5.0, 5.1, 6.0, 6.0.2 to 6.0.5</td><td class="no">no</td><td class="no">no</td><td>The glue relocates only the System patches it knows: an unknown System stops with a message.</td></tr><tr><td>7.0, 7.0.1, 7.1, 7.1.1</td><td class="no">no</td><td class="no">no</td><td>As above.</td></tr></tbody></table></div>
+<h3>Not on hampa.ch</h3>
+<div class="table-wrap"><table class="software"><thead><tr><th>Program</th><th>System 6.0.8</th><th>Tested</th><th>Notes</th></tr></thead><tbody><tr><td>Tetris (Spectrum HoloByte, 1988)</td><td class="ok">yes</td><td class="ok">Hatari, bench</td><td>Sound on the STE and Mega STE.</td></tr></tbody></table></div>
+  </div>
 </section>
 
 <section data-view="build" hidden>
@@ -2202,9 +2246,10 @@ if (typeof document !== 'undefined') {
 }
 
 // ----- router.js -----
-// The site's three views in one page: #/ (the landing page), #/build (build
-// your image) and #/how (how it works). A view is a <section data-view>.
-const VIEWS = ['home', 'build', 'how'];
+// The site's views in one page: #/ (the landing page), #/build (build your
+// image), #/how (how it works) and #/software (what runs). A view is a
+// <section data-view>.
+const VIEWS = ['home', 'build', 'how', 'software'];
 function viewFromHash(hash) {
   const name = (hash || '').replace(/^#\/?/, '').split('/')[0];
   return VIEWS.includes(name) ? name : 'home';
