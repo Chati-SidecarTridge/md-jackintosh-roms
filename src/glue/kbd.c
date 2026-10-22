@@ -167,10 +167,13 @@ int kbdPoll(void) {
          may have been one too. */
       kbdLeftShift = kbdRightShift = kbdControl = 0;
     } else if (down) {
-      int shift = kbdLeftShift || kbdRightShift;
+      const int held = kbdLeftShift || kbdRightShift;
+      const int physical = ((long)code << 16) | (held ? KBD_PHYS_SHIFT : 0);
+      int shift = held;
       code =
           (int)glueLayoutMenuKey(glueOptions.keyboard, (unsigned)code, &shift);
-      return code | (shift ? KBD_SHIFT : 0) | (kbdControl ? KBD_CONTROL : 0);
+      return physical | code | (shift ? KBD_SHIFT : 0) |
+             (kbdControl ? KBD_CONTROL : 0);
     }
   }
 }

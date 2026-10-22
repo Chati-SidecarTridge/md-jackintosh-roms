@@ -177,6 +177,36 @@ static int cartFakeReadOnlyName(int unit) {
            cartFakeLower(path[length - 1]) == 'w');
 }
 
+/* md-jackintosh's image identity: a 32-bit FNV-1a of the path, never 0
+   (EPIC-16 DISK-02). The prime 16777619 is 2^24 + 403, by shifts: a long
+   multiply would need libgcc. */
+static unsigned long cartFakeHash(const char *text) {
+  unsigned long hash = 0x811C9DC5UL;
+  for (; *text != '\0'; ++text) {
+    hash ^= (unsigned char)*text;
+    hash +=
+        (hash << 24) + (hash << 8) + (hash << 7) + (hash << 4) + (hash << 1);
+  }
+  return hash != 0 ? hash : 1;
+}
+
+/* Each RAM disk's images so far (a --swap puts another one in): part of
+   the identity of an image served without a tree. */
+static unsigned char cartFakeGeneration[CART_UNITS];
+/* Set once the boot has published the units: a window without identity
+   after that is an RP restart (the harness's fake-down). */
+static int cartFakeBooted;
+
+static unsigned long cartFakeId(int unit, int drive) {
+  char name[sizeof("/ram/0.a")] = "/ram/0.a";
+  if (glueTestCart.treeCount != 0) {
+    return cartFakeHash(cartFakeUnitPath(unit));
+  }
+  name[5] = (char)('0' + drive);
+  name[7] = (char)('a' + cartFakeGeneration[unit]);
+  return cartFakeHash(name);
+}
+
 /* A unit's entry from its RAM disk, its change counter moved. */
 static void cartFakeUnit(int unit) {
   struct DiskInfo info;
@@ -188,6 +218,8 @@ static void cartFakeUnit(int unit) {
     diskRamBackend.info(drive, &info);
     info.writeProtected |= cartFakeReadOnlyName(unit);
   }
+  FAKE_LONG(CART_UNIT_ID_OFFSET + (unit * CART_UNIT_ID_BYTES)) =
+      info.present ? cartFakeId(unit, drive) : CART_UNIT_ID_NONE;
   FAKE_UNIT(unit, CART_UNIT_FLAGS) =
       (info.present ? CART_UNIT_FLAG_INSERTED : 0) |
       (info.writeProtected ? CART_UNIT_FLAG_READONLY : 0);
@@ -259,10 +291,33 @@ static void cartFakeSelect(void) {
   }
 }
 
+/* The RP back after a restart (the harness's fake-up), as md-jackintosh
+   comes up: the identity with the card pending, the units mounted again
+   from the settings with their counters restarted (1) and FD0 at slot 1
+   (its fd0Slot is not kept), then card OK. */
+static void cartFakeRestart(void) {
+  FAKE_LONG(CART_CARD_OFFSET) = CART_CARD_PENDING;
+  FAKE_LONG(CART_ID_OFFSET) = glueTestCart.id;
+  glueTestCart.slot = 1;
+  for (int unit = 0; unit < CART_UNITS; ++unit) {
+    FAKE_UNIT(unit, CART_UNIT_CHANGES) = 0;
+    if (glueTestCart.treeCount != 0 && glueTestCart.card == CART_CARD_OK) {
+      cartFakeMount(unit);
+    } else {
+      cartFakeUnit(unit);
+    }
+  }
+  FAKE_LONG(CART_CARD_OFFSET) = glueTestCart.card;
+  TRACE("fake restarted");
+}
+
 void glueCartFakePoll(void) {
   const int changed = diskRamBackend.changed(); /* a --swap image */
   if (glueTestCart.enabled != kFakeMagic) {
     return;
+  }
+  if (cartFakeBooted && FAKE_LONG(CART_ID_OFFSET) == 0) {
+    cartFakeRestart();
   }
   if (glueTestCart.selectSeq != glueTestCart.selectSeen) {
     cartFakeSelect();
@@ -270,6 +325,7 @@ void glueCartFakePoll(void) {
   for (int unit = 0; unit < CART_UNITS; ++unit) {
     const int drive = glueTestCart.unitDrive[unit];
     if (drive != kFakeNoDrive && (changed & (1 << drive))) {
+      ++cartFakeGeneration[unit];
       cartFakeUnit(unit);
     }
   }
@@ -453,6 +509,9 @@ static long cartFake(long command, unsigned long first, unsigned long second,
   const int drive =
       unit < CART_UNITS ? glueTestCart.unitDrive[unit] : kFakeNoDrive;
   long result = CART_RESULT_OK;
+  if (cartFakeBooted && FAKE_LONG(CART_ID_OFFSET) == 0) {
+    cartFakeRestart(); /* a command before the next poll */
+  }
   FAKE_LONG(CART_ID_OFFSET) = glueTestCart.id;
   FAKE_LONG(CART_CARD_OFFSET) = glueTestCart.card;
   if (glueTestCart.card != CART_CARD_OK && command != CART_CMD_ST_HELLO) {
@@ -599,8 +658,11 @@ static long cartCommand(long command) {
   return glueCartCommand(command, 0, 0, 0, 0, 0);
 }
 
-/* The time from the Multi-device: UTC, plus the Mac's time zone. */
-static void cartTime(void) {
+/* The time from the Multi-device: UTC, plus the Mac's time zone. Once the
+   Mac runs (mac), its Time too, as _SetDateTime does: the ROM reads the
+   chip only at boot, so a time that became valid later left the menu
+   bar's clock wrong (EPIC-16 DISK-06). */
+static void cartTime(int mac) {
   unsigned long seconds;
   unsigned long flags;
   if (cartCommand(CART_CMD_TIME) != CART_OK) {
@@ -616,6 +678,10 @@ static void cartTime(void) {
   glueRtcSetSeconds(seconds);
   cartTimeKnown = 1;
   TRACE("cart time %08lx", seconds);
+  if (mac) {
+    LOWMEM_LONG(MAC_TIME) = seconds;
+    TRACE("mac time %08lx", seconds);
+  }
 }
 
 /* The microSD card's state, waiting while the RP has not tried it yet.
@@ -660,6 +726,9 @@ int glueCartBoot(void) {
     return glueCartState;
   }
   identity = STATUS_LONG(CART_ID_OFFSET);
+#if defined(_TEST) && (_TEST > 0)
+  cartFakeBooted = glueTestCart.enabled == kFakeMagic;
+#endif
   if ((identity >> kIdMagicShift) != CART_ID_MAGIC ||
       (identity & kIdVersionMask) != CART_ID_VERSION) {
     glueCartState = CART_STATE_OTHER;
@@ -679,7 +748,7 @@ int glueCartBoot(void) {
     TRACE("cart pram none");
   }
   glueRtcPramChanged = 0;
-  cartTime();
+  cartTime(0);
   cartTimeAsked = 0;
   return glueCartState;
 }
@@ -708,7 +777,7 @@ void glueCartTick(void) {
   if (timeDue) {
     cartTimeAsked = ticks;
     ++cartTimeRetries;
-    cartTime();
+    cartTime(1);
   }
   if (pramDue) {
     const long result = glueCartCommandWrite(

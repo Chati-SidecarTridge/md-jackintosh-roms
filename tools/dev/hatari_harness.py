@@ -10,9 +10,10 @@ socket, and print PASS or FAIL (EPIC-00 STORY-05). From
 romemul-switcher-rom's tools/dev/hatari_harness.py.
 
 Usage: hatari_harness.py [--image st|ste] [--memsize KB] [--type debug|debug-test]
-                         [--monitor mono|rgb]
                          [--monitor mono|rgb] [--corrupt] [--disk FILE [--fixed]
-                         [--write-protect]] [--interactive]
+                         [--write-protect]] [--interactive] [...]; --help lists
+                         every option (disks, programs, the fake cartridge,
+                         the menu, actions).
 
 Build the glue first (tools/dev/build.sh <st|ste> debug); the harness merges
 it with the Mac ROM of tools/macrom.py path. Each run gets a folder under
@@ -307,11 +308,12 @@ def mac_rom_part(image, machine):
 
 def make_dumper(command, run_dir):
     """dump_memory(specs): Hatari's debugger dumps each ADDR:LEN range
-    (--dump) after a crash; the dump lands in stdout.txt in the run folder."""
+    (--dump) after a crash; the dump lands in stderr.txt in the run folder
+    (Hatari's debugger writes to stderr)."""
     def dump_memory(specs):
         if not specs:
             return
-        out = os.path.join(run_dir, "stdout.txt")
+        out = os.path.join(run_dir, "stderr.txt")
         for spec in specs:
             addr, length = (int(x, 0) for x in spec.split(":"))
             command(f"hatari-debug memdump b ${addr:x}-${addr + length:x}")
@@ -429,14 +431,9 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     # C-02) and the boot goes on; or the test builds' fake one answers.
     fake = getattr(args, "fake", None)
     if fake and ramdisk:
-        # The fake's units are the RAM disks: FD0 the first (HD0 if fixed),
-        # FD1 the second (src/glue/cart.c, cartFakeUnits).
-        units = {(2 if ramdisk["flags"] & RAMDISK_FIXED else 0):
-                 (1 | (2 if ramdisk["flags"] & RAMDISK_WRITE_PROTECT else 0),
-                  ramdisk["bytes"] // 512)}
-        if "bytes2" in ramdisk:
-            units[1] = (1, ramdisk["bytes2"] // 512)
-        FAKE_CTX.update(base=glue_symbol(glue_map, "_glueTestCart"), units=units)
+        # The fake's units are the RAM disks (src/glue/cart.c, cartFakeUnits);
+        # fake-down and fake-up need its address.
+        FAKE_CTX.update(base=glue_symbol(glue_map, "_glueTestCart"))
     if fake:
         known = (fake["id"] >> 16) == 0x4A4B and (fake["id"] & 0xFFFF) == 1
         need("Multi-device", rf"@@ cart hello {'ok' if known else 'other'} {fake['id']:08x}\n", 10)
@@ -480,7 +477,7 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
         need("Mega STE speed and cache", rf"@@ megaste ctrl {ctrl:02x}\n", 10)
     if args.type == "debug-test":
         # EPIC-04: writes to $0-$7 skipped by the glue's bus-error handler.
-        need("bus error self-test", r"@@ buserr selftest ok fixes [1-9]\d*\n")
+        need("bus error self-test", r"@@ buserr selftest ok fixes 9\n")
     # EPIC-02: into the Mac ROM, to the "?" disk and its boot loop.
     need("mac enter", rf"@@ mac enter [0-9a-f]{{6}} memtop {memtop:06x} screen {screen:06x}\n")
     need("disk driver", r"@@ mac sony 0 dce [0-9a-f]{6}\n")
@@ -508,6 +505,9 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             if fake["valid-at"] > 1 and not fake["rtc-off"]:
                 late.append(("time from the Multi-device, retried",
                              rf"@@ cart time {fake_cart_expected_seconds(fake):08x}\n".encode()))
+                # EPIC-16 DISK-06: and the Mac's Time with it.
+                late.append(("the Mac's Time set",
+                             rf"@@ mac time {fake_cart_expected_seconds(fake):08x}\n".encode()))
             for name, pattern in late:
                 end = time.time() + 120
                 while not re.search(pattern, trace.data) and time.time() < end:
@@ -551,6 +551,11 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
     # (src/glue/mac.c: the icon at x 304, y 174; the symbol 15 rows down,
     # 1 byte right, 16x15 pixels). Each shot follows a trace line that drew
     # the icon (an address, not 000000), not a random phase of the blink.
+    # Without fast-forward: shot()'s fixed real delay after a draw is F times
+    # as long in emulated time, which locked every shot to the same half of
+    # the blink (EPIC-16 HARN-01). At F = 1 it lands inside the "?" half.
+    if command:
+        command("hatari-option --fast-forward no")
     for attempt in range(16):
         trace.skip()
         trace.wait_for(r"@@ mac plotdisk (?!000000)[0-9a-f]{6} vbl \d+\n", 10)
@@ -562,6 +567,8 @@ def run_diag(trace, shot, steps, args, ramdisk, mac, dump_memory=lambda specs: N
             break
     else:
         steps.fail("\"?\" disk on screen", f"no \"?\" in the disk's label in 16 shots; last {path}")
+    if command:
+        command("hatari-option --fast-forward yes")
     # The Mac's tick rate against Hatari's mono VBL (EPIC-02 STORY-03).
     first = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
     second = trace.wait_for(r"@@ ticks (\d+) vbl (\d+)\n", 60)
@@ -612,9 +619,9 @@ FAKE_CART_WINDOW = FAKE_CART_STATE_BYTES + 3 * 4  # after the units' drives
 
 def fake_down(command):
     """EPIC-05: the fake behaves like an RP that restarts while the Mac
-    runs (md-jackintosh, 2026-10-19): its window reads as fresh (no
-    identity, every unit empty) and commands go to the real bus, where they
-    time out, until fake_up."""
+    runs (md-jackintosh, 2026-10-19): its window reads as fresh (erased: no
+    identity, every unit empty, the card and image identities 0) and
+    commands go to the real bus, where they time out, until fake_up."""
     base = FAKE_CTX["base"]
     window = base + FAKE_CART_WINDOW
     command(f"hatari-debug memwrite w ${base:x} $0 $0")                # enabled
@@ -622,19 +629,16 @@ def fake_down(command):
     for unit in range(3):
         command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
                 + " ".join(["$0"] * 8))
+    command(f"hatari-debug memwrite w ${window + 0x40:x} " + " ".join(["$0"] * 8))
 
 
 def fake_up(command):
-    """The restarted RP: the identity and the units back, change counters 1.
-    The fake answers first, so a command sent once the identity is back
-    reaches it."""
-    base, units = FAKE_CTX["base"], FAKE_CTX["units"]
-    window = base + FAKE_CART_WINDOW
+    """The restarted RP: the fake answers again and, finding its window
+    without identity, comes up as md-jackintosh does (glueCartFakePoll's
+    cartFakeRestart, EPIC-16): the identity, the units with their image
+    identities and counters at 1, FD0 at slot 1, then card OK."""
+    base = FAKE_CTX["base"]
     command(f"hatari-debug memwrite w ${base:x} $4641 $4b45")         # "FAKE"
-    for unit, (flags, sectors) in units.items():
-        command(f"hatari-debug memwrite w ${window + 0x10 + unit * 0x10:x} "
-                f"$0 ${flags:x} ${sectors >> 16:x} ${sectors & 0xFFFF:x} $0 $1 $0 $1")
-    command(f"hatari-debug memwrite w ${window + 0x0C:x} $4a4b $1")
     time.sleep(0.5)
 
 
@@ -647,20 +651,58 @@ MENU_KEYS = {"up": 0x48, "down": 0x50, "left": 0x4B, "right": 0x4D, "return": 0x
 ST_CONTROL = 0x1D
 
 
+def check_action(verb, arg, trace, need, steps, last_shot):
+    """EPIC-16 HARN-02: expect:REGEX (a trace line, through need(); \\s for a
+    space, as the run lists split on spaces), mackeys:HH,... (those Mac
+    keyboard replies, @@ key, in a row) and dark:X0,Y0,X1,Y1,MIN[,MAX] (dark
+    pixels in a box of the last shot). True when verb is one of them."""
+    if verb == "expect":  # anywhere in the trace so far, or still to come
+        if re.search(arg.encode(), trace.data):
+            steps.ok(f"expect {arg}")
+        else:
+            need(f"expect {arg}", arg + r"[^\n]*\n")  # the whole line
+        return True
+    if verb == "mackeys":  # mackeys:HH,...: the Mac keyboard's replies, in a row
+        # other trace lines (@@ ticks) may fall between two keys
+        keys = [rf"@@ key {code.lower()}\n" for code in arg.split(",")]
+        pattern = keys[0] + "".join(rf"(?:(?!@@ key)[^\n]*\n)*{key}" for key in keys[1:])
+        if re.search(pattern.encode(), trace.data):
+            steps.ok(f"mackeys ({len(arg.split(','))})")
+        else:
+            need(f"mackeys {arg}", pattern)
+        return True
+    if verb == "dark":
+        values = [int(v) for v in arg.split(",")]
+        if len(values) not in (5, 6) or last_shot is None:
+            hc.die(f"dark:{arg}: X0,Y0,X1,Y1,MIN[,MAX] after a shot:")
+        x0, y0, x1, y1, low = values[:5]
+        high = values[5] if len(values) == 6 else (x1 - x0) * (y1 - y0)
+        count = hc.dark_pixels(hc.read_png(last_shot), x0, y0, x1, y1)
+        if not low <= count <= high:
+            steps.fail(f"dark:{arg}", f"{count} dark pixels in {os.path.relpath(last_shot, hc.REPO)}")
+        steps.ok(f"dark:{arg} ({count})")
+        return True
+    return False
+
+
 def run_menu(trace, shot, steps, need, command, actions):
     """EPIC-06: md-jackintosh's setup menu at boot. --menu actions: a key
     (a letter, a digit, up, down, left, right, return, space, esc,
-    backspace; shift+ or ctrl+ before it), type:TEXT, shot:NAME, wait:SECONDS; then [E] unless an action
+    backspace; shift+ or ctrl+ before it), type:TEXT, shot:NAME, wait:SECONDS,
+    expect:REGEX, dark:X0,Y0,X1,Y1,MIN[,MAX]; then [E] unless an action
     pressed it, or the countdown ran out."""
     need("setup menu", r"@@ menu\n", 20)
 
     def key(code, down):
         command(f"hatari-event {'keydown' if down else 'keyup'} 0x{code:02x}")
 
+    last_shot = None
     for action in actions:
         verb, _, arg = action.partition(":")
+        if check_action(verb, arg, trace, need, steps, last_shot):
+            continue
         if verb == "shot":
-            path = shot(arg)
+            path = last_shot = shot(arg)
             if path is None:
                 steps.fail(action, "Hatari wrote no screenshot")
             steps.ok(f"menu screenshot {os.path.relpath(path, hc.REPO)}")
@@ -697,6 +739,8 @@ def run_menu(trace, shot, steps, need, command, actions):
             key(mod, False)
         time.sleep(0.4)
         steps.ok(f"menu key {action}")
+    if re.search(rb"@@ menu boot\n", trace.data[:trace.pos]):
+        return  # an expect: action saw it (the countdown ran out)
     if not re.search(rb"@@ menu boot\n", trace.data[trace.pos:]):
         key(ST_KEYS["e"], True)
         key(ST_KEYS["e"], False)
@@ -773,14 +817,18 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
                 swapper=None):
     """EPIC-09: the --then actions, in order: keys:TEXT (typed; \\n for
     Return), cmd:KEY (Command-KEY), click:V,H, press:V,H and release:V,H (a
-    menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME, regs
+    menu), wait:SECONDS (drive 2's swaps served meanwhile), shot:NAME,
+    expect:REGEX (a trace line), dark:X0,Y0,X1,Y1,MIN[,MAX] (the last shot), regs
     and mem:ADDR,LEN (the registers or memory into stderr.txt),
     fake-restart:SECONDS (--fake-cart: the RP restarts), or fake-down and
     fake-up around other actions (the Mac uses its disk meanwhile); a crash during
     them fails the run."""
     key, chord, mouse = input_helpers(need, command, glue_map)
+    last_shot = None
     for action in actions:
         verb, _, arg = action.partition(":")
+        if check_action(verb, arg, trace, need, steps, last_shot):
+            continue
         if verb == "keys":
             type_text(key, arg.replace("\\n", "\n"))
         elif verb == "cmd":
@@ -851,7 +899,7 @@ def run_actions(trace, shot, steps, need, command, glue_map, actions, dump_memor
             command(f"hatari-debug m ${int(address, 0):x} {int(length, 0)}")
             time.sleep(0.5)
         elif verb == "shot":
-            path = shot(arg)
+            path = last_shot = shot(arg)
             if path is None:
                 steps.fail(action, "Hatari wrote no screenshot")
             steps.ok(f"{arg} {os.path.relpath(path, hc.REPO)}")
@@ -1124,7 +1172,8 @@ def main():
     parser.add_argument("--fake-cart", nargs="?", const="", metavar="KEY=VALUE,...",
                         help="test builds: a fake Multi-device answers the glue (EPIC-05): "
                              "id=HEX, seconds=N (UTC), valid-at=N, pram=FILE (256 bytes), "
-                             "zone=SECONDS")
+                             "zone=SECONDS, card=0-3 (the microSD card: 0 OK, 1 none, "
+                             "2 unreadable, 3 no /jackintosh)")
     parser.add_argument("--fake-tree", action="append", metavar="PATH=DRIVE",
                         help="with --fake-cart: an image on the fake's microSD (EPIC-06), "
                              "DRIVE 0 the --disk image, 1 the --disk2 one; replaces the default "
@@ -1179,6 +1228,11 @@ def main():
         hc.die("--disk2 needs --disk")
     if args.save_disk and (not args.disk or args.interactive or args.partition):
         hc.die("--save-disk needs --disk, and neither --interactive nor --partition")
+    if args.save_disk:  # D-02: a System disk never lands in the repository
+        try:
+            hc.jackrom.check_output_path(args.save_disk)
+        except hc.jackrom.JackRomError as err:
+            hc.die(str(err))
     if args.launch and not args.disk:
         hc.die("--launch needs --disk")
     if args.disk2 and args.input:

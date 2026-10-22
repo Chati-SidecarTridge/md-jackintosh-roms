@@ -58,6 +58,7 @@ enum {
   kScanLeftShift = 0x2A,
   kScanRightShift = 0x36,
   kScanAlt = 0x38,
+  kScanCapsLock = 0x3A,
   kDoubleTicks = 4,  /* each half of the right button's double-click: the
                         ROM debounces 3 ticks, checks every other one */
   kDoublePhases = 4, /* down, up, down, up */
@@ -341,6 +342,9 @@ static void glueMacKey(unsigned char code, int release) {
 static int glueLeftShift;
 static int glueRightShift;
 static int glueAlt;
+/* Caps Lock as the Plus's locking key: down from one press to the next
+   (EPIC-16 INPUT-01; the ST's key is a plain make/break key). */
+static int glueCapsLocked;
 static int glueMacShift;
 static int glueMacOption;
 static unsigned char glueHeldScan;
@@ -407,6 +411,13 @@ static void glueKey(unsigned char scancode) {
       glueAlt = !release;
     }
     glueHeldRelease(); /* sets the Mac's Shift and Option to the ST's */
+    return;
+  }
+  if (code == kScanCapsLock) {
+    if (!release) {
+      glueCapsLocked = !glueCapsLocked;
+      glueMacKey(mac, !glueCapsLocked);
+    }
     return;
   }
   strokes = glueLayoutStrokes(
@@ -563,6 +574,7 @@ void glueIkbdInit(void) {
   MFP_IERB |= kMfpIerbGpip4;
   glueKeyHead = glueKeyTail = 0;
   glueLeftShift = glueRightShift = glueAlt = 0;
+  glueCapsLocked = 0;
   glueMacShift = glueMacOption = 0;
   glueHeldScan = 0;
   glueMouseRestH = glueMouseRestV = 0;

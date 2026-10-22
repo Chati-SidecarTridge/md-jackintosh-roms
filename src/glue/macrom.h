@@ -33,6 +33,7 @@
 #define MAC_MEMTOP 0x0108
 #define MAC_BUFPTR 0x010C
 #define MAC_TICKS 0x016A
+#define MAC_TIME 0x020C /* the clock in seconds, as the RTC (sysequ.inc) */
 #define MAC_UTABLEBASE 0x011C
 #define MAC_SOUNDBASE 0x0266
 #define MAC_PWMBUF2 0x0312

@@ -58,6 +58,15 @@
 #define CART_CARD_NO_FOLDER 3  /* /jackintosh cannot be created */
 #define CART_CARD_PENDING 4
 
+/* Each unit's image identity (md-jackintosh-roms EPIC-16 DISK-02, agreed
+   with md-jackintosh 2026-10-22): a 32-bit FNV-1a of the image's full path,
+   written before the unit's flags and changes, never 0 for an inserted
+   unit, 0 for an empty one. md-jackintosh publishes CARD_OK only after its
+   units (DISK-03). An older md-jackintosh leaves them at 0. */
+#define CART_UNIT_ID_OFFSET 0x44
+#define CART_UNIT_ID_BYTES 4
+#define CART_UNIT_ID_NONE 0
+
 /* The disk chooser's commands (md-jackintosh's MACDISK_CMD_LIST,
    _GET_SETTINGS, _SET_SETTING, agreed 2026-10-19 for EPIC-06). Paths are
    NUL-terminated in CART_PATH_SIZE bytes, names in code page 437. LIST

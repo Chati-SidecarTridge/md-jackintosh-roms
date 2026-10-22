@@ -213,6 +213,7 @@ _glueBusSelfTest:
     move.l  %d0, 4(%a0)                 /* MOVE.L Dn,d16(An) */
     clr.w   (%a0)                       /* CLR.W (An) */
     move.w  #0x1234, 2(%a0)             /* MOVE.W #imm,d16(An) */
+    move.w  (%sp), 0x4.l                /* MOVE.W (An),(xxx).L */
     /* The Plus's ROM space (EPIC-09): a write skipped, then a read that
        must see our Mac ROM's first word, A1 left as it was. */
     movea.l #0x500000, %a1
@@ -312,7 +313,7 @@ _glueScsiHook:
     .globl _gluePlotDisk
 _gluePlotDisk:
     movem.l %d0-%d7/%a0-%a6, -(%sp)
-    .short  0xA850                      /* _HideCursor */
+    .short  0xA852                      /* _HideCursor */
     move.l  MAC_TICKS, %d0
 1:
     cmp.l   MAC_TICKS, %d0

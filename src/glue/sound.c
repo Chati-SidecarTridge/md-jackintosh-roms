@@ -137,9 +137,9 @@ static int soundLive(const unsigned char *buffer) {
    (vectors.s:567-584), samples at even bytes. */
 static void soundBeepSmooth(unsigned char *buffer) {
   for (unsigned k = 0; k < kBeepSmoothCount; ++k) {
-    const unsigned at = (kBeepSmoothFrom + k) * 2;
-    buffer[k * 2] = (unsigned char)((buffer[at] + (2 * buffer[at + 2]) +
-                                     buffer[at + 4] + 3) >>
+    const unsigned from = (kBeepSmoothFrom + k) * 2;
+    buffer[k * 2] = (unsigned char)((buffer[from] + (2 * buffer[from + 2]) +
+                                     buffer[from + 4] + 3) >>
                                     2);
   }
   for (unsigned k = kBeepSmoothCount; k < kSamples; ++k) {
@@ -169,6 +169,11 @@ void glueBeep(long ticks, long ipl) {
     }
     soundBeepSmooth(buffer);
   }
+  /* BootBeep's last wait: the last smoothed buffer plays for a tick
+     (vectors.s:540-541, 591). */
+  now = LOWMEM_LONG(kTicks);
+  while (LOWMEM_LONG(kTicks) == now) {
+  }
   for (unsigned k = 0; k < kSamples; ++k) {
     buffer[k * 2] = kBeepSilence;
   }
@@ -194,6 +199,9 @@ static void soundBuildTable(signed char *table) {
     long sum = 0;
     if (doubled > kTop) {
       doubled = kTop;
+    }
+    if (doubled < -kMiddle) {
+      doubled = -kMiddle;
     }
     for (int weight = 0; weight < kWeights; ++weight) {
       table[(raw * kRowBytes) + weight] =
@@ -249,15 +257,15 @@ void glueSoundTick(void) {
   const unsigned char *buffer;
   unsigned long lead;
   long written;
-  int on;
+  int playing;
   if (soundRing == 0) {
     return;
   }
   buffer = (const unsigned char *)LOWMEM_LONG(kSoundBase);
-  on = (glueViaShadow[0] & kPortBSoundOff) == 0;
-  if (on && (LOWMEM_BYTE(kSoundActive) != 0 || soundLive(buffer))) {
+  playing = (glueViaShadow[0] & kPortBSoundOff) == 0;
+  if (playing && (LOWMEM_BYTE(kSoundActive) != 0 || soundLive(buffer))) {
     soundSilent = 0;
-  } else if (!on || ++soundSilent >= kSilentTicks) {
+  } else if (!playing || ++soundSilent >= kSilentTicks) {
     if (soundPlaying) {
       soundStop();
     }
