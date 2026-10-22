@@ -975,3 +975,9 @@ table.software th:nth-child(3) { width: 15%; }
 @media (max-width: 700px) {
   table.software { table-layout: auto; min-width: 560px; }
 }
+
+.ways { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); max-width: 1000px; }
+.guide ol { padding-left: 22px; line-height: 1.7; color: #e5e7eb; }
+.guide li { margin-bottom: 6px; }
+.guide a { color: #fde047; }
+kbd { display: inline-block; padding: 0 6px; border: 1px solid #64748b; border-bottom-width: 2px; border-radius: 4px; background: #1f2937; font-family: ui-monospace, Menlo, monospace; font-size: 0.85em; }

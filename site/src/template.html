@@ -33,6 +33,7 @@ window.addEventListener('error', function (e) {
   <span class="site-nav">
     <a href="#/" data-nav="home">Jackintosh</a>
     <a href="#/build" data-nav="build">Build your image</a>
+    <a href="#/first" data-nav="first">First steps</a>
     <a href="#/how" data-nav="how">How it works</a>
     <a href="#/software" data-nav="software">Software</a>
   </span>
@@ -58,6 +59,11 @@ window.addEventListener('error', function (e) {
         <span class="way-title">Build your image &rarr;</span>
         <span class="way-text">Drop in your own Mac Plus ROM and get the image for the SidecarTridge TOS Emulator.
           It is all done in your browser: your ROM never leaves your computer.</span>
+      </a>
+      <a class="way" href="#/first">
+        <span class="way-title">First steps &rarr;</span>
+        <span class="way-text">Start System&nbsp;6.0.8 from a floppy image, then make a hard disk with it, using the
+          Multi-device's microSD card.</span>
       </a>
       <a class="way" href="#/how">
         <span class="way-title">How it works &rarr;</span>
@@ -103,6 +109,53 @@ window.addEventListener('error', function (e) {
     </div>
   </section>
 
+</section>
+
+<section data-view="first" hidden>
+  <h2>First steps</h2>
+  <p class="lead">You have built your image, put it on the SidecarTridge TOS Emulator, and the Multi-device runs the
+    md-jackintosh microfirmware. Now give the Mac a System: first from a floppy, then on a hard disk.</p>
+
+  <article class="topic guide">
+    <h3>1. Start System 6.0.8 from a floppy</h3>
+    <ol>
+      <li>Download System 6.0.8 from hampa.ch:
+        <a href="http://hampa.ch/pub/software/MacOS/MacOS/MacOS%206.0.8%20US%20800K.7z" target="_blank" rel="noopener">MacOS 6.0.8 US 800K</a>.
+        Unpack it with 7-Zip (Windows), The Unarchiver or Keka (macOS), or <code>7z</code> (Linux).</li>
+      <li>It holds four 800K floppies. <code>disk1.image.bin</code> is <strong>System Tools</strong>, the startup
+        disk. Copy the four files to the <code>/jackintosh</code> folder of the Multi-device's microSD card (the folder
+        is created the first time the Multi-device starts).</li>
+      <li>Switch the Atari on. In the Jackintosh menu, press <kbd>A</kbd> (FD0), go to <code>disk1.image.bin</code>
+        and press <kbd>Space</kbd>. Then press <kbd>E</kbd>, or wait for the countdown.</li>
+      <li>The happy Mac, then the Finder. On the Atari keyboard <kbd>Control</kbd> is the Mac's Command key:
+        <kbd>Control</kbd>+<kbd>E</kbd> ejects the floppy.</li>
+    </ol>
+    <p class="hint">These floppies are DiskCopy 4.2 files, which the Multi-device serves read-only: fine to start from,
+      but the Mac cannot save on them. A raw image named <code>&hellip;.rw</code> is writable. To change floppies during
+      a session, put more images in FD0's slots with <kbd>Control</kbd>+<kbd>A</kbd> in the menu, eject the floppy on the
+      Mac, and press the Multi-device's <strong>SELECT</strong> button.</p>
+  </article>
+
+  <article class="topic guide">
+    <h3>2. Make a hard disk with System 6.0.8</h3>
+    <ol>
+      <li>Download a blank hard disk, <a href="assets/Jackintosh-HD-20MB.dsk.zip" download>Jackintosh-HD-20MB.dsk.zip</a>
+        (an empty 20&nbsp;MB Mac volume called <em>Jackintosh HD</em>), unzip it and copy
+        <code>Jackintosh-HD-20MB.dsk</code> to <code>/jackintosh</code> on the card.</li>
+      <li>In the menu: <kbd>A</kbd> (FD0) = <code>disk1.image.bin</code>, System Tools, and <kbd>I</kbd> (HD0) =
+        <code>Jackintosh-HD-20MB.dsk</code>. Press <kbd>E</kbd>.</li>
+      <li>The Mac starts from the floppy, since the hard disk has no System yet, and <em>Jackintosh HD</em> shows on the
+        desktop under System Tools.</li>
+      <li>Open System Tools and drag its <strong>System Folder</strong> onto <em>Jackintosh HD</em>. The Finder copies
+        it and makes the hard disk a startup disk.</li>
+      <li>Restart (<em>Special</em> menu, <em>Restart</em>). In the Jackintosh menu press <kbd>Shift</kbd>+<kbd>A</kbd>
+        to empty FD0, then <kbd>E</kbd>: the Mac starts from the hard disk.</li>
+      <li>Copy your programs onto it from their floppies, the same way. The hard disk is written as you work.</li>
+    </ol>
+    <p class="hint">Checked in Hatari: a floppy start with a blank hard disk, the System Folder dragged across, and a
+      start from the hard disk alone to the Finder. A hard disk image is a plain file: keep a copy of it before big
+      changes.</p>
+  </article>
 </section>
 
 <section data-view="software" hidden>

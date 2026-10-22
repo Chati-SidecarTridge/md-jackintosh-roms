@@ -2,7 +2,7 @@
 // image), #/how (how it works) and #/software (what runs). A view is a
 // <section data-view>.
 
-export const VIEWS = ['home', 'build', 'how', 'software'];
+export const VIEWS = ['home', 'build', 'first', 'how', 'software'];
 
 export function viewFromHash(hash) {
   const name = (hash || '').replace(/^#\/?/, '').split('/')[0];
