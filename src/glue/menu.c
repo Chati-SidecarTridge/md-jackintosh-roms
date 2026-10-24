@@ -293,19 +293,27 @@ static void menuEntry(const struct MenuPage *page, unsigned long index,
 /* md-drives-emulator's browser (emul.c:1282-1365) for a setting: Up and
    Down select, Left and Right page, Return enters a folder, SPACE saves the
    entry, Esc leaves. foldersOnly: choosing FOLDER ([L]), over the whole
-   card. Returns after a save or Esc. */
-static void menuBrowse(int key, const char *label, int foldersOnly) {
+   card. near: an image whose folder the browser opens in, when set (the
+   slots page passes the slot before's). Returns after a save or Esc. */
+static void menuBrowse(int key, const char *label, int foldersOnly,
+                       const char *near) {
   struct MenuPage *const page = &MENU_SCRATCH->page;
   char folder[CART_PATH_SIZE];
   unsigned long first = 0;
   const char *notice = 0; /* shown under the page drawn next */
   unsigned long selected = 0;
   const char *start = foldersOnly ? "/" : menuSettings[CART_KEY_FOLDER];
+  if (near != 0 && near[0] == '/') {
+    start = near;
+  }
   for (unsigned i = 0; i < CART_PATH_SIZE; ++i) {
     folder[i] = start[i];
     if (start[i] == '\0') {
       break;
     }
+  }
+  if (start == near) {
+    menuParent(folder);
   }
   for (;;) {
     unsigned long shown;
@@ -475,7 +483,10 @@ static void menuSlots(void) {
     } else {
       char label[sizeof("FD0 slot 10 file: ")];
       menuFormat(label, sizeof(label), "FD0 slot %d file: ", slot);
-      menuBrowse(slot, label, 0);
+      /* In the folder of the slot before's image, so that a queue of disks
+         is chosen without walking to their folder each time (Diego,
+         2026-10-24). */
+      menuBrowse(slot, label, 0, menuSettings[slot - 1]);
     }
   }
 }
@@ -892,7 +903,7 @@ static void menuOptionsPage(void) {
       textPuts("off");
     }
     textPuts("\n[S]creen: ");
-    textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), at the top"
+    textPuts(glueOptions.plusScreen ? "512x342 (the Plus's), at the top left"
                                     : "640x400");
     textPuts("\n[K]eyboard (EXPERIMENTAL): ");
     textPuts(kKeyboardNames[glueOptions.keyboard]);
@@ -1025,22 +1036,22 @@ void glueMenu(void) {
       if (pressed & KBD_SHIFT) {
         (void)menuSet(menuSlot, "");
       } else {
-        menuBrowse(menuSlot, "FD0 file: ", 0);
+        menuBrowse(menuSlot, "FD0 file: ", 0, 0);
       }
     } else if (code == KBD_B) {
       if (pressed & KBD_SHIFT) {
         (void)menuSet(CART_KEY_FD1, "");
       } else {
-        menuBrowse(CART_KEY_FD1, "FD1 file: ", 0);
+        menuBrowse(CART_KEY_FD1, "FD1 file: ", 0, 0);
       }
     } else if (code == KBD_I) {
       if (pressed & KBD_SHIFT) {
         (void)menuSet(CART_KEY_HD0, "");
       } else {
-        menuBrowse(CART_KEY_HD0, "HD0 file: ", 0);
+        menuBrowse(CART_KEY_HD0, "HD0 file: ", 0, 0);
       }
     } else if (code == KBD_L) {
-      menuBrowse(CART_KEY_FOLDER, "Folder: ", 1);
+      menuBrowse(CART_KEY_FOLDER, "Folder: ", 1, 0);
     } else if (code == KBD_O) {
       menuOptionsPage();
     } else {

@@ -24,7 +24,7 @@ enum {
 struct GlueOptions {
   unsigned long ramKilobytes; /* the Mac's RAM, 0 for all of it */
   int rightButton;            /* GLUE_RIGHT_* */
-  int plusScreen;             /* the Plus's 512x342, at the top */
+  int plusScreen;             /* the Plus's 512x342, at the top left */
   int keyboard;               /* GLUE_LAYOUT_* (layout.h) */
   int mouseSpeed;             /* 1 slowest, 5 the ST's own, 10 fastest */
   unsigned char megaSteCtrl;  /* $FF8E21's value on a Mega STE (hw.h) */

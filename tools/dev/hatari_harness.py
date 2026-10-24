@@ -1289,7 +1289,7 @@ def main():
         args.fake["sound"] = settings.get(23, "")  # EPIC-15
         if settings.get(19) == "512x342":
             global PLUS_SCREEN
-            PLUS_SCREEN = (0, 64, 512)
+            PLUS_SCREEN = (0, 0, 512)
     if args.megaste_ctrl is not None:
         parse_path = megaste_files(run_dir, glue_map, args.megaste_ctrl, parse_path)
     if args.watch or args.watch_mem:

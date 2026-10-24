@@ -14,7 +14,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 
 | Program | Model | System | Tested | Works | Notes |
 |---|---|---|---|---|---|
-| Acrobat Reader 1.0 | Mac Plus v3 ROM | 6 | Yes | No | Its Installer hangs after the splash in a dialog whose item list never loads, and the Reader will not start without the ATM it installs. |
+| Acrobat Reader 1.0 | Mac Plus v3 ROM | 6 | Yes | Yes | Its Installer installs the Reader and ATM, and the Reader runs (on the bench, an STE). Before 22 October's changes to the bus-error handling, the Installer hung after its splash. |
 | Aldus PageMaker 3.5 | Mac Plus v3 ROM | 6 | Yes | Yes | Installed from 5 floppies swapped in with the Multi-device's SELECT button. |
 | Aldus PageMaker 4.2 | Mac Plus v3 ROM | 6 | Yes | Yes | Installed with the Aldus Installer (PM 1, Utilities) from 7 floppies queued in FD0's slots and stepped with SELECT: the 5 install disks and the 2 font disks. |
 | ClarisWorks 1.0 | Mac Plus v3 ROM | 6 | Yes | Yes | Word processing, typing. Also on System 6.0.7. |

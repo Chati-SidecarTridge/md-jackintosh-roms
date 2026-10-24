@@ -111,11 +111,14 @@ enum {
 /* The Mac's screen geometry (EPIC-12): the ROM's video patches read these
    words instead of 512 and 342 (src/patches/plus_v3.ini, video-*), and
    its ScrnBase comes from glueScreenBase, so the screen is 640x400 or the
-   Plus's 512x342 at its top, centred across, the black border below.
+   Plus's 512x342 at its top left, the black border right and below.
    At the top because programs of the Plus's time check that BufPtr is
    ScrnBase, as the Plus's ROM leaves them (Dark Castle stops otherwise,
-   EPIC-17): no border rows, and no DMA sound ring, between them. They sit in
-   the glue's RAM, below $8000, for the patches' absolute short addresses. */
+   EPIC-17): no border rows, and no DMA sound ring, between them. At the
+   left because the bytes below ScrnBase are the program's (its jump table,
+   with BufPtr there): centred, the first row's left border showed them. They
+   sit in the glue's RAM, below $8000, for the patches' absolute short
+   addresses. */
 unsigned long glueScreenBase;
 unsigned short glueScreenWidth;
 unsigned short glueScreenHeight;
@@ -130,7 +133,6 @@ enum {
   kCursorWidth = 32,
   kCursorHeight = 16,
   kRowBytes = 80,
-  kPlusLeftBytes = (kWideWidth - kPlusWidth) / 2 / 8, /* 8 */
   kScreenLongs = (kWideHeight * kRowBytes) / 4,
   kBorderBlack = -1
 };
@@ -148,7 +150,6 @@ static void glueScreenGeometry(unsigned long screen) {
     for (int i = 0; i < kScreenLongs; ++i) {
       fill[i] = kBorderBlack;
     }
-    glueScreenBase += kPlusLeftBytes;
   }
   TRACE("mac screen %ux%u at %06lx", (unsigned)glueScreenWidth,
         (unsigned)glueScreenHeight, glueScreenBase);
