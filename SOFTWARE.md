@@ -22,7 +22,7 @@ A program that needs a 68020 or Color QuickDraw fails on a Jackintosh as it fail
 | ClarisWorks 2.1 | Mac Plus v3 ROM | 6 | Yes | Yes | Word processing, typing. |
 | MacWrite Pro 1.5 | Mac Plus v3 ROM | 6 | Yes | Yes | A document, typing. |
 | Microsoft Excel 1.03 | Mac Plus v3 ROM | 6 | Yes | No | Blocked by its key-disk copy protection: it checks the original floppy through the Mac's floppy chip, which a disk image cannot pass. |
-| Microsoft Excel 4.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | No | Microsoft Setup installs it; the installed Excel stops with a bus error at launch. To look at on the bench. |
+| Microsoft Excel 4.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | Microsoft Setup installs it from its floppies, and the installed Excel opens a worksheet (on an STE with 4 MB, booted from the System that Setup installed on a hard disk). Images built before 22 October's changes to the bus-error handling stopped it with a bus error at launch. |
 | Microsoft PowerPoint 2.01 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | A new presentation. |
 | Microsoft Word 4.0a | Mac Plus v3 ROM | 6 | Yes | Yes | Typing, menus and Save. |
 | Microsoft Word 5.0 (Office 2.5.1) | Mac Plus v3 ROM | 6 | Yes | Yes | Asks for its Install disk at launch (Cancel), then typing works. |
