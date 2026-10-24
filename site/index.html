@@ -1608,6 +1608,7 @@ window.addEventListener('error', function (e) {
   <p class="lead">You need the <strong>Mac Plus v3 ROM</strong>, a 128&nbsp;KB file. Dump it from your own Macintosh
     Plus, or look for it online: search for its checksum, for example <code>4D1F8172 MACPLUS</code>, and download
     the 128&nbsp;KB ROM file. Apple's code is not distributed here; making sure you may use it is up to you.</p>
+  <p class="hint" id="releaseInfo">Release v1.0.0</p>
   <ul class="steps" id="steps">
     <li id="step1" class="step active">
       <div class="step-header"><span>Step 1/4. Your Mac Plus ROM <button type="button" class="help-icon" data-help-key="rom" aria-label="Help: your Mac Plus ROM" title="Your Mac Plus ROM">?</button></span> <span class="step-status">Ready</span></div>
@@ -1970,7 +1971,7 @@ window.addEventListener('error', function (e) {
       </section>
     </div>
     <p class="credits-license">
-      Jackintosh is GPLv3: <a href="https://github.com/sidecartridge/md-jackintosh-roms" target="_blank" rel="noopener">github.com/sidecartridge/md-jackintosh-roms</a>.
+      Jackintosh v1.0.0 is GPLv3: <a href="https://github.com/sidecartridge/md-jackintosh-roms" target="_blank" rel="noopener">github.com/sidecartridge/md-jackintosh-roms</a>.
       Macintosh and Mac are trademarks of Apple Inc.; the Mac Plus ROM is Apple's and never part of this site.
       <span class="credits-links">
         <a href="#" data-cc="c-settings">Cookies</a> &middot;
@@ -2288,6 +2289,15 @@ function initBuilder() {
     invalidate();
   }
 
+  // The release and the build the published data carries, as the Atari's
+  // diagnostic screen shows the build.
+  fetch('data/st.json', { cache: 'no-cache' })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (data && data.build) $('releaseInfo').textContent = `Release ${data.release}, build ${data.build}`;
+    })
+    .catch(() => {});
+
   const drop = $('dropZone');
   drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag-active'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('drag-active'));
@@ -2310,6 +2320,7 @@ function initBuilder() {
       const response = await fetch(`data/${state.machine}.json`, { cache: 'no-cache' });
       if (!response.ok) throw new JackRomError(`the builder's data (data/${state.machine}.json) did not load: HTTP ${response.status}`);
       const data = await response.json();
+      if (data.build) log(`Release ${data.release}, build ${data.build}`);
       const image = buildImage(state.rom, data, (line) => log(line));
       const name = MACHINE_FILES[state.machine](data.release);
       state.url = URL.createObjectURL(new Blob([image], { type: 'application/octet-stream' }));

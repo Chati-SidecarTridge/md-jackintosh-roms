@@ -331,9 +331,18 @@ def export(machine, glue_path, out_path, patch_table=PATCH_TABLE):
         })
     with open(os.path.join(REPO, "version.txt"), encoding="utf-8") as handle:
         release = handle.read().strip()
+    # The build ID the glue was built with (tools/dev/build.sh), shown by
+    # the website next to the release.
+    build = ""
+    config = os.path.join(os.path.dirname(os.path.abspath(glue_path)), "obj", ".build_config")
+    if os.path.exists(config):
+        with open(config, encoding="utf-8") as handle:
+            match = re.search(r"BUILD_ID=(\S+)", handle.read())
+            build = match.group(1) if match else ""
     data = {
         "machine": machine,
         "release": release,
+        "build": build,
         "base": base,
         "glueSize": glue_size,
         "versionWord": version,

@@ -48,6 +48,15 @@ function initBuilder() {
     invalidate();
   }
 
+  // The release and the build the published data carries, as the Atari's
+  // diagnostic screen shows the build.
+  fetch('data/st.json', { cache: 'no-cache' })
+    .then((response) => (response.ok ? response.json() : null))
+    .then((data) => {
+      if (data && data.build) $('releaseInfo').textContent = `Release ${data.release}, build ${data.build}`;
+    })
+    .catch(() => {});
+
   const drop = $('dropZone');
   drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag-active'); });
   drop.addEventListener('dragleave', () => drop.classList.remove('drag-active'));
@@ -70,6 +79,7 @@ function initBuilder() {
       const response = await fetch(`data/${state.machine}.json`, { cache: 'no-cache' });
       if (!response.ok) throw new JackRomError(`the builder's data (data/${state.machine}.json) did not load: HTTP ${response.status}`);
       const data = await response.json();
+      if (data.build) log(`Release ${data.release}, build ${data.build}`);
       const image = buildImage(state.rom, data, (line) => log(line));
       const name = MACHINE_FILES[state.machine](data.release);
       state.url = URL.createObjectURL(new Blob([image], { type: 'application/octet-stream' }));

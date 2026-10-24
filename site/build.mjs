@@ -125,6 +125,7 @@ function main() {
   out = out.replace('{{CONSENT}}', () => consent.trimEnd());
   out = out.replace('{{STYLES}}', () => readFileSync(join(SRC, 'styles.css'), 'utf8').trimEnd());
   out = out.replace('{{SCRIPT}}', () => parts.join('\n').trimEnd());
+  out = out.replaceAll('{{VERSION}}', readFileSync(join(ROOT, '..', 'version.txt'), 'utf8').trim());
   out = out.replace('{{SOFTWARE}}', () => softwareHtml(readFileSync(join(ROOT, '..', 'SOFTWARE.md'), 'utf8')));
   // Each assets/ file referenced gets its content's fingerprint (?v=), so a
   // changed image is not served from a browser's or the CDN's cache.
