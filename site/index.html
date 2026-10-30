@@ -1349,10 +1349,10 @@ window.addEventListener('error', function (e) {
                         blocks: [
                             {
                                 title: 'Cookie usage 📢',
-                                description: 'I use cookies to ensure the basic functionalities of the website and to enhance your online experience. You can choose for each category to opt-in/out whenever you want. For more details relative to cookies and other sensitive data, please read the full <a href="https://sidecartridge.com/privacy-policy/" class="cc-link" target="_blank" rel="noopener">privacy policy</a>.'
+                                description: 'We use cookies to make the website work and, if you accept them, to count visits. You can turn each category on or off whenever you want. For more details relative to cookies and other sensitive data, please read the full <a href="https://sidecartridge.com/privacy-policy/" class="cc-link" target="_blank" rel="noopener">privacy policy</a>.'
                             }, {
                                 title: 'Strictly necessary cookies',
-                                description: 'These cookies are essential for the proper functioning of my website. Without these cookies, the website would not work properly',
+                                description: 'These cookies are needed for the website to work, such as the one that remembers your choice here.',
                                 toggle: {
                                     value: 'necessary',
                                     enabled: true,
@@ -1360,7 +1360,7 @@ window.addEventListener('error', function (e) {
                                 }
                             }, {
                                 title: 'Performance and Analytics cookies',
-                                description: 'These cookies allow the website to remember the choices you have made in the past',
+                                description: 'Google Analytics: these cookies let us count visits and see which pages are read. They are set only if you accept them.',
                                 toggle: {
                                     value: 'analytics',     // your cookie category
                                     enabled: false,
@@ -1369,22 +1369,22 @@ window.addEventListener('error', function (e) {
                                 cookie_table: [             // list of all expected cookies
                                     {
                                         col1: '^_ga',       // match all cookies starting with "_ga"
-                                        col2: 'google.com',
+                                        col2: 'sidecartridge.com',
                                         col3: '2 years',
-                                        col4: 'description ...',
+                                        col4: 'Google Analytics: tells visits apart',
                                         is_regex: true
                                     },
                                     {
                                         col1: '_gid',
-                                        col2: 'google.com',
+                                        col2: 'sidecartridge.com',
                                         col3: '1 day',
-                                        col4: 'description ...',
+                                        col4: 'Google Analytics: tells visits apart for a day',
                                     }
                                 ]
                             },
                             {
                                 title: 'More information',
-                                description: 'For any queries in relation to our policy on cookies and your choices, please <a class="cc-link" href="https://sidecartridge.com/" target="_blank" rel="noopener">contact us</a>.',
+                                description: 'For any queries in relation to our policy on cookies and your choices, please <a class="cc-link" href="https://store.sidecartridge.com/pages/contact" target="_blank" rel="noopener">contact us</a>.',
                             }
                         ]
                     }
